@@ -1,93 +1,226 @@
-# githubPlanner
+# GitHub Planner
 
+A comprehensive GitHub PR inspector and project planning tool built with Next.js, featuring real-time PR analysis, CI status monitoring, and Kanban-style task management.
 
+## Features
 
-## Getting started
+### 🔍 GitHub PR Inspector
+- **Comprehensive PR Analysis**: Fetch and display detailed PR information including stats, reviews, and file changes
+- **CI/CD Integration**: Real-time status checks and check runs with direct links to details
+- **File Change Visualization**: View modified files with additions/deletions and direct GitHub blob links
+- **Review Summary**: Latest reviews by user with status indicators
+- **Responsive Design**: Works seamlessly on desktop and mobile devices
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+### 📋 Project Planner
+- **Kanban Board**: Interactive task management with drag-and-drop functionality
+- **Task Management**: Create, update, and organize tasks across different buckets (Backlog, Active, Review, Done, Icebox)
+- **GitHub Integration**: Link tasks to GitHub PRs for seamless workflow
+- **Progress Tracking**: Visual progress indicators and checklist management
+- **Collaborative Features**: Comments and discussion threads for each PR
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+### 🛠 Technical Features
+- **Robust API**: RESTful endpoints with comprehensive error handling and validation
+- **MongoDB Integration**: Persistent storage for comments, tasks, and boards
+- **Containerized Deployment**: Full Podman/Docker support with development and production environments
+- **Type Safety**: Full TypeScript implementation with comprehensive type definitions
+- **SaaS-Grade UI**: Modern, accessible design with Tailwind CSS
 
-## Add your files
+## Quick Start
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+### Prerequisites
+- Node.js 18+
+- Podman or Docker
+- MongoDB (handled automatically in containerized setup)
 
+### Local Development
+
+1. **Clone and setup**:
+   ```bash
+   git clone <repository-url>
+   cd githubplanner
+   cp .env.example .env
+   ```
+
+2. **Configure environment**:
+   Edit `.env` with your settings:
+   ```bash
+   # Required for GitHub integration
+   GITHUB_TOKEN=your_github_token_here
+
+   # Required for authentication
+   JWT_SECRET=your-secure-secret-here
+
+   # Database (automatically configured for containers)
+   MONGODB_URI=mongodb://admin:password@mongo:27017/github_planner?authSource=admin
+   ```
+
+3. **Start development environment**:
+   ```bash
+   ./run.sh dev
+   ```
+
+   This will:
+   - Start MongoDB container
+   - Start Next.js development server with hot reload
+   - Bind mount source code for live editing
+
+4. **Access the application**:
+   - Application: http://localhost:3000
+   - MongoDB: localhost:27017
+
+### Production Deployment
+
+```bash
+./run.sh prod
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/drkae456/githubplanner.git
-git branch -M main
-git push -uf origin main
+
+This will:
+- Build optimized production containers
+- Start all services with health checks
+- Run detached for production use
+
+### Available Commands
+
+```bash
+./run.sh dev      # Start development environment
+./run.sh prod     # Start production environment
+./run.sh down     # Stop all services
+./run.sh logs     # View logs (add service name for specific logs)
+./run.sh status   # Check service status
+./run.sh clean    # Clean up containers and volumes
+./run.sh help     # Show detailed help
 ```
 
-## Integrate with your tools
+## API Reference
 
-- [ ] [Set up project integrations](https://gitlab.com/drkae456/githubplanner/-/settings/integrations)
+### GitHub PR Analysis
+```
+GET /api/github/pr?url=https://github.com/owner/repo/pull/123
+```
 
-## Collaborate with your team
+Returns comprehensive PR data including:
+- Basic PR information (title, description, state, etc.)
+- Statistics (commits, files changed, additions/deletions)
+- Review summaries by user
+- CI status and check runs
+- Changed files with GitHub blob links
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+### Comments System
+```
+GET    /api/github/pr/comments?url=<pr_url>  # Get comments
+POST   /api/github/pr/comments               # Create comment
+PUT    /api/github/pr/comments               # Update comment
+DELETE /api/github/pr/comments?id=<id>      # Delete comment
+```
 
-## Test and Deploy
+### Task Management
+```
+GET    /api/planner/tasks?boardId=<id>       # Get tasks
+POST   /api/planner/tasks                    # Create task
+PATCH  /api/planner/tasks                    # Update task
+DELETE /api/planner/tasks?id=<id>           # Delete task
+```
 
-Use the built-in continuous integration in GitLab.
+### Board Management
+```
+GET  /api/planner/boards                     # Get boards
+POST /api/planner/boards                     # Create board
+```
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+## Architecture
 
-***
+### Frontend
+- **Next.js 14** with App Router
+- **TypeScript** for type safety
+- **Tailwind CSS** for styling
+- **Lucide Icons** for consistent iconography
 
-# Editing this README
+### Backend
+- **Next.js API Routes** for serverless functions
+- **MongoDB** for data persistence
+- **GitHub API** integration with rate limiting
+- **JWT** for authentication (future feature)
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+### Infrastructure
+- **Containerized** with Podman/Docker
+- **Multi-stage builds** for optimized production images
+- **Health checks** for service monitoring
+- **Volume persistence** for data retention
 
-## Suggestions for a good README
+## Configuration
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+### Environment Variables
 
-## Name
-Choose a self-explaining name for your project.
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MONGODB_URI` | MongoDB connection string | `mongodb://mongo:27017/github_planner` |
+| `GITHUB_TOKEN` | GitHub personal access token | None (optional) |
+| `JWT_SECRET` | Secret for JWT signing | Required for production |
+| `NODE_ENV` | Environment mode | `development` |
+| `PORT` | Application port | `3000` |
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+### GitHub Token Setup
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+1. Go to GitHub Settings → Developer settings → Personal access tokens
+2. Generate a new token with scopes:
+   - `repo` (for private repositories)
+   - `read:org` (for organization repositories)
+3. Add the token to your `.env` file
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+## Development
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+### Project Structure
+```
+src/
+├── app/                    # Next.js App Router
+│   ├── api/               # API routes
+│   │   ├── github/        # GitHub integration
+│   │   └── planner/       # Task management
+│   ├── pr/                # PR Inspector page
+│   ├── planner/           # Planner board page
+│   └── layout.tsx         # Root layout
+├── lib/                   # Shared utilities
+│   ├── github.ts          # GitHub API utilities
+│   ├── mongodb.ts         # Database connection
+│   └── types.ts           # TypeScript definitions
+```
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+### Key Features
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+#### URL Parsing
+Robust GitHub PR URL parsing with support for:
+- Standard URLs: `https://github.com/owner/repo/pull/123`
+- Scheme-less URLs: `github.com/owner/repo/pull/123`
+- Validation and error handling
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+#### Error Handling
+Comprehensive error responses with helpful hints:
+- 400: Invalid URL format with formatting guidance
+- 403: Access forbidden with SSO/token scope hints
+- 404: PR not found with verification suggestions
+
+#### Data Models
+Type-safe interfaces for all data structures:
+- PR data with nested objects for clean organization
+- Task management with status tracking
+- Comment system with user attribution
 
 ## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Make your changes with proper TypeScript types
+4. Test with both dev and prod containers
+5. Submit a pull request
 
 ## License
-For open source projects, say how it is licensed.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Support
+
+For issues and feature requests, please use the GitHub Issues tab.
+
+---
+
+**Built with ❤️ using Next.js, TypeScript, and Tailwind CSS**

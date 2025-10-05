@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: github-planner-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: github_planner
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"
+    networks:
+      - github-planner-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  web:
+    build:
+      context: .
+      dockerfile: Containerfile
+    container_name: github-planner-web
+    restart: unless-stopped
+    environment:
+      - MONGODB_URI=mongodb://admin:password@mongo:27017/github_planner?authSource=admin
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - JWT_SECRET=${JWT_SECRET:-default-jwt-secret-change-in-production}
+      - NODE_ENV=production
+    ports:
+      - "3000:3000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - github-planner-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  web-dev:
+    build:
+      context: .
+      dockerfile: Containerfile.dev
+    container_name: github-planner-web-dev
+    restart: unless-stopped
+    environment:
+      - MONGODB_URI=mongodb://admin:password@mongo:27017/github_planner?authSource=admin
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - JWT_SECRET=${JWT_SECRET:-default-jwt-secret-for-dev}
+      - NODE_ENV=development
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount source code for hot reload
+      - .:/app:Z
+      # Preserve node_modules and build cache in named volumes for performance
+      - node_modules_dev:/app/node_modules
+      - next_cache_dev:/app/.next
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - github-planner-network
+    profiles:
+      - dev
+    # Improve performance for file watching in containers
+    security_opt:
+      - label=disable
+    stdin_open: true
+    tty: true
+
+volumes:
+  mongo_data:
+    driver: local
+  node_modules_dev:
+    driver: local
+  next_cache_dev:
+    driver: local
+
+networks:
+  github-planner-network:
+    driver: bridge
