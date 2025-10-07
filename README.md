@@ -21,6 +21,35 @@ A comprehensive GitHub PR inspector and project planning tool built with Next.js
 ### 🛠 Technical Features
 - **Robust API**: RESTful endpoints with comprehensive error handling and validation
 - **MongoDB Integration**: Persistent storage for comments, tasks, and boards
+
+## New: Authentication, Companies, and Projects (beta)
+
+The app now includes a basic sign up / sign in flow (Credentials via NextAuth), multi-tenant Companies and Projects, member preferences and a draft auto-allocation API, plus task locking and PR-number support.
+
+Quick start:
+
+1. Environment
+   - Set `MONGODB_URI` and `NEXTAUTH_SECRET` (or `JWT_SECRET`) in `.env`.
+2. Run the app and visit `/signup` to create an account, then sign in at `/signin`.
+3. Onboarding at `/onboarding`: create a company or join with a code.
+4. Dashboard at `/dashboard`: manage projects and grab your join code.
+5. Planner tasks now support locking (Edit → Lock this task). Locked tasks can only be edited by the locker (admins/staff support coming next).
+6. If a project is configured with a GitHub repo, the tasks API accepts `prNumber` to build the PR URL automatically.
+
+API additions (beta):
+
+- `POST /api/auth/signup` → Create an account
+- `GET/POST /api/companies` → List or create companies
+- `POST /api/companies/join` → Join with code
+- `GET/POST/PUT/DELETE /api/projects` → Manage projects; `PUT` accepts `repoOwner`, `repoName`, and `repoToken`
+- `GET/PUT /api/preferences` → Save ranked project preferences
+- `POST /api/allocations/preview` and `/api/allocations/commit` → Greedy allocation
+- Planner tasks `POST` now also accepts `{ prNumber, projectId }` and will derive `prUrl` if the project has a configured repo
+
+Notes:
+
+- Admin/staff role enforcement and full UI for assignments are being implemented next.
+- Existing boards/tasks continue to work; new fields are optional for backward compatibility.
 - **Containerized Deployment**: Full Podman/Docker support with development and production environments
 - **Type Safety**: Full TypeScript implementation with comprehensive type definitions
 - **SaaS-Grade UI**: Modern, accessible design with Tailwind CSS

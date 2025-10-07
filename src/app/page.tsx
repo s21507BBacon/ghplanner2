@@ -1,7 +1,29 @@
+"use client";
+import { useSession, signOut } from 'next-auth/react';
+
 export default function Home() {
+  const { data: session } = useSession();
+  const isAuthed = !!session;
+
   return (
     <main className="container mx-auto px-4 py-8">
-      <h1 className="text-4xl font-bold text-center mb-8">GitHub Planner</h1>
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-4xl font-bold">GitHub Planner</h1>
+        <div className="flex items-center gap-3">
+          {isAuthed ? (
+            <>
+              <a href="/planner" className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">Planner</a>
+              <a href="/dashboard" className="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300">Dashboard</a>
+              <button onClick={() => signOut()} className="px-4 py-2 rounded text-slate-700 hover:bg-slate-100">Sign out</button>
+            </>
+          ) : (
+            <>
+              <a href="/signin" className="px-4 py-2 rounded text-slate-700 hover:bg-slate-100">Sign in</a>
+              <a href="/signup" className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">Sign up</a>
+            </>
+          )}
+        </div>
+      </div>
       <div className="max-w-2xl mx-auto">
         <div className="border rounded-lg p-8 hover:shadow-lg transition-shadow text-center">
           <h2 className="text-3xl font-semibold mb-4">Project Planner</h2>
@@ -10,10 +32,10 @@ export default function Home() {
             Link GitHub PRs to tasks for comprehensive project management with integrated PR analysis.
           </p>
           <a
-            href="/planner"
+            href={isAuthed ? "/planner" : "/signin"}
             className="inline-flex items-center justify-center rounded-md text-lg font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-12 px-8 py-3"
           >
-            Open Planner
+            {isAuthed ? 'Open Planner' : 'Sign in to open Planner'}
           </a>
         </div>
 

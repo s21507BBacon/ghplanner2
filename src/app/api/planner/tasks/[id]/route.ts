@@ -39,11 +39,15 @@ export async function GET(
       labels: task.labels,
       prUrl: task.prUrl,
       assignee: task.assignee,
+      assignees: (task as any).assignees || (task.assignee ? [task.assignee] : []),
+      isLocked: (task as any).isLocked || false,
       createdAt: task.createdAt.toISOString(),
       updatedAt: task.updatedAt.toISOString(),
       checklist: task.checklist || [],
       boardId: task.boardId,
       order: task.order || 0,
+      companyId: (task as any).companyId,
+      projectId: (task as any).projectId,
     });
 
   } catch (error) {

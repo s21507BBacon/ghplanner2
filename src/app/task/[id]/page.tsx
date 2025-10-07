@@ -19,7 +19,8 @@ import {
   Calendar,
   User,
   Tag,
-  AlertCircle
+  AlertCircle,
+  Trash2
 } from 'lucide-react';
 import { Task, STATUS_COLORS, Column, getColumnColorClasses } from '@/lib/types';
 
@@ -148,6 +149,7 @@ export default function TaskDetailPage() {
   const [prLoading, setPrLoading] = useState(false);
   const [commentsLoading, setCommentsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [assigneeUsers, setAssigneeUsers] = useState<Array<{ id: string; name: string; email: string }>>([]);
 
   // Comment form state
   const [newComment, setNewComment] = useState('');
@@ -168,7 +170,26 @@ export default function TaskDetailPage() {
     if (task?.columnId) {
       fetchColumn();
     }
+    if (task?.projectId && (task as any)?.assignees?.length > 0) {
+      fetchAssigneeUsers();
+    }
   }, [task]);
+
+  const fetchAssigneeUsers = async () => {
+    if (!(task as any)?.projectId) return;
+    
+    try {
+      const response = await fetch(`/api/projects/${(task as any).projectId}/users`);
+      if (response.ok) {
+        const data = await response.json();
+        const taskAssignees = (task as any).assignees || [];
+        const filteredUsers = data.users.filter((u: any) => taskAssignees.includes(u.id));
+        setAssigneeUsers(filteredUsers);
+      }
+    } catch (err) {
+      console.error('Failed to fetch assignee users:', err);
+    }
+  };
 
   const fetchTask = async () => {
     setTaskLoading(true);
@@ -233,6 +254,22 @@ export default function TaskDetailPage() {
     }
   };
 
+  const handleDeleteTask = async () => {
+    if (!taskId) return;
+    if (!confirm('Delete this task permanently?')) return;
+    try {
+      const res = await fetch(`/api/planner/tasks?id=${taskId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({} as any));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      router.push('/planner');
+    } catch (e) {
+      console.error('Failed to delete task:', e);
+      alert('Failed to delete task. Please try again.');
+    }
+  };
+
   const submitComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim() || !commentAuthor.trim()) return;
@@ -283,7 +320,7 @@ export default function TaskDetailPage() {
 
   if (taskLoading) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-slate-50 pt-16">
         <div className="max-w-6xl mx-auto p-6">
           <div className="mb-6">
             <Skeleton className="h-10 w-32 mb-4" />
@@ -305,7 +342,7 @@ export default function TaskDetailPage() {
 
   if (error || !task) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-slate-50 pt-16">
         <div className="max-w-6xl mx-auto p-6">
           <button
             onClick={() => router.back()}
@@ -328,7 +365,7 @@ export default function TaskDetailPage() {
   const columnColors = column ? getColumnColorClasses(column.color) : getColumnColorClasses('slate');
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 pt-16">
       <div className="max-w-6xl mx-auto p-6">
         {/* Header */}
         <div className="mb-6">
@@ -363,10 +400,12 @@ export default function TaskDetailPage() {
                 <p className="text-slate-700 mb-4">{task.description}</p>
               )}
               <div className="flex items-center gap-4 text-sm text-slate-600">
-                {task.assignee && (
+                {assigneeUsers.length > 0 && (
                   <div className="flex items-center gap-1">
                     <User className="w-4 h-4" />
-                    <span className="font-mono">{task.assignee}</span>
+                    <span className="font-mono">
+                      {assigneeUsers.map(u => u.name).join(', ')}
+                    </span>
                   </div>
                 )}
                 <div className="flex items-center gap-1">
@@ -374,6 +413,16 @@ export default function TaskDetailPage() {
                   <span>Created {new Date(task.createdAt).toLocaleDateString()}</span>
                 </div>
               </div>
+            </div>
+            <div className="flex items-center gap-2 ml-4">
+              <button
+                onClick={handleDeleteTask}
+                className="inline-flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                title="Delete task"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </button>
             </div>
           </div>
         </div>
@@ -396,12 +445,16 @@ export default function TaskDetailPage() {
                 {column?.name || 'Unknown'}
               </span>
             </div>
-            {task.assignee && (
+            {assigneeUsers.length > 0 && (
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-600">Assignee</label>
-                <div className="flex items-center gap-1 text-sm">
-                  <User className="w-4 h-4 text-slate-500" />
-                  <span className="font-mono">{task.assignee}</span>
+                <label className="text-sm font-medium text-slate-600">Assignees</label>
+                <div className="flex flex-wrap gap-2">
+                  {assigneeUsers.map(user => (
+                    <div key={user.id} className="flex items-center gap-1 text-sm bg-slate-100 px-2 py-1 rounded">
+                      <User className="w-3 h-3 text-slate-500" />
+                      <span className="font-mono">{user.name}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

@@ -75,6 +75,7 @@ services:
       - github-planner-network
     profiles:
       - dev
+    command: sh -lc "npm ci && npm run dev"
     # Improve performance for file watching in containers
     security_opt:
       - label=disable

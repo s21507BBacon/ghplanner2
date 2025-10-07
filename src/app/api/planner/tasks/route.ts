@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
-import { Task, ChecklistItem } from '@/lib/types';
+import { Task } from '@/lib/types';
 import { parsePRUrl } from '@/lib/github';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const boardId = searchParams.get('boardId');
+  const projectId = searchParams.get('projectId');
 
   if (!boardId) {
     return NextResponse.json(
@@ -16,9 +19,11 @@ export async function GET(request: NextRequest) {
 
   try {
     const db = await connectToDatabase();
+    const query: any = { boardId };
+    if (projectId) query.projectId = projectId;
     const tasks = await db
       .collection<Task>('tasks')
-      .find({ boardId })
+      .find(query)
       .sort({ createdAt: -1 })
       .toArray();
 
@@ -32,10 +37,14 @@ export async function GET(request: NextRequest) {
         labels: task.labels,
         prUrl: task.prUrl,
         assignee: task.assignee,
+        assignees: (task as any).assignees || (task.assignee ? [task.assignee] : []),
+        isLocked: (task as any).isLocked || false,
         createdAt: task.createdAt.toISOString(),
         updatedAt: task.updatedAt.toISOString(),
         checklist: task.checklist || [],
         order: task.order || 0,
+        companyId: (task as any).companyId,
+        projectId: (task as any).projectId,
       })),
     });
   } catch (error) {
@@ -49,8 +58,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions as any);
+    const userId = (session as any)?.userId as string | undefined;
     const body = await request.json();
-    const { title, description, columnId, status, labels, prUrl, assignee, boardId } = body;
+    const { title, description, columnId, status, labels, prUrl, prNumber, assignee, assignees, boardId, companyId, projectId } = body as any;
 
     if (!title || typeof title !== 'string' || title.trim().length === 0) {
       return NextResponse.json(
@@ -81,8 +92,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate prUrl if provided
-    if (prUrl && !parsePRUrl(prUrl)) {
+    // Validate prUrl if provided (or try to build from prNumber + project repo)
+    let finalPrUrl: string | undefined = prUrl?.trim() || undefined;
+    if (!finalPrUrl && prNumber && projectId) {
+      const db = await connectToDatabase();
+      const proj = await db.collection('projects').findOne({ id: projectId } as any);
+      if (proj && proj.repoOwner && proj.repoName && typeof prNumber === 'number') {
+        finalPrUrl = `https://github.com/${proj.repoOwner}/${proj.repoName}/pull/${prNumber}`;
+      }
+    }
+
+    if (finalPrUrl && !parsePRUrl(finalPrUrl)) {
       return NextResponse.json(
         { error: 'Invalid PR URL format' },
         { status: 400 }
@@ -106,14 +126,19 @@ export async function POST(request: NextRequest) {
       columnId,
       status: status || 'pending',
       labels: Array.isArray(labels) ? labels.filter(l => typeof l === 'string' && l.trim()) : [],
-      prUrl: prUrl?.trim() || undefined,
+      prUrl: finalPrUrl,
       assignee: assignee?.trim() || undefined,
+      assignees: Array.isArray(assignees) ? assignees : (assignee?.trim() ? [assignee.trim()] : undefined),
       boardId,
+      companyId: companyId || undefined,
+      projectId: projectId || undefined,
+      createdByUserId: userId,
+      isLocked: isLocked === true,
       order: nextOrder,
       createdAt: now,
       updatedAt: now,
       checklist: [],
-    };
+    } as Task;
 
     const result = await db.collection<Task>('tasks').insertOne(task);
 
@@ -126,6 +151,10 @@ export async function POST(request: NextRequest) {
       labels: task.labels,
       prUrl: task.prUrl,
       assignee: task.assignee,
+      assignees: (task as any).assignees || [],
+      companyId: task.companyId,
+      projectId: task.projectId,
+      isLocked: (task as any).isLocked || false,
       createdAt: task.createdAt.toISOString(),
       updatedAt: task.updatedAt.toISOString(),
       checklist: task.checklist,
@@ -151,6 +180,8 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions as any);
+    const userId = (session as any)?.userId as string | undefined;
     const body = await request.json();
     const { id, ...updates } = body;
 
@@ -162,7 +193,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Validate updates
-    const allowedFields = ['title', 'description', 'columnId', 'status', 'labels', 'prUrl', 'assignee', 'order'];
+    const allowedFields = ['title', 'description', 'columnId', 'status', 'labels', 'prUrl', 'assignee', 'assignees', 'order', 'isLocked'];
     const updateData: any = {};
 
     for (const [key, value] of Object.entries(updates)) {
@@ -213,10 +244,44 @@ export async function PATCH(request: NextRequest) {
     const db = await connectToDatabase();
     const { ObjectId } = require('mongodb');
 
+    // Enforce assignee permission: only assignees or admins can modify
+    const existing = await db.collection<Task>('tasks').findOne({ _id: new ObjectId(id) } as any);
+    if (!existing) {
+      return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+    }
+    
+    // Check if user is an assignee
+    const taskAssignees = (existing as any).assignees || (existing.assignee ? [existing.assignee] : []);
+    const isAssignee = userId && taskAssignees.includes(userId);
+    
+    // Check if user is admin/owner
+    let isAdmin = false;
+    if ((existing as any).companyId && userId) {
+      try {
+        const membership = await db.collection('memberships').findOne({ userId, companyId: (existing as any).companyId } as any);
+        const role = (membership as any)?.role as string | undefined;
+        if (role && (role === 'owner' || role === 'admin' || role === 'staff')) {
+          isAdmin = true;
+        }
+      } catch {}
+    }
+    
+    // If task is locked, only assignees (or admins) can edit
+    if ((existing as any).isLocked === true) {
+      if (!isAssignee && !isAdmin) {
+        return NextResponse.json({ error: 'This task is locked. Only assignees can edit it.' }, { status: 403 });
+      }
+    }
+    
+    // If task has assignees (and is not locked), only they (or admins) can edit
+    if (taskAssignees.length > 0 && !isAssignee && !isAdmin) {
+      return NextResponse.json({ error: 'Only assigned users can edit this task' }, { status: 403 });
+    }
+
     const result = await db
       .collection<Task>('tasks')
       .findOneAndUpdate(
-        { _id: new ObjectId(id) },
+        { _id: new ObjectId(id) } as any,
         { $set: updateData },
         { returnDocument: 'after' }
       );
@@ -238,6 +303,8 @@ export async function PATCH(request: NextRequest) {
       labels: updated.labels,
       prUrl: updated.prUrl,
       assignee: updated.assignee,
+      assignees: (updated as any).assignees || [],
+      isLocked: (updated as any).isLocked || false,
       createdAt: updated.createdAt instanceof Date ? updated.createdAt.toISOString() : new Date(updated.createdAt).toISOString(),
       updatedAt: updated.updatedAt instanceof Date ? updated.updatedAt.toISOString() : new Date(updated.updatedAt).toISOString(),
       checklist: updated.checklist || [],
@@ -273,8 +340,41 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
+    const session = await getServerSession(authOptions as any);
+    const userId = (session as any)?.userId as string | undefined;
     const db = await connectToDatabase();
     const { ObjectId } = require('mongodb');
+
+    const existing = await db.collection<Task>('tasks').findOne({ _id: new ObjectId(id) } as any);
+    if (!existing) return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+    
+    // Check if user is an assignee
+    const taskAssignees = (existing as any).assignees || (existing.assignee ? [existing.assignee] : []);
+    const isAssignee = userId && taskAssignees.includes(userId);
+    
+    // Check if user is admin/owner
+    let isAdmin = false;
+    if ((existing as any).companyId && userId) {
+      try {
+        const membership = await db.collection('memberships').findOne({ userId, companyId: (existing as any).companyId } as any);
+        const role = (membership as any)?.role as string | undefined;
+        if (role && (role === 'owner' || role === 'admin' || role === 'staff')) {
+          isAdmin = true;
+        }
+      } catch {}
+    }
+    
+    // If task is locked, only assignees (or admins) can delete
+    if ((existing as any).isLocked === true) {
+      if (!isAssignee && !isAdmin) {
+        return NextResponse.json({ error: 'This task is locked. Only assignees can delete it.' }, { status: 403 });
+      }
+    }
+    
+    // If task has assignees (and is not locked), only they (or admins) can delete
+    if (taskAssignees.length > 0 && !isAssignee && !isAdmin) {
+      return NextResponse.json({ error: 'Only assigned users can delete this task' }, { status: 403 });
+    }
 
     const result = await db
       .collection<Task>('tasks')

@@ -2,12 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { Board } from '@/lib/types';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const db = await connectToDatabase();
+    const projectId = request.nextUrl.searchParams.get('projectId');
+    const companyId = request.nextUrl.searchParams.get('companyId');
+
+    const query: any = {};
+    if (projectId) query.projectId = projectId;
+    if (companyId) query.companyId = companyId;
+
     const boards = await db
       .collection<Board>('boards')
-      .find({})
+      .find(query)
       .sort({ createdAt: -1 })
       .toArray();
 
@@ -16,6 +23,8 @@ export async function GET() {
         id: board._id?.toString() || board.id,
         name: board.name,
         description: board.description,
+        companyId: (board as any).companyId,
+        projectId: (board as any).projectId,
         createdAt: board.createdAt.toISOString(),
         updatedAt: board.updatedAt.toISOString(),
       })),
@@ -32,7 +41,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, description } = body;
+    const { name, description, projectId, companyId } = body as any;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return NextResponse.json(
@@ -41,6 +50,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // projectId is optional for backward compatibility; when provided, board is scoped to project
+
     const db = await connectToDatabase();
     const now = new Date();
 
@@ -48,6 +59,8 @@ export async function POST(request: NextRequest) {
       id: crypto.randomUUID(),
       name: name.trim(),
       description: description?.trim() || '',
+      projectId,
+      companyId,
       createdAt: now,
       updatedAt: now,
     };
@@ -58,6 +71,8 @@ export async function POST(request: NextRequest) {
       id: result.insertedId.toString(),
       name: board.name,
       description: board.description,
+      projectId: board.projectId,
+      companyId: (board as any).companyId,
       createdAt: board.createdAt.toISOString(),
       updatedAt: board.updatedAt.toISOString(),
     }, { status: 201 });

@@ -9,12 +9,21 @@ export interface Task {
   status: 'pending' | 'in_progress' | 'completed' | 'blocked';
   labels: string[];
   prUrl?: string;
-  assignee?: string;
+  prNumber?: number; // optional shortcut when project repo configured
+  assignee?: string; // deprecated - kept for backwards compatibility
+  assignees?: string[]; // array of user IDs
   createdAt: Date;
   updatedAt: Date;
   checklist: ChecklistItem[];
   boardId: string;
   order: number;
+  // Multi-tenant scoping (optional during migration)
+  companyId?: string;
+  projectId?: string;
+  createdByUserId?: string;
+  // Task locking
+  isLocked?: boolean;
+  lockedByUserId?: string;
 }
 
 export interface ChecklistItem {
@@ -32,6 +41,9 @@ export interface Board {
   description?: string;
   createdAt: Date;
   updatedAt: Date;
+  // Optional scoping
+  companyId?: string;
+  projectId?: string;
 }
 
 export interface Column {
@@ -141,3 +153,117 @@ export const STATUS_COLORS = {
   completed: 'bg-green-100 text-green-800 border-green-200',
   blocked: 'bg-red-100 text-red-800 border-red-200',
 } as const;
+
+// New multi-tenant domain entities
+export interface AppUser {
+  _id?: string;
+  id: string;
+  email: string;
+  name?: string;
+  passwordHash?: string; // for credentials sign-in
+  emailVerified?: boolean;
+  emailVerificationToken?: string;
+  emailVerificationExpires?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Company {
+  _id?: string;
+  id: string;
+  name: string;
+  slug: string;
+  ownerUserId: string;
+  inviteCode: string;
+  inviteLinkSalt: string;
+  domainAllowlist?: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type Role = 'owner' | 'admin' | 'staff' | 'member';
+
+export interface Membership {
+  _id?: string;
+  id: string;
+  userId: string;
+  companyId: string;
+  role: Role;
+  status: 'active' | 'pending';
+  createdAt: Date;
+}
+
+export interface Project {
+  _id?: string;
+  id: string;
+  companyId: string;
+  name: string;
+  description?: string;
+  maxSeats: number;
+  isActive: boolean;
+  inviteCode: string;
+  inviteLinkSalt: string;
+  repoOwner?: string;
+  repoName?: string;
+  repoTokenEncrypted?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ProjectPreference {
+  _id?: string;
+  id: string;
+  userId: string;
+  companyId: string;
+  projectId: string;
+  rank: number; // 1..N (1 = top preference)
+  createdAt: Date;
+}
+
+export interface Assignment {
+  _id?: string;
+  id: string;
+  userId: string;
+  companyId: string;
+  projectId: string;
+  assignedAt: Date;
+  assignedByUserId: string; // 'auto' or actual user id
+}
+
+// Enterprise entities
+export interface Enterprise {
+  _id?: string;
+  id: string;
+  name: string;
+  slug: string;
+  ownerUserId: string;
+  inviteCode: string;
+  inviteLinkSalt: string;
+  domainAllowlist?: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface EnterpriseMembership {
+  _id?: string;
+  id: string;
+  userId: string;
+  enterpriseId: string;
+  role: Role;
+  status: 'active' | 'pending';
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// UserPreference for enterprise join flow
+export interface UserPreference {
+  _id?: string;
+  id: string;
+  userId: string;
+  enterpriseId: string;
+  companyId?: string;
+  projectId?: string;
+  status: 'pending' | 'allocated' | 'rejected';
+  createdAt: Date;
+  updatedAt: Date;
+}
