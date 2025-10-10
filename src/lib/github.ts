@@ -86,26 +86,52 @@ export interface GitHubCombinedStatus {
 }
 
 export function parsePRUrl(url: string): ParsedPRUrl | null {
-  if (!url) return null;
+  if (!url) {
+    console.log('parsePRUrl: URL is empty or null');
+    return null;
+  }
+
+  // Trim whitespace
+  const originalUrl = url;
+  url = url.trim();
+  console.log('parsePRUrl: Original URL:', originalUrl, 'Trimmed URL:', url);
 
   // Handle scheme-less URLs
   let normalizedUrl = url;
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
     normalizedUrl = `https://${url}`;
+    console.log('parsePRUrl: Added scheme, normalized to:', normalizedUrl);
   }
 
   try {
     const urlObj = new URL(normalizedUrl);
+    console.log('parsePRUrl: Parsed URL object:', {
+      hostname: urlObj.hostname,
+      pathname: urlObj.pathname,
+      href: urlObj.href
+    });
 
-    // Only accept github.com URLs
-    if (urlObj.hostname !== 'github.com') {
+    // Only accept github.com URLs (and www.github.com)
+    const hostname = urlObj.hostname.toLowerCase();
+    if (hostname !== 'github.com' && hostname !== 'www.github.com') {
+      console.error('parsePRUrl: Invalid hostname:', hostname);
       return null;
     }
 
     // Expected format: /owner/repo/pull/number
+    // Also accepts trailing slashes and additional paths like /files, /commits, etc.
     const pathParts = urlObj.pathname.split('/').filter(Boolean);
+    console.log('parsePRUrl: Path parts:', pathParts);
 
-    if (pathParts.length < 4 || pathParts[2] !== 'pull') {
+    // Need at least: owner, repo, pull, number
+    if (pathParts.length < 4) {
+      console.error('parsePRUrl: Not enough path parts. Expected at least 4, got:', pathParts.length);
+      return null;
+    }
+
+    // Check if 'pull' is at the correct position
+    if (pathParts[2] !== 'pull') {
+      console.error('parsePRUrl: Third path segment is not "pull", got:', pathParts[2]);
       return null;
     }
 
@@ -113,12 +139,17 @@ export function parsePRUrl(url: string): ParsedPRUrl | null {
     const repo = pathParts[1];
     const number = parseInt(pathParts[3], 10);
 
+    console.log('parsePRUrl: Extracted values:', { owner, repo, number });
+
     if (!owner || !repo || isNaN(number) || number <= 0) {
+      console.error('parsePRUrl: Invalid extracted values:', { owner, repo, number });
       return null;
     }
 
+    console.log('parsePRUrl: SUCCESS! Returning:', { owner, repo, number });
     return { owner, repo, number };
-  } catch {
+  } catch (error) {
+    console.error('parsePRUrl: Failed to parse PR URL:', url, error);
     return null;
   }
 }
@@ -212,6 +243,78 @@ export function getGitHubHeaders(token?: string): HeadersInit {
   }
 
   return headers;
+}
+
+export interface PRStatusResult {
+  merged: boolean;
+  closed: boolean;
+  approved: boolean;
+  changesRequested: boolean;
+  state: 'open' | 'closed';
+  error?: string;
+}
+
+export async function checkPRStatus(prUrl: string, githubToken?: string): Promise<PRStatusResult> {
+  const parsed = parsePRUrl(prUrl);
+  if (!parsed) {
+    return { merged: false, closed: false, approved: false, changesRequested: false, state: 'open', error: 'Invalid PR URL' };
+  }
+
+  try {
+    // Fetch PR details
+    const prApiUrl = `https://api.github.com/repos/${parsed.owner}/${parsed.repo}/pulls/${parsed.number}`;
+    const prResponse = await fetch(prApiUrl, {
+      headers: getGitHubHeaders(githubToken),
+    });
+
+    if (!prResponse.ok) {
+      console.error(`Failed to fetch PR: ${prResponse.status}`);
+      return { merged: false, closed: false, approved: false, changesRequested: false, state: 'open', error: `HTTP ${prResponse.status}` };
+    }
+
+    const prData: GitHubPR = await prResponse.json();
+    
+    // Fetch PR reviews
+    const reviewsApiUrl = `https://api.github.com/repos/${parsed.owner}/${parsed.repo}/pulls/${parsed.number}/reviews`;
+    const reviewsResponse = await fetch(reviewsApiUrl, {
+      headers: getGitHubHeaders(githubToken),
+    });
+
+    let approved = false;
+    let changesRequested = false;
+
+    if (reviewsResponse.ok) {
+      const reviews: GitHubReview[] = await reviewsResponse.json();
+      const reviewsByUser = getReviewSummaryByUser(reviews);
+      
+      // Check for approval and requested changes in latest reviews
+      for (const review of Object.values(reviewsByUser)) {
+        if (review.state === 'APPROVED') {
+          approved = true;
+        }
+        if (review.state === 'CHANGES_REQUESTED') {
+          changesRequested = true;
+        }
+      }
+    }
+
+    return {
+      merged: prData.merged,
+      closed: prData.state === 'closed',
+      approved,
+      changesRequested,
+      state: prData.state,
+    };
+  } catch (error) {
+    console.error('Error checking PR status:', error);
+    return { merged: false, closed: false, approved: false, changesRequested: false, state: 'open', error: 'Failed to check PR status' };
+  }
+}
+
+// Keep old function for backward compatibility
+export async function checkPRMergeStatus(prUrl: string, githubToken?: string): Promise<{ merged: boolean; error?: string }> {
+  const result = await checkPRStatus(prUrl, githubToken);
+  return { merged: result.merged, error: result.error };
 }
 
 export function getErrorMessage(status: number, message?: string): { error: string; hint?: string } {

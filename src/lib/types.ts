@@ -6,7 +6,7 @@ export interface Task {
   title: string;
   description?: string;
   columnId: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'blocked';
+  status: 'pending' | 'in_progress' | 'completed' | 'blocked' | 'approved' | 'merged' | 'changes_requested';
   labels: string[];
   prUrl?: string;
   prNumber?: number; // optional shortcut when project repo configured
@@ -56,6 +56,9 @@ export interface Column {
   createdAt: Date;
   updatedAt: Date;
   requiresPr?: boolean;
+  moveToColumnOnMerge?: string; // Column ID to move tasks to when PR is merged
+  moveToColumnOnClosed?: string; // Column ID to move tasks to when PR is closed (but not merged)
+  moveToColumnOnRequestChanges?: string; // Column ID to move tasks to when PR has requested changes
 }
 
 export interface TaskUpdate {
@@ -152,6 +155,9 @@ export const STATUS_COLORS = {
   in_progress: 'bg-blue-100 text-blue-800 border-blue-200',
   completed: 'bg-green-100 text-green-800 border-green-200',
   blocked: 'bg-red-100 text-red-800 border-red-200',
+  approved: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  merged: 'bg-purple-100 text-purple-800 border-purple-200',
+  changes_requested: 'bg-orange-100 text-orange-800 border-orange-200',
 } as const;
 
 // New multi-tenant domain entities
@@ -174,6 +180,7 @@ export interface Company {
   name: string;
   slug: string;
   ownerUserId: string;
+  enterpriseId?: string;
   inviteCode: string;
   inviteLinkSalt: string;
   domainAllowlist?: string[];
@@ -266,4 +273,18 @@ export interface UserPreference {
   status: 'pending' | 'allocated' | 'rejected';
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface EnterpriseInvite {
+  _id?: string;
+  id: string;
+  enterpriseId: string;
+  email: string;
+  name?: string;
+  token: string;
+  invitedByUserId: string;
+  status: 'pending' | 'accepted' | 'expired';
+  expiresAt: Date;
+  createdAt: Date;
+  acceptedAt?: Date;
 }

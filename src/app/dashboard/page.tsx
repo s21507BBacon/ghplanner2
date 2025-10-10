@@ -2,20 +2,11 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Edit2, Trash2, X, UserPlus, UserMinus } from 'lucide-react';
+import { Edit2, Trash2, X } from 'lucide-react';
 
 interface Enterprise { id: string; name: string; inviteCode: string }
 interface Company { id: string; name: string; inviteCode: string; enterpriseId?: string }
 interface Project { id: string; name: string; maxSeats: number; isActive: boolean; inviteCode: string }
-interface UserPreference { 
-  id: string; 
-  userId: string; 
-  enterpriseId: string; 
-  companyId?: string; 
-  projectId?: string; 
-  status: 'pending' | 'allocated' | 'rejected';
-  userName?: string;
-}
 
 export default function DashboardPage() {
   const { data: session } = useSession();
@@ -29,19 +20,12 @@ export default function DashboardPage() {
   const [newProjectName, setNewProjectName] = useState('');
   const [maxSeats, setMaxSeats] = useState(3);
   const [showCreateCompany, setShowCreateCompany] = useState(false);
-  const [pendingUsers, setPendingUsers] = useState<UserPreference[]>([]);
   const [editingCompany, setEditingCompany] = useState<{ id: string; name: string } | null>(null);
   const [editingProject, setEditingProject] = useState<{ id: string; name: string; maxSeats: number } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'company' | 'project'; id: string; name: string } | null>(null);
-  const [showMemberManagement, setShowMemberManagement] = useState(false);
-  const [enterpriseMembers, setEnterpriseMembers] = useState<Array<any>>([]);
-  const [availableProjects, setAvailableProjects] = useState<Array<any>>([]);
-  const [availableCompanies, setAvailableCompanies] = useState<Array<any>>([]);
-  const [addingMember, setAddingMember] = useState<{ userId: string; userName: string } | null>(null);
-  const [selectedAddCompanyId, setSelectedAddCompanyId] = useState<string>('');
-  const [selectedAddProjectId, setSelectedAddProjectId] = useState<string>('');
   const [isOwnerOrAdmin, setIsOwnerOrAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [pendingUsers, setPendingUsers] = useState<any[]>([]);
 
   useEffect(() => {
     if (session === null) router.push('/signin');
@@ -229,44 +213,6 @@ export default function DashboardPage() {
     }
   };
 
-  const loadEnterpriseMembers = async () => {
-    if (!selectedEnterpriseId) return;
-    const res = await fetch(`/api/enterprises/${selectedEnterpriseId}/members`);
-    if (res.ok) {
-      const data = await res.json();
-      setEnterpriseMembers(data.members || []);
-      setAvailableCompanies(data.companies || []);
-      setAvailableProjects(data.projects || []);
-    }
-  };
-
-  const addMemberToProject = async () => {
-    if (!addingMember || !selectedAddCompanyId || !selectedAddProjectId) return;
-    const res = await fetch(`/api/enterprises/${selectedEnterpriseId}/members`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId: addingMember.userId,
-        companyId: selectedAddCompanyId,
-        projectId: selectedAddProjectId,
-      }),
-    });
-    if (res.ok) {
-      await loadEnterpriseMembers();
-      setAddingMember(null);
-      setSelectedAddCompanyId('');
-      setSelectedAddProjectId('');
-    }
-  };
-
-  const removeMemberFromProject = async (assignmentId: string) => {
-    const res = await fetch(`/api/enterprises/${selectedEnterpriseId}/members?assignmentId=${assignmentId}`, {
-      method: 'DELETE',
-    });
-    if (res.ok) {
-      await loadEnterpriseMembers();
-    }
-  };
 
   const selectedEnterprise = enterprises.find(e => e.id === selectedEnterpriseId);
   const selectedCompany = companies.find(c => c.id === selectedCompanyId);
@@ -308,13 +254,10 @@ export default function DashboardPage() {
           )}
           {selectedEnterprise && (
             <button
-              onClick={() => {
-                setShowMemberManagement(!showMemberManagement);
-                if (!showMemberManagement) loadEnterpriseMembers();
-              }}
+              onClick={() => router.push('/dashboard/members')}
               className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
             >
-              {showMemberManagement ? 'Hide' : 'Manage Members'}
+              Manage Members
             </button>
           )}
         </div>
@@ -388,9 +331,8 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-6">
-          <div className="bg-white border border-slate-200 rounded-lg p-6">
-            <h2 className="font-semibold mb-3">Projects</h2>
+        <div className="bg-white border border-slate-200 rounded-lg p-6">
+          <h2 className="font-semibold mb-3">Projects</h2>
             <div className="space-y-3">
               {projects.map(p => (
                 <div key={p.id} className="border border-slate-200 rounded p-3">
@@ -448,146 +390,7 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
-
-          <div className="bg-white border border-slate-200 rounded-lg p-6">
-            <h2 className="font-semibold mb-3">Pending Allocations</h2>
-            {pendingUsers.length === 0 ? (
-              <p className="text-sm text-slate-600">No pending user requests</p>
-            ) : (
-              <div className="space-y-3">
-                {pendingUsers.map(user => (
-                  <div key={user.id} className="border border-slate-200 rounded p-3">
-                    <div className="text-sm font-medium">{user.userName || 'User'}</div>
-                    <div className="text-xs text-slate-600">
-                      Requested: {user.companyId && companies.find(c => c.id === user.companyId)?.name || 'Any company'}
-                      {user.projectId && ` - ${projects.find(p => p.id === user.projectId)?.name || 'Project'}`}
-                    </div>
-                    <div className="mt-2 flex gap-2">
-                      <button
-                        onClick={() => {
-                          const cId = user.companyId || selectedCompanyId;
-                          const pId = user.projectId || projects[0]?.id;
-                          if (cId && pId) allocateUser(user.id, cId, pId);
-                        }}
-                        className="text-xs px-3 py-1 bg-green-600 text-white rounded"
-                      >
-                        Allocate
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
-
-        {showMemberManagement && selectedEnterprise && (
-          <div className="bg-white border border-slate-200 rounded-lg p-6">
-            <h2 className="font-semibold mb-4">Enterprise Members & Project Assignments</h2>
-            <div className="space-y-4">
-              {enterpriseMembers.map(member => (
-                <div key={member.id} className="border border-slate-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <div className="font-medium">{member.name}</div>
-                      <div className="text-sm text-slate-600">{member.email}</div>
-                    </div>
-                    <button
-                      onClick={() => setAddingMember({ userId: member.id, userName: member.name })}
-                      className="flex items-center gap-2 px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
-                    >
-                      <UserPlus className="w-4 h-4" />
-                      Add to Project
-                    </button>
-                  </div>
-                  {member.assignments.length > 0 ? (
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium text-slate-700">Assigned Projects:</div>
-                      {member.assignments.map((assignment: any) => (
-                        <div key={assignment.assignmentId} className="flex items-center justify-between bg-slate-50 p-2 rounded">
-                          <div className="text-sm">
-                            <span className="font-medium">{assignment.companyName}</span> → {assignment.projectName}
-                          </div>
-                          <button
-                            onClick={() => removeMemberFromProject(assignment.assignmentId)}
-                            className="p-1 text-red-600 hover:bg-red-50 rounded"
-                            title="Remove from project"
-                          >
-                            <UserMinus className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-sm text-slate-500">No project assignments</div>
-                  )}
-                </div>
-              ))}
-              {enterpriseMembers.length === 0 && (
-                <div className="text-center py-8 text-slate-500">No members found</div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {addingMember && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Add {addingMember.userName} to Project</h3>
-              <button onClick={() => {setAddingMember(null); setSelectedAddCompanyId(''); setSelectedAddProjectId('');}} className="text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Company</label>
-                <select
-                  value={selectedAddCompanyId}
-                  onChange={(e) => {setSelectedAddCompanyId(e.target.value); setSelectedAddProjectId('');}}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                >
-                  <option value="">Select company</option>
-                  {availableCompanies.map((c: any) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-              {selectedAddCompanyId && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Project</label>
-                  <select
-                    value={selectedAddProjectId}
-                    onChange={(e) => setSelectedAddProjectId(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                  >
-                    <option value="">Select project</option>
-                    {availableProjects.filter((p: any) => p.companyId === selectedAddCompanyId).map((p: any) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <div className="flex gap-2">
-                <button
-                  onClick={addMemberToProject}
-                  disabled={!selectedAddCompanyId || !selectedAddProjectId}
-                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg disabled:opacity-50"
-                >
-                  Add to Project
-                </button>
-                <button
-                  onClick={() => {setAddingMember(null); setSelectedAddCompanyId(''); setSelectedAddProjectId('');}}
-                  className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {editingCompany && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     const session = await getServerSession(authOptions as any);
     const userId = (session as any)?.userId as string | undefined;
     const body = await request.json();
-    const { title, description, columnId, status, labels, prUrl, prNumber, assignee, assignees, boardId, companyId, projectId } = body as any;
+    const { title, description, columnId, status, labels, prUrl, prNumber, assignee, assignees, boardId, companyId, projectId, isLocked } = body as any;
 
     if (!title || typeof title !== 'string' || title.trim().length === 0) {
       return NextResponse.json(
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const validStatuses = ['pending', 'in_progress', 'completed', 'blocked'];
+    const validStatuses = ['pending', 'in_progress', 'completed', 'blocked', 'approved', 'merged', 'changes_requested'];
     if (status && !validStatuses.includes(status)) {
       return NextResponse.json(
         { error: 'Invalid status. Must be one of: ' + validStatuses.join(', ') },
@@ -104,7 +104,11 @@ export async function POST(request: NextRequest) {
 
     if (finalPrUrl && !parsePRUrl(finalPrUrl)) {
       return NextResponse.json(
-        { error: 'Invalid PR URL format' },
+        { 
+          error: 'Invalid PR URL format',
+          hint: 'Expected format: https://github.com/owner/repo/pull/123',
+          received: finalPrUrl
+        },
         { status: 400 }
       );
     }
@@ -211,7 +215,7 @@ export async function PATCH(request: NextRequest) {
       }
 
       if (key === 'status') {
-        const validStatuses = ['pending', 'in_progress', 'completed', 'blocked'];
+        const validStatuses = ['pending', 'in_progress', 'completed', 'blocked', 'approved', 'merged', 'changes_requested'];
         if (!validStatuses.includes(value as string)) {
           return NextResponse.json(
             { error: 'Invalid status. Must be one of: ' + validStatuses.join(', ') },
@@ -222,7 +226,11 @@ export async function PATCH(request: NextRequest) {
 
       if (key === 'prUrl' && value && !parsePRUrl(value as string)) {
         return NextResponse.json(
-          { error: 'Invalid PR URL format' },
+          { 
+            error: 'Invalid PR URL format',
+            hint: 'Expected format: https://github.com/owner/repo/pull/123',
+            received: value
+          },
           { status: 400 }
         );
       }

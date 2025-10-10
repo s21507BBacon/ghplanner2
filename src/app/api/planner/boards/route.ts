@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       boards: boards.map(board => ({
-        id: board._id?.toString() || board.id,
+        id: board.id || board._id?.toString(),
         name: board.name,
         description: board.description,
         companyId: (board as any).companyId,
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     const result = await db.collection<Board>('boards').insertOne(board);
 
     return NextResponse.json({
-      id: result.insertedId.toString(),
+      id: board.id,
       name: board.name,
       description: board.description,
       projectId: board.projectId,
@@ -89,6 +89,70 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       { error: 'Failed to create board' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams;
+  const id = searchParams.get('id');
+
+  if (!id) {
+    return NextResponse.json(
+      { error: 'Missing required parameter: id' },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const db = await connectToDatabase();
+    const { ObjectId } = await import('mongodb');
+
+    // Check if board has columns
+    const columnCount = await db
+      .collection('columns')
+      .countDocuments({ boardId: id });
+
+    if (columnCount > 0) {
+      return NextResponse.json(
+        { error: 'Cannot delete board with columns. Delete all columns first.' },
+        { status: 400 }
+      );
+    }
+
+    // Check if board has tasks
+    const taskCount = await db
+      .collection('tasks')
+      .countDocuments({ boardId: id });
+
+    if (taskCount > 0) {
+      return NextResponse.json(
+        { error: 'Cannot delete board with tasks. Delete all tasks first.' },
+        { status: 400 }
+      );
+    }
+
+    const result = await db
+      .collection<Board>('boards')
+      .deleteOne({ _id: new ObjectId(id) });
+
+    if (result.deletedCount === 0) {
+      return NextResponse.json(
+        { error: 'Board not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(
+      { message: 'Board deleted successfully' },
+      { status: 200 }
+    );
+
+  } catch (error) {
+    console.error('Database error:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete board' },
       { status: 500 }
     );
   }

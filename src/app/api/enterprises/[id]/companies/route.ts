@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import type { Company } from '@/lib/types';
+import type { Company, EnterpriseMembership } from '@/lib/types';
 
 export async function GET(
   request: NextRequest,
@@ -11,19 +11,28 @@ export async function GET(
   const session = await getServerSession(authOptions as any);
   const s = session as any;
   if (!s || !s.user || !s.userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   }
-  
+  const userId = s.userId as string;
   const enterpriseId = params.id;
+
   const db = await connectToDatabase();
-  
-  const companies = await db.collection<Company>('companies').find({ enterpriseId }).toArray();
-  
+
+  const membership = await db.collection<EnterpriseMembership>('enterpriseMemberships').findOne({
+    userId,
+    enterpriseId,
+    status: 'active'
+  } as any);
+
+  if (!membership) {
+    return NextResponse.json({ error: 'Not a member of this enterprise' }, { status: 403 });
+  }
+
+  const companies = await db.collection<Company>('companies').find({ 
+    enterpriseId 
+  } as any).toArray();
+
   return NextResponse.json({ 
-    companies: companies.map(c => ({ 
-      id: c.id, 
-      name: c.name, 
-      inviteCode: c.inviteCode 
-    })) 
+    companies: companies.map(c => ({ id: c.id, name: c.name })) 
   });
 }

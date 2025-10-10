@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       columns: columns.map(column => ({
-        id: column._id?.toString() || column.id,
+        id: column.id || column._id?.toString(),
         name: column.name,
         color: column.color,
         order: column.order,
@@ -31,6 +31,9 @@ export async function GET(request: NextRequest) {
         createdAt: column.createdAt.toISOString(),
         updatedAt: column.updatedAt.toISOString(),
         requiresPr: !!(column as any).requiresPr,
+        moveToColumnOnMerge: (column as any).moveToColumnOnMerge || undefined,
+        moveToColumnOnClosed: (column as any).moveToColumnOnClosed || undefined,
+        moveToColumnOnRequestChanges: (column as any).moveToColumnOnRequestChanges || undefined,
       })),
     });
   } catch (error) {
@@ -45,7 +48,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, color, boardId, requiresPr } = body;
+    const { name, color, boardId, requiresPr, moveToColumnOnMerge, moveToColumnOnClosed, moveToColumnOnRequestChanges } = body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return NextResponse.json(
@@ -89,12 +92,15 @@ export async function POST(request: NextRequest) {
       createdAt: now,
       updatedAt: now,
       requiresPr: typeof requiresPr === 'boolean' ? requiresPr : false,
+      moveToColumnOnMerge: moveToColumnOnMerge || undefined,
+      moveToColumnOnClosed: moveToColumnOnClosed || undefined,
+      moveToColumnOnRequestChanges: moveToColumnOnRequestChanges || undefined,
     };
 
     const result = await db.collection<Column>('columns').insertOne(column);
 
     return NextResponse.json({
-      id: result.insertedId.toString(),
+      id: column.id,
       name: column.name,
       color: column.color,
       order: column.order,
@@ -102,6 +108,9 @@ export async function POST(request: NextRequest) {
       createdAt: column.createdAt.toISOString(),
       updatedAt: column.updatedAt.toISOString(),
       requiresPr: column.requiresPr || false,
+      moveToColumnOnMerge: column.moveToColumnOnMerge || undefined,
+      moveToColumnOnClosed: column.moveToColumnOnClosed || undefined,
+      moveToColumnOnRequestChanges: column.moveToColumnOnRequestChanges || undefined,
     }, { status: 201 });
 
   } catch (error) {
@@ -124,7 +133,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, name, color, order, requiresPr } = body;
+    const { id, name, color, order, requiresPr, moveToColumnOnMerge, moveToColumnOnClosed, moveToColumnOnRequestChanges } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -176,13 +185,51 @@ export async function PUT(request: NextRequest) {
       (updateData as any).requiresPr = requiresPr;
     }
 
+    if (moveToColumnOnMerge !== undefined) {
+      if (moveToColumnOnMerge !== null && typeof moveToColumnOnMerge !== 'string') {
+        return NextResponse.json(
+          { error: 'moveToColumnOnMerge must be a string or null' },
+          { status: 400 }
+        );
+      }
+      (updateData as any).moveToColumnOnMerge = moveToColumnOnMerge || null;
+    }
+
+    if (moveToColumnOnClosed !== undefined) {
+      if (moveToColumnOnClosed !== null && typeof moveToColumnOnClosed !== 'string') {
+        return NextResponse.json(
+          { error: 'moveToColumnOnClosed must be a string or null' },
+          { status: 400 }
+        );
+      }
+      (updateData as any).moveToColumnOnClosed = moveToColumnOnClosed || null;
+    }
+
+    if (moveToColumnOnRequestChanges !== undefined) {
+      if (moveToColumnOnRequestChanges !== null && typeof moveToColumnOnRequestChanges !== 'string') {
+        return NextResponse.json(
+          { error: 'moveToColumnOnRequestChanges must be a string or null' },
+          { status: 400 }
+        );
+      }
+      (updateData as any).moveToColumnOnRequestChanges = moveToColumnOnRequestChanges || null;
+    }
+
     const db = await connectToDatabase();
     const { ObjectId } = await import('mongodb');
+
+    // Try to match by _id if id is a valid ObjectId, otherwise match by id field
+    let query: any;
+    try {
+      query = { _id: new ObjectId(id) };
+    } catch {
+      query = { id };
+    }
 
     const result = await db
       .collection<Column>('columns')
       .findOneAndUpdate(
-        { _id: new ObjectId(id) },
+        query,
         { $set: updateData },
         { returnDocument: 'after' }
       );
@@ -204,6 +251,9 @@ export async function PUT(request: NextRequest) {
       createdAt: updated.createdAt instanceof Date ? updated.createdAt.toISOString() : new Date(updated.createdAt).toISOString(),
       updatedAt: updated.updatedAt instanceof Date ? updated.updatedAt.toISOString() : new Date(updated.updatedAt).toISOString(),
       requiresPr: !!(updated as any).requiresPr,
+      moveToColumnOnMerge: (updated as any).moveToColumnOnMerge || undefined,
+      moveToColumnOnClosed: (updated as any).moveToColumnOnClosed || undefined,
+      moveToColumnOnRequestChanges: (updated as any).moveToColumnOnRequestChanges || undefined,
     });
 
   } catch (error) {
@@ -238,6 +288,14 @@ export async function DELETE(request: NextRequest) {
     const db = await connectToDatabase();
     const { ObjectId } = await import('mongodb');
 
+    // Try to match by _id if id is a valid ObjectId, otherwise match by id field
+    let query: any;
+    try {
+      query = { _id: new ObjectId(id) };
+    } catch {
+      query = { id };
+    }
+
     // Check if column has tasks
     const taskCount = await db
       .collection('tasks')
@@ -252,7 +310,7 @@ export async function DELETE(request: NextRequest) {
 
     const result = await db
       .collection<Column>('columns')
-      .deleteOne({ _id: new ObjectId(id) });
+      .deleteOne(query);
 
     if (result.deletedCount === 0) {
       return NextResponse.json(

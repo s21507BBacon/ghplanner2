@@ -36,7 +36,7 @@ export async function GET() {
   const allEnterpriseIds = [...new Set([...enterpriseIds, ...ownedEnterpriseIds])];
   const enterprises = await db.collection<Enterprise>('enterprises').find({ id: { $in: allEnterpriseIds } } as any).toArray();
   
-  return NextResponse.json({ enterprises: enterprises.map(e => ({ id: e.id, name: e.name, inviteCode: e.inviteCode })) });
+  return NextResponse.json({ enterprises: enterprises.map(e => ({ id: e.id, name: e.name, inviteCode: e.inviteCode, ownerUserId: e.ownerUserId })) });
 }
 
 export async function POST(request: NextRequest) {
