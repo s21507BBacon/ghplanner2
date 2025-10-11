@@ -21,32 +21,28 @@ export async function GET(request: NextRequest) {
   try {
     const db = getDatabase();
     const helpers = new DbHelpers(db);
-    const query: any = { boardId };
-    if (projectId) query.projectId = projectId;
-    const tasks = await db
-      .collection<Task>('tasks')
-      .find(query)
-      .sort({ created_at: -1 })
-      .toArray();
+    const query: any = { board_id: boardId };
+    if (projectId) query.project_id = projectId;
+    const tasks = await helpers.findMany<any>('tasks', query, 'created_at DESC');
 
     return NextResponse.json({
       tasks: tasks.map(task => ({
-        id: task._id?.toString() || task.id,
+        id: task.id,
         title: task.title,
         description: task.description,
-        columnId: task.columnId,
+        columnId: task.column_id,
         status: task.status,
-        labels: task.labels,
-        prUrl: task.prUrl,
-        assignee: task.assignee,
-        assignees: (task as any).assignees || (task.assignee ? [task.assignee] : []),
-        isLocked: (task as any).isLocked || false,
-        created_at: task.created_at.toISOString(),
-        updated_at: task.updated_at.toISOString(),
-        checklist: task.checklist || [],
-        order: task.order || 0,
-        companyId: (task as any).companyId,
-        projectId: (task as any).projectId,
+        labels: task.labels ? JSON.parse(task.labels) : [],
+        prUrl: task.pr_url || undefined,
+        assignee: task.assignee || undefined,
+        assignees: task.assignees ? JSON.parse(task.assignees) : (task.assignee ? [task.assignee] : []),
+        isLocked: !!task.is_locked,
+        created_at: new Date(task.created_at * 1000).toISOString(),
+        updated_at: new Date(task.updated_at * 1000).toISOString(),
+        checklist: task.checklist ? JSON.parse(task.checklist) : [],
+        order: task.order_num || 0,
+        companyId: task.company_id || undefined,
+        projectId: task.project_id || undefined,
       })),
     });
   } catch (error) {
@@ -98,10 +94,10 @@ export async function POST(request: NextRequest) {
     let finalPrUrl: string | undefined = prUrl?.trim() || undefined;
     if (!finalPrUrl && prNumber && projectId) {
       const db = getDatabase();
-    const helpers = new DbHelpers(db);
-      const proj = await helpers.findOne('projects', { id: projectId  });
-      if (proj && proj.repoOwner && proj.repoName && typeof prNumber === 'number') {
-        finalPrUrl = `https://github.com/${proj.repoOwner}/${proj.repoName}/pull/${prNumber}`;
+      const helpers = new DbHelpers(db);
+      const proj: any = await helpers.findOne('projects', { id: projectId });
+      if (proj && proj.repo_owner && proj.repo_name && typeof prNumber === 'number') {
+        finalPrUrl = `https://github.com/${proj.repo_owner}/${proj.repo_name}/pull/${prNumber}`;
       }
     }
 
@@ -120,53 +116,50 @@ export async function POST(request: NextRequest) {
     const helpers = new DbHelpers(db);
 
     // Get the next order number for this column
-    const lastTask = await db
-      .collection<Task>('tasks')
-      .findOne({ columnId }, { sort: { order: -1 } });
-
-    const nextOrder = (lastTask?.order || 0) + 1;
+    const existing = await helpers.findMany<any>('tasks', { column_id: columnId }, 'order_num DESC');
+    const nextOrder = (existing[0]?.order_num || 0) + 1;
     const now = new Date();
 
-    const task: Task = {
+    const task = {
       id: crypto.randomUUID(),
       title: title.trim(),
       description: description?.trim() || '',
-      columnId,
+      column_id: columnId,
       status: status || 'pending',
-      labels: Array.isArray(labels) ? labels.filter(l => typeof l === 'string' && l.trim()) : [],
-      prUrl: finalPrUrl,
-      assignee: assignee?.trim() || undefined,
-      assignees: Array.isArray(assignees) ? assignees : (assignee?.trim() ? [assignee.trim()] : undefined),
-      boardId,
-      companyId: companyId || undefined,
-      projectId: projectId || undefined,
-      createdByUserId: userId,
-      isLocked: isLocked === true,
-      order: nextOrder,
-      created_at: now,
-      updated_at: now,
-      checklist: [],
-    } as Task;
+      labels: JSON.stringify(Array.isArray(labels) ? labels.filter(l => typeof l === 'string' && l.trim()) : []),
+      pr_url: finalPrUrl || null,
+      assignee: assignee?.trim() || null,
+      assignees: JSON.stringify(Array.isArray(assignees) ? assignees : (assignee?.trim() ? [assignee.trim()] : [])),
+      board_id: boardId,
+      company_id: companyId || null,
+      project_id: projectId || null,
+      created_by_user_id: userId || null,
+      is_locked: isLocked === true ? 1 : 0,
+      order_num: nextOrder,
+      created_at: dateToTimestamp(now),
+      updated_at: dateToTimestamp(now),
+      checklist: JSON.stringify([]),
+    };
 
-    const result = await db.collection<Task>('tasks').insertOne(task);
+    await helpers.insert('tasks', task as any);
 
     return NextResponse.json({
-      id: result.insertedId.toString(),
+      id: task.id,
       title: task.title,
       description: task.description,
-      columnId: task.columnId,
+      columnId: task.column_id,
       status: task.status,
-      labels: task.labels,
-      prUrl: task.prUrl,
-      assignee: task.assignee,
-      assignees: (task as any).assignees || [],
-      companyId: task.companyId,
-      projectId: task.projectId,
-      isLocked: (task as any).isLocked || false,
-      created_at: task.created_at.toISOString(),
-      updated_at: task.updated_at.toISOString(),
-      checklist: task.checklist,
-      order: task.order,
+      labels: JSON.parse(task.labels),
+      prUrl: task.pr_url || undefined,
+      assignee: task.assignee || undefined,
+      assignees: JSON.parse(task.assignees),
+      companyId: task.company_id || undefined,
+      projectId: task.project_id || undefined,
+      isLocked: !!task.is_locked,
+      created_at: new Date(task.created_at * 1000).toISOString(),
+      updated_at: new Date(task.updated_at * 1000).toISOString(),
+      checklist: JSON.parse(task.checklist),
+      order: task.order_num,
     }, { status: 201 });
 
   } catch (error) {
@@ -255,23 +248,22 @@ export async function PATCH(request: NextRequest) {
 
     const db = getDatabase();
     const helpers = new DbHelpers(db);
-    const { ObjectId } = require('mongodb');
 
     // Enforce assignee permission: only assignees or admins can modify
-    const existing = await db.collection<Task>('tasks').findOne({ _id: new ObjectId(id) } as any);
+    const existing: any = await helpers.findOne('tasks', { id });
     if (!existing) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
     
     // Check if user is an assignee
-    const taskAssignees = (existing as any).assignees || (existing.assignee ? [existing.assignee] : []);
+    const taskAssignees = existing.assignees ? JSON.parse(existing.assignees) : (existing.assignee ? [existing.assignee] : []);
     const isAssignee = userId && taskAssignees.includes(userId);
     
     // Check if user is admin/owner
     let isAdmin = false;
-    if ((existing as any).companyId && userId) {
+    if (existing.company_id && userId) {
       try {
-        const membership = await helpers.findOne('memberships', { userId, companyId: (existing as any).companyId  });
+        const membership = await helpers.findOne('memberships', { user_id: userId, company_id: existing.company_id });
         const role = (membership as any)?.role as string | undefined;
         if (role && (role === 'owner' || role === 'admin' || role === 'staff')) {
           isAdmin = true;
@@ -280,7 +272,7 @@ export async function PATCH(request: NextRequest) {
     }
     
     // If task is locked, only assignees (or admins) can edit
-    if ((existing as any).isLocked === true) {
+    if (existing.is_locked === 1) {
       if (!isAssignee && !isAdmin) {
         return NextResponse.json({ error: 'This task is locked. Only assignees can edit it.' }, { status: 403 });
       }
@@ -291,37 +283,43 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Only assigned users can edit this task' }, { status: 403 });
     }
 
-    const result = await db
-      .collection<Task>('tasks')
-      .findOneAndUpdate(
-        { _id: new ObjectId(id) } as any,
-        { $set: updateData },
-        { returnDocument: 'after' }
-      );
+    // Translate updateData
+    const translated: any = { updated_at: dateToTimestamp(new Date()) };
+    if (updateData.title !== undefined) translated.title = updateData.title;
+    if (updateData.description !== undefined) translated.description = updateData.description;
+    if (updateData.columnId !== undefined) translated.column_id = updateData.columnId;
+    if (updateData.status !== undefined) translated.status = updateData.status;
+    if (updateData.labels !== undefined) translated.labels = JSON.stringify(updateData.labels);
+    if (updateData.prUrl !== undefined) translated.pr_url = updateData.prUrl || null;
+    if (updateData.assignee !== undefined) translated.assignee = updateData.assignee || null;
+    if (updateData.assignees !== undefined) translated.assignees = JSON.stringify(updateData.assignees || []);
+    if (updateData.order !== undefined) translated.order_num = updateData.order;
+    if (updateData.isLocked !== undefined) translated.is_locked = updateData.isLocked ? 1 : 0;
 
-    if (!result || !result.value) {
+    await helpers.update('tasks', { id }, translated);
+    const updated: any = await helpers.findOne('tasks', { id });
+    if (!updated) {
       return NextResponse.json(
         { error: 'Task not found' },
         { status: 404 }
       );
     }
 
-    const updated = result.value;
     return NextResponse.json({
-      id: updated._id?.toString() || updated.id,
+      id: updated.id,
       title: updated.title,
       description: updated.description,
-      columnId: updated.columnId,
+      columnId: updated.column_id,
       status: updated.status,
-      labels: updated.labels,
-      prUrl: updated.prUrl,
+      labels: updated.labels ? JSON.parse(updated.labels) : [],
+      prUrl: updated.pr_url || undefined,
       assignee: updated.assignee,
-      assignees: (updated as any).assignees || [],
-      isLocked: (updated as any).isLocked || false,
-      created_at: updated.created_at instanceof Date ? updated.created_at.toISOString() : new Date(updated.created_at).toISOString(),
-      updated_at: updated.updated_at instanceof Date ? updated.updated_at.toISOString() : new Date(updated.updated_at).toISOString(),
-      checklist: updated.checklist || [],
-      order: updated.order || 0,
+      assignees: updated.assignees ? JSON.parse(updated.assignees) : [],
+      isLocked: !!updated.is_locked,
+      created_at: new Date(updated.created_at * 1000).toISOString(),
+      updated_at: new Date(updated.updated_at * 1000).toISOString(),
+      checklist: updated.checklist ? JSON.parse(updated.checklist) : [],
+      order: updated.order_num || 0,
     });
 
   } catch (error) {
@@ -357,20 +355,19 @@ export async function DELETE(request: NextRequest) {
     const userId = (session as any)?.userId as string | undefined;
     const db = getDatabase();
     const helpers = new DbHelpers(db);
-    const { ObjectId } = require('mongodb');
 
-    const existing = await db.collection<Task>('tasks').findOne({ _id: new ObjectId(id) } as any);
+    const existing: any = await helpers.findOne('tasks', { id });
     if (!existing) return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     
     // Check if user is an assignee
-    const taskAssignees = (existing as any).assignees || (existing.assignee ? [existing.assignee] : []);
+    const taskAssignees = existing.assignees ? JSON.parse(existing.assignees) : (existing.assignee ? [existing.assignee] : []);
     const isAssignee = userId && taskAssignees.includes(userId);
     
     // Check if user is admin/owner
     let isAdmin = false;
-    if ((existing as any).companyId && userId) {
+    if (existing.company_id && userId) {
       try {
-        const membership = await helpers.findOne('memberships', { userId, companyId: (existing as any).companyId  });
+        const membership = await helpers.findOne('memberships', { user_id: userId, company_id: existing.company_id });
         const role = (membership as any)?.role as string | undefined;
         if (role && (role === 'owner' || role === 'admin' || role === 'staff')) {
           isAdmin = true;
@@ -379,7 +376,7 @@ export async function DELETE(request: NextRequest) {
     }
     
     // If task is locked, only assignees (or admins) can delete
-    if ((existing as any).isLocked === true) {
+    if (existing.is_locked === 1) {
       if (!isAssignee && !isAdmin) {
         return NextResponse.json({ error: 'This task is locked. Only assignees can delete it.' }, { status: 403 });
       }
@@ -390,16 +387,14 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Only assigned users can delete this task' }, { status: 403 });
     }
 
-    const result = await db
-      .collection<Task>('tasks')
-      .deleteOne({ _id: new ObjectId(id) });
-
-    if (result.deletedCount === 0) {
+    const check = await helpers.findOne('tasks', { id });
+    if (!check) {
       return NextResponse.json(
         { error: 'Task not found' },
         { status: 404 }
       );
     }
+    await helpers.delete('tasks', { id });
 
     return NextResponse.json(
       { message: 'Task deleted successfully' },

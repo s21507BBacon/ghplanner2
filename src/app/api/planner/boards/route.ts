@@ -11,24 +11,24 @@ export async function GET(request: NextRequest) {
     const companyId = request.nextUrl.searchParams.get('companyId');
 
     const query: any = {};
-    if (projectId) query.projectId = projectId;
-    if (companyId) query.companyId = companyId;
+    if (projectId) query.project_id = projectId;
+    if (companyId) query.company_id = companyId;
 
-    const boards = await db
-      .collection<Board>('boards')
-      .find(query)
-      .sort({ created_at: -1 })
-      .toArray();
+    const boards = await helpers.findMany<any>(
+      'boards',
+      Object.keys(query).length ? query : undefined,
+      'created_at DESC'
+    );
 
     return NextResponse.json({
       boards: boards.map(board => ({
-        id: board.id || board._id?.toString(),
+        id: board.id,
         name: board.name,
         description: board.description,
-        companyId: (board as any).companyId,
-        projectId: (board as any).projectId,
-        created_at: board.created_at.toISOString(),
-        updated_at: board.updated_at.toISOString(),
+        companyId: (board as any).company_id || undefined,
+        projectId: (board as any).project_id || undefined,
+        created_at: new Date((board as any).created_at * 1000).toISOString(),
+        updated_at: new Date((board as any).updated_at * 1000).toISOString(),
       })),
     });
   } catch (error) {
@@ -58,26 +58,26 @@ export async function POST(request: NextRequest) {
     const helpers = new DbHelpers(db);
     const now = new Date();
 
-    const board: Board = {
+    const board = {
       id: crypto.randomUUID(),
       name: name.trim(),
       description: description?.trim() || '',
-      projectId,
-      companyId,
-      created_at: now,
-      updated_at: now,
-    };
+      project_id: projectId || null,
+      company_id: companyId || null,
+      created_at: dateToTimestamp(now),
+      updated_at: dateToTimestamp(now),
+    } as const;
 
-    const result = await db.collection<Board>('boards').insertOne(board);
+    await helpers.insert('boards', board as any);
 
     return NextResponse.json({
       id: board.id,
       name: board.name,
       description: board.description,
-      projectId: board.projectId,
-      companyId: (board as any).companyId,
-      created_at: board.created_at.toISOString(),
-      updated_at: board.updated_at.toISOString(),
+      projectId: (board as any).project_id || undefined,
+      companyId: (board as any).company_id || undefined,
+      created_at: new Date((board as any).created_at * 1000).toISOString(),
+      updated_at: new Date((board as any).updated_at * 1000).toISOString(),
     }, { status: 201 });
 
   } catch (error) {
@@ -111,12 +111,9 @@ export async function DELETE(request: NextRequest) {
   try {
     const db = getDatabase();
     const helpers = new DbHelpers(db);
-    const { ObjectId } = await import('mongodb');
 
     // Check if board has columns
-    const columnCount = await db
-      .collection('columns')
-      .countDocuments({ boardId: id });
+    const columnCount = (await helpers.findMany('columns', { board_id: id })).length;
 
     if (columnCount > 0) {
       return NextResponse.json(
@@ -126,9 +123,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Check if board has tasks
-    const taskCount = await db
-      .collection('tasks')
-      .countDocuments({ boardId: id });
+    const taskCount = (await helpers.findMany('tasks', { board_id: id })).length;
 
     if (taskCount > 0) {
       return NextResponse.json(
@@ -137,16 +132,15 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const result = await db
-      .collection<Board>('boards')
-      .deleteOne({ _id: new ObjectId(id) });
-
-    if (result.deletedCount === 0) {
+    const exists = await helpers.findOne('boards', { id });
+    if (!exists) {
       return NextResponse.json(
         { error: 'Board not found' },
         { status: 404 }
       );
     }
+
+    await helpers.delete('boards', { id });
 
     return NextResponse.json(
       { message: 'Board deleted successfully' },

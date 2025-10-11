@@ -17,25 +17,21 @@ export async function GET(request: NextRequest) {
   try {
     const db = getDatabase();
     const helpers = new DbHelpers(db);
-    const columns = await db
-      .collection<Column>('columns')
-      .find({ boardId })
-      .sort({ order: 1 })
-      .toArray();
+    const columns = await helpers.findMany<any>('columns', { board_id: boardId }, 'order_num ASC');
 
     return NextResponse.json({
       columns: columns.map(column => ({
-        id: column.id || column._id?.toString(),
+        id: column.id,
         name: column.name,
         color: column.color,
-        order: column.order,
-        boardId: column.boardId,
-        created_at: column.created_at.toISOString(),
-        updated_at: column.updated_at.toISOString(),
-        requiresPr: !!(column as any).requiresPr,
-        moveToColumnOnMerge: (column as any).moveToColumnOnMerge || undefined,
-        moveToColumnOnClosed: (column as any).moveToColumnOnClosed || undefined,
-        moveToColumnOnRequestChanges: (column as any).moveToColumnOnRequestChanges || undefined,
+        order: column.order_num,
+        boardId: column.board_id,
+        created_at: new Date(column.created_at * 1000).toISOString(),
+        updated_at: new Date(column.updated_at * 1000).toISOString(),
+        requiresPr: !!column.requires_pr,
+        moveToColumnOnMerge: column.move_to_column_on_merge || undefined,
+        moveToColumnOnClosed: column.move_to_column_on_closed || undefined,
+        moveToColumnOnRequestChanges: column.move_to_column_on_request_changes || undefined,
       })),
     });
   } catch (error) {
@@ -79,41 +75,38 @@ export async function POST(request: NextRequest) {
     const helpers = new DbHelpers(db);
 
     // Get the next order number
-    const lastColumn = await db
-      .collection<Column>('columns')
-      .findOne({ boardId }, { sort: { order: -1 } });
-
-    const nextOrder = (lastColumn?.order || 0) + 1;
+    const existing = await helpers.findMany<any>('columns', { board_id: boardId }, 'order_num DESC');
+    const nextOrder = (existing[0]?.order_num || 0) + 1;
     const now = new Date();
 
-    const column: Column = {
+    const column = {
       id: crypto.randomUUID(),
       name: name.trim(),
       color: color || 'slate',
-      order: nextOrder,
-      boardId,
-      created_at: now,
-      updated_at: now,
-      requiresPr: typeof requiresPr === 'boolean' ? requiresPr : false,
-      moveToColumnOnMerge: moveToColumnOnMerge || undefined,
-      moveToColumnOnClosed: moveToColumnOnClosed || undefined,
-      moveToColumnOnRequestChanges: moveToColumnOnRequestChanges || undefined,
+      order_num: nextOrder,
+      board_id: boardId,
+      created_at: dateToTimestamp(now),
+      updated_at: dateToTimestamp(now),
+      requires_pr: typeof requiresPr === 'boolean' ? requiresPr : 0,
+      move_to_column_on_merge: moveToColumnOnMerge || null,
+      move_to_column_on_closed: moveToColumnOnClosed || null,
+      move_to_column_on_request_changes: moveToColumnOnRequestChanges || null,
     };
 
-    const result = await db.collection<Column>('columns').insertOne(column);
+    await helpers.insert('columns', column as any);
 
     return NextResponse.json({
       id: column.id,
       name: column.name,
       color: column.color,
-      order: column.order,
-      boardId: column.boardId,
-      created_at: column.created_at.toISOString(),
-      updated_at: column.updated_at.toISOString(),
-      requiresPr: column.requiresPr || false,
-      moveToColumnOnMerge: column.moveToColumnOnMerge || undefined,
-      moveToColumnOnClosed: column.moveToColumnOnClosed || undefined,
-      moveToColumnOnRequestChanges: column.moveToColumnOnRequestChanges || undefined,
+      order: column.order_num,
+      boardId: column.board_id,
+      created_at: new Date((column as any).created_at * 1000).toISOString(),
+      updated_at: new Date((column as any).updated_at * 1000).toISOString(),
+      requiresPr: !!column.requires_pr,
+      moveToColumnOnMerge: column.move_to_column_on_merge || undefined,
+      moveToColumnOnClosed: column.move_to_column_on_closed || undefined,
+      moveToColumnOnRequestChanges: column.move_to_column_on_request_changes || undefined,
     }, { status: 201 });
 
   } catch (error) {
@@ -220,44 +213,39 @@ export async function PUT(request: NextRequest) {
 
     const db = getDatabase();
     const helpers = new DbHelpers(db);
-    const { ObjectId } = await import('mongodb');
 
-    // Try to match by _id if id is a valid ObjectId, otherwise match by id field
-    let query: any;
-    try {
-      query = { _id: new ObjectId(id) };
-    } catch {
-      query = { id };
-    }
-
-    const result = await db
-      .collection<Column>('columns')
-      .findOneAndUpdate(
-        query,
-        { $set: updateData },
-        { returnDocument: 'after' }
-      );
-
-    if (!result || !result.value) {
+    const existing = await helpers.findOne<any>('columns', { id });
+    if (!existing) {
       return NextResponse.json(
         { error: 'Column not found' },
         { status: 404 }
       );
     }
 
-    const updated = result.value;
+    // Translate fields
+    const translated: any = { updated_at: dateToTimestamp(new Date()) };
+    if (updateData.name !== undefined) translated.name = updateData.name;
+    if (updateData.color !== undefined) translated.color = updateData.color;
+    if (updateData.order !== undefined) translated.order_num = updateData.order;
+    if ((updateData as any).requiresPr !== undefined) translated.requires_pr = (updateData as any).requiresPr ? 1 : 0;
+    if ((updateData as any).moveToColumnOnMerge !== undefined) translated.move_to_column_on_merge = (updateData as any).moveToColumnOnMerge || null;
+    if ((updateData as any).moveToColumnOnClosed !== undefined) translated.move_to_column_on_closed = (updateData as any).moveToColumnOnClosed || null;
+    if ((updateData as any).moveToColumnOnRequestChanges !== undefined) translated.move_to_column_on_request_changes = (updateData as any).moveToColumnOnRequestChanges || null;
+
+    await helpers.update('columns', { id }, translated);
+    const updated = await helpers.findOne<any>('columns', { id });
     return NextResponse.json({
-      id: updated._id?.toString() || updated.id,
+      id: updated.id,
       name: updated.name,
       color: updated.color,
-      order: updated.order,
-      boardId: updated.boardId,
-      created_at: updated.created_at instanceof Date ? updated.created_at.toISOString() : new Date(updated.created_at).toISOString(),
-      updated_at: updated.updated_at instanceof Date ? updated.updated_at.toISOString() : new Date(updated.updated_at).toISOString(),
-      requiresPr: !!(updated as any).requiresPr,
-      moveToColumnOnMerge: (updated as any).moveToColumnOnMerge || undefined,
-      moveToColumnOnClosed: (updated as any).moveToColumnOnClosed || undefined,
-      moveToColumnOnRequestChanges: (updated as any).moveToColumnOnRequestChanges || undefined,
+      order: updated.order_num,
+      boardId: updated.board_id,
+      created_at: new Date(updated.created_at * 1000).toISOString(),
+      updated_at: new Date(updated.updated_at * 1000).toISOString(),
+      requiresPr: !!updated.requires_pr,
+      moveToColumnOnMerge: updated.move_to_column_on_merge || undefined,
+      moveToColumnOnClosed: updated.move_to_column_on_closed || undefined,
+      moveToColumnOnRequestChanges: updated.move_to_column_on_request_changes || undefined,
     });
 
   } catch (error) {
@@ -291,20 +279,9 @@ export async function DELETE(request: NextRequest) {
   try {
     const db = getDatabase();
     const helpers = new DbHelpers(db);
-    const { ObjectId } = await import('mongodb');
-
-    // Try to match by _id if id is a valid ObjectId, otherwise match by id field
-    let query: any;
-    try {
-      query = { _id: new ObjectId(id) };
-    } catch {
-      query = { id };
-    }
 
     // Check if column has tasks
-    const taskCount = await db
-      .collection('tasks')
-      .countDocuments({ columnId: id });
+    const taskCount = (await helpers.findMany('tasks', { column_id: id })).length;
 
     if (taskCount > 0) {
       return NextResponse.json(
@@ -313,16 +290,14 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const result = await db
-      .collection<Column>('columns')
-      .deleteOne(query);
-
-    if (result.deletedCount === 0) {
+    const existing2 = await helpers.findOne('columns', { id });
+    if (!existing2) {
       return NextResponse.json(
         { error: 'Column not found' },
         { status: 404 }
       );
     }
+    await helpers.delete('columns', { id });
 
     return NextResponse.json(
       { message: 'Column deleted successfully' },

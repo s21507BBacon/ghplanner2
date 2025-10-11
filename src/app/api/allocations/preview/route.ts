@@ -18,17 +18,17 @@ export async function GET(request: NextRequest) {
   const companyId = request.nextUrl.searchParams.get('companyId');
   
   const db = getDatabase();
-    const helpers = new DbHelpers(db);
+  const helpers = new DbHelpers(db);
   
   if (enterpriseId) {
-    const entMember = await db.collection<EnterpriseMembership>('enterpriseMemberships').findOne({ userId: adminUserId, enterpriseId } as any);
+    const entMember: any = await helpers.findOne('enterprise_memberships', { user_id: adminUserId, enterprise_id: enterpriseId });
     if (!entMember || (entMember.role !== 'owner' && entMember.role !== 'admin')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     
-    const pending = await db.collection<UserPreference>('userPreferences').find({ enterpriseId, status: 'pending' } as any).toArray();
+    const pending: any[] = await helpers.findMany('user_preferences', { enterprise_id: enterpriseId, status: 'pending' });
     const userIds = pending.map(p => p.userId);
-    const users = await db.collection<AppUser>('users').find({ id: { $in: userIds } } as any).toArray();
+    const users = await helpers.findWhereIn<any>('users', 'id', userIds);
     const userMap = new Map(users.map(u => [u.id, u.name || u.email]));
     
     const result = pending.map(p => ({
@@ -45,27 +45,27 @@ export async function GET(request: NextRequest) {
   }
   
   if (companyId) {
-    const member = await db.collection<Membership>('memberships').findOne({ userId: adminUserId, companyId } as any);
+    const member: any = await helpers.findOne('memberships', { user_id: adminUserId, company_id: companyId });
     if (!member || (member.role !== 'owner' && member.role !== 'admin' && member.role !== 'staff')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const members = await db.collection<Membership>('memberships').find({ companyId, status: 'active' } as any).toArray();
-    const projects = await db.collection<Project>('projects').find({ companyId, isActive: true } as any).toArray();
-    const prefs = await db.collection<ProjectPreference>('preferences').find({ companyId } as any).toArray();
+    const members: any[] = await helpers.findMany('memberships', { company_id: companyId, status: 'active' });
+    const projects: any[] = await helpers.findMany('projects', { company_id: companyId, is_active: 1 });
+    const prefs: any[] = await helpers.findMany('project_preferences', { company_id: companyId });
 
-    const capacity = new Map(projects.map(p => [p.id, p.maxSeats] as const));
+    const capacity = new Map(projects.map(p => [p.id, p.max_seats] as const));
     const byUser = new Map<string, Array<{ projectId: string; rank: number }>>();
     for (const p of prefs) {
-      if (!byUser.has(p.userId)) byUser.set(p.userId, []);
-      byUser.get(p.userId)!.push({ projectId: p.projectId, rank: p.rank });
+      if (!byUser.has(p.user_id)) byUser.set(p.user_id, []);
+      byUser.get(p.user_id)!.push({ projectId: p.project_id, rank: p.rank });
     }
     for (const [u, arr] of Array.from(byUser)) arr.sort((a,b) => a.rank - b.rank);
 
     const result = new Map<string, string[]>();
     for (const proj of projects) result.set(proj.id, []);
 
-    const unassigned = members.map(m => m.userId);
+    const unassigned = members.map(m => m.user_id);
     let round = 1;
     while (unassigned.length && round <= projects.length + 5) {
       for (let i = 0; i < unassigned.length; ) {

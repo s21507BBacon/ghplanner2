@@ -19,11 +19,8 @@ export async function GET(
   try {
     const db = getDatabase();
     const helpers = new DbHelpers(db);
-    const { ObjectId } = await import('mongodb');
 
-    const task = await db
-      .collection<Task>('tasks')
-      .findOne({ _id: new ObjectId(id) });
+    const task: any = await helpers.findOne('tasks', { id });
 
     if (!task) {
       return NextResponse.json(
@@ -33,23 +30,23 @@ export async function GET(
     }
 
     return NextResponse.json({
-      id: task._id?.toString() || task.id,
+      id: task.id,
       title: task.title,
       description: task.description,
-      columnId: task.columnId,
+      columnId: task.column_id,
       status: task.status,
-      labels: task.labels,
-      prUrl: task.prUrl,
-      assignee: task.assignee,
-      assignees: (task as any).assignees || (task.assignee ? [task.assignee] : []),
-      isLocked: (task as any).isLocked || false,
-      created_at: task.created_at.toISOString(),
-      updated_at: task.updated_at.toISOString(),
-      checklist: task.checklist || [],
-      boardId: task.boardId,
-      order: task.order || 0,
-      companyId: (task as any).companyId,
-      projectId: (task as any).projectId,
+      labels: task.labels ? JSON.parse(task.labels) : [],
+      prUrl: task.pr_url || undefined,
+      assignee: task.assignee || undefined,
+      assignees: task.assignees ? JSON.parse(task.assignees) : (task.assignee ? [task.assignee] : []),
+      isLocked: !!task.is_locked,
+      created_at: new Date(task.created_at * 1000).toISOString(),
+      updated_at: new Date(task.updated_at * 1000).toISOString(),
+      checklist: task.checklist ? JSON.parse(task.checklist) : [],
+      boardId: task.board_id,
+      order: task.order_num || 0,
+      companyId: task.company_id || undefined,
+      projectId: task.project_id || undefined,
     });
 
   } catch (error) {

@@ -25,19 +25,15 @@ export async function GET(request: NextRequest) {
   try {
     const db = getDatabase();
     const helpers = new DbHelpers(db);
-    const comments = await db
-      .collection<TaskComment>('task_comments')
-      .find({ taskId })
-      .sort({ created_at: 1 })
-      .toArray();
+    const comments = await helpers.findMany<any>('task_comments', { task_id: taskId }, 'created_at ASC');
 
     return NextResponse.json({
       comments: comments.map(comment => ({
-        id: comment._id?.toString(),
+        id: comment.id,
         author: comment.author,
         content: comment.content,
-        created_at: comment.created_at.toISOString(),
-        updated_at: comment.updated_at.toISOString(),
+        created_at: new Date(comment.created_at * 1000).toISOString(),
+        updated_at: new Date(comment.updated_at * 1000).toISOString(),
       })),
     });
   } catch (error) {
@@ -79,22 +75,23 @@ export async function POST(request: NextRequest) {
     const helpers = new DbHelpers(db);
     const now = new Date();
 
-    const comment: TaskComment = {
-      taskId,
+    const comment = {
+      id: crypto.randomUUID(),
+      task_id: taskId,
       author: author.trim(),
       content: content.trim(),
-      created_at: now,
-      updated_at: now,
+      created_at: dateToTimestamp(now),
+      updated_at: dateToTimestamp(now),
     };
 
-    const result = await db.collection<TaskComment>('task_comments').insertOne(comment);
+    await helpers.insert('task_comments', comment as any);
 
     return NextResponse.json({
-      id: result.insertedId.toString(),
+      id: comment.id,
       author: comment.author,
       content: comment.content,
-      created_at: comment.created_at.toISOString(),
-      updated_at: comment.updated_at.toISOString(),
+      created_at: new Date(comment.created_at * 1000).toISOString(),
+      updated_at: new Date(comment.updated_at * 1000).toISOString(),
     }, { status: 201 });
 
   } catch (error) {
@@ -135,34 +132,23 @@ export async function PUT(request: NextRequest) {
 
     const db = getDatabase();
     const helpers = new DbHelpers(db);
-    const { ObjectId } = await import('mongodb');
 
-    const result = await db
-      .collection<TaskComment>('task_comments')
-      .findOneAndUpdate(
-        { _id: new ObjectId(id) },
-        {
-          $set: {
-            content: content.trim(),
-            updated_at: new Date(),
-          },
-        },
-        { returnDocument: 'after' }
-      );
-
-    if (!result) {
+    const existing = await helpers.findOne<any>('task_comments', { id });
+    if (!existing) {
       return NextResponse.json(
         { error: 'Comment not found' },
         { status: 404 }
       );
     }
 
+    await helpers.update('task_comments', { id }, { content: content.trim(), updated_at: dateToTimestamp(new Date()) });
+    const updated = await helpers.findOne<any>('task_comments', { id });
     return NextResponse.json({
-      id: result._id?.toString(),
-      author: result.author,
-      content: result.content,
-      created_at: result.created_at.toISOString(),
-      updated_at: result.updated_at.toISOString(),
+      id: updated!.id,
+      author: updated!.author,
+      content: updated!.content,
+      created_at: new Date(updated!.created_at * 1000).toISOString(),
+      updated_at: new Date(updated!.updated_at * 1000).toISOString(),
     });
 
   } catch (error) {
@@ -196,19 +182,16 @@ export async function DELETE(request: NextRequest) {
   try {
     const db = getDatabase();
     const helpers = new DbHelpers(db);
-    const { ObjectId } = await import('mongodb');
 
-    const result = await db
-      .collection<TaskComment>('task_comments')
-      .deleteOne({ _id: new ObjectId(id) });
-
-    if (result.deletedCount === 0) {
+    const exists = await helpers.findOne('task_comments', { id });
+    if (!exists) {
       return NextResponse.json(
         { error: 'Comment not found' },
         { status: 404 }
       );
     }
 
+    await helpers.delete('task_comments', { id });
     return NextResponse.json(
       { message: 'Comment deleted successfully' },
       { status: 200 }

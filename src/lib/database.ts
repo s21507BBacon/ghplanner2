@@ -126,6 +126,24 @@ class D1Database implements Database {
   }
 }
 
+// No-op database used during build time to avoid initialising a real DB
+class NoopDatabase implements Database {
+  prepare(_sql: string) {
+    return {
+      bind() { return this; },
+      async run() { throw new Error('Database not available at build time'); },
+      async first() { throw new Error('Database not available at build time'); },
+      async all() { throw new Error('Database not available at build time'); }
+    } as unknown as Statement;
+  }
+  exec(_sql: string): void {
+    throw new Error('Database not available at build time');
+  }
+  async batch<T = unknown>(_statements: BatchStatement[]): Promise<T[]> {
+    throw new Error('Database not available at build time');
+  }
+}
+
 let cachedDb: Database | null = null;
 
 // Get database instance
@@ -146,7 +164,9 @@ export function getDatabase(d1Instance?: any): Database {
     return cachedDb;
   }
 
-  throw new Error('Database not available');
+  // During build (CF_PAGES is set, no D1 binding available) return a no-op DB
+  cachedDb = new NoopDatabase();
+  return cachedDb;
 }
 
 // Helper to get database from Cloudflare context or local
