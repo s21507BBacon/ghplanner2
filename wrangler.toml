@@ -1,0 +1,17 @@
+name = "githubplanner"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = ".open-next/worker"
+
+[env.production]
+name = "githubplanner"
+route = { pattern = "yourdomain.com", custom_domain = true }
+
+[env.production.vars]
+NODE_ENV = "production"
+NEXT_TELEMETRY_DISABLED = "1"
+
+# Environment variables (secrets) should be added via Cloudflare dashboard or wrangler CLI
+# Don't put sensitive values here!
+# Use: wrangler pages secret put VARIABLE_NAME
+

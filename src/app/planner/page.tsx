@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Plus, MoreHorizontal, ExternalLink, Calendar, User, X, Edit3, Trash2, Trash, GitMerge, AlertCircle } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
@@ -1760,7 +1760,15 @@ export default function PlannerPage() {
     );
   }
 
-  return <PlannerBoard />;
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      </div>
+    }>
+      <PlannerBoard />
+    </Suspense>
+  );
 }
 
 function PrLinkModal({
