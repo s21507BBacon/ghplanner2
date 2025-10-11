@@ -48,3 +48,6 @@ logs
 
 # Claude Code
 .claude
+# Local setup guides
+SETUP_GUIDE.md
+DEPLOYMENT_CHECKLIST.md
