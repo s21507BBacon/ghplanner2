@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/database';
-import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
+import { DbHelpers } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,15 +13,15 @@ export async function POST(request: NextRequest) {
 
     const db = getDatabase();
     const helpers = new DbHelpers(db);
-    const user = await helpers.findOne('users', { email  });
+    const user = await helpers.findOne('users', { email });
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     return NextResponse.json({
-      email_verified: (user as any).email_verified || false,
-      hasToken: !!(user as any).emailVerificationToken,
+      email_verified: Boolean((user as any).email_verified),
+      hasToken: Boolean((user as any).email_verification_token),
     });
   } catch (e) {
     console.error('Check verification error:', e);

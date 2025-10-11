@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/database';
-import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
+import { DbHelpers, dateToTimestamp } from '@/lib/db';
 import { sendVerificationEmail } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
@@ -34,16 +34,16 @@ export async function POST(request: NextRequest) {
     // Generate new verification token
     const verificationToken = crypto.randomUUID();
     const now = new Date();
+    const nowTimestamp = dateToTimestamp(now);
     const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours
+    const expiresTimestamp = dateToTimestamp(expiresAt);
 
     // Update user with new token
-    await helpers.update('users', { email  }, { 
-          emailVerificationToken: verificationToken,
-          emailVerificationExpires: expiresAt,
-          updated_at: now
-        }
-      }
-    );
+    await helpers.update('users', { email }, {
+      email_verification_token: verificationToken,
+      email_verification_expires: expiresTimestamp,
+      updated_at: nowTimestamp
+    });
 
     // Send verification email
     try {

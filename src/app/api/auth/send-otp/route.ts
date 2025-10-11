@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/database';
-import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
+import { DbHelpers, dateToTimestamp } from '@/lib/db';
 import { sendEmail } from '@/lib/email';
 
 // Generate alphanumeric OTP code in format: 1A2B-3C4D
@@ -49,18 +49,18 @@ export async function POST(request: NextRequest) {
 
     const otpCode = generateOTP();
     const now = new Date();
+    const nowTimestamp = dateToTimestamp(now);
     const expiresAt = new Date(now.getTime() + 10 * 60 * 1000); // 10 minutes
+    const expiresTimestamp = dateToTimestamp(expiresAt);
 
     // Store OTP in database
-    await helpers.update('users', { email  }, { 
-          otpCode,
-          otpExpires: expiresAt,
-          otpAttempts: 0,
-          email_verified: isDev ? true : (user as any).email_verified,
-          updated_at: now
-        }
-      }
-    );
+    await helpers.update('users', { email }, {
+      otp_code: otpCode,
+      otp_expires: expiresTimestamp,
+      otp_attempts: 0,
+      email_verified: isDev ? 1 : ((user as any).email_verified ? 1 : 0),
+      updated_at: nowTimestamp
+    });
 
     // In development, skip email sending
     if (isDev) {

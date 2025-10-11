@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/database';
-import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
+import { DbHelpers, dateToTimestamp } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,8 +15,7 @@ export async function POST(request: NextRequest) {
 
     const db = getDatabase();
     const helpers = new DbHelpers(db);
-    const user = await helpers.findOne('users', { emailVerificationToken: token 
-     });
+    const user = await helpers.findOne('users', { email_verification_token: token });
 
     console.log('[VERIFY] User found:', user ? 'yes' : 'no');
     
@@ -36,8 +35,9 @@ export async function POST(request: NextRequest) {
 
     // Check if token expired
     const now = new Date();
-    const expiresAt = (user as any).emailVerificationExpires;
-    if (expiresAt && new Date(expiresAt) < now) {
+    const expiresAt = (user as any).email_verification_expires;
+    const expiresDate = expiresAt ? new Date((expiresAt as number) * 1000) : undefined;
+    if (expiresDate && expiresDate < now) {
       console.log('[VERIFY] Token expired');
       return NextResponse.json({ 
         error: 'Verification link has expired. Please sign up again.' 
@@ -46,18 +46,15 @@ export async function POST(request: NextRequest) {
 
     // Verify the email
     console.log('[VERIFY] Updating user to verified');
-    const result = await helpers.update('users', { emailVerificationToken: token  }, { 
-          email_verified: true, 
-          updated_at: now 
-        },
-        $unset: { 
-          emailVerificationToken: '',
-          emailVerificationExpires: '' 
-        }
-      }
-    );
+    const nowTimestamp = dateToTimestamp(now);
+    await helpers.update('users', { email_verification_token: token }, {
+      email_verified: 1,
+      email_verification_token: null,
+      email_verification_expires: null,
+      updated_at: nowTimestamp
+    });
 
-    console.log('[VERIFY] Update result:', result.modifiedCount > 0 ? 'success' : 'no changes');
+    console.log('[VERIFY] Update completed');
 
     return NextResponse.json({ 
       ok: true, 
