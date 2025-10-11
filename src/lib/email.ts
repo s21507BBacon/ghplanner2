@@ -9,19 +9,23 @@ interface SendEmailOptions {
 
 // Create reusable transporter
 const createTransporter = () => {
-  const gmailUser = process.env.GMAIL_USER;
-  const gmailPassword = process.env.GMAIL_APP_PASSWORD;
+  const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER;
+  const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
+  const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const smtpPort = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 587;
 
-  if (!gmailUser || !gmailPassword) {
-    console.error('Gmail credentials not configured');
+  if (!smtpUser || !smtpPass) {
+    console.error('SMTP credentials not configured');
     throw new Error('Email service not configured');
   }
 
   const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: smtpHost,
+    port: smtpPort,
+    secure: smtpPort === 465, // true for 465, false for other ports
     auth: {
-      user: gmailUser,
-      pass: gmailPassword,
+      user: smtpUser,
+      pass: smtpPass,
     },
   });
 
@@ -35,7 +39,7 @@ export async function sendEmail({ to, subject, html, text }: SendEmailOptions) {
 
     console.log('[EMAIL] Sending email to:', to);
     const info = await transporter.sendMail({
-      from: `"GitHub Planner" <${process.env.GMAIL_USER}>`,
+      from: process.env.SMTP_FROM || `"GitHub Planner" <${process.env.SMTP_USER || process.env.GMAIL_USER}>`,
       to,
       subject,
       text: text || '',
@@ -51,7 +55,7 @@ export async function sendEmail({ to, subject, html, text }: SendEmailOptions) {
 }
 
 export async function sendVerificationEmail(email: string, token: string, name?: string) {
-  const appUrl = process.env.APP_URL || 'http://localhost:3000';
+  const appUrl = process.env.NEXTAUTH_URL || process.env.APP_URL || 'http://localhost:3000';
   const verificationUrl = `${appUrl}/verify-email?token=${token}`;
 
   const html = `
@@ -131,7 +135,7 @@ export async function sendEnterpriseInviteEmail(
   invitedByName: string, 
   recipientName?: string
 ) {
-  const appUrl = process.env.APP_URL || 'http://localhost:3000';
+  const appUrl = process.env.NEXTAUTH_URL || process.env.APP_URL || 'http://localhost:3000';
   const inviteUrl = `${appUrl}/enterprises/invite?token=${token}`;
 
   const greeting = recipientName ? `Hi ${recipientName}` : 'Hi';
