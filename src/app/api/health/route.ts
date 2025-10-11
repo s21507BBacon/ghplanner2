@@ -4,8 +4,10 @@ import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, pars
 
 export async function GET() {
   try {
-    // Check database connection
-    await connectToDatabase();
+    // Check database connection by performing a simple query
+    const db = getDatabase();
+    const helpers = new DbHelpers(db);
+    await helpers.execute('SELECT 1');
 
     return NextResponse.json({
       status: 'healthy',

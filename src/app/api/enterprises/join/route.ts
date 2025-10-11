@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
   }
   const userId = s.userId as string;
   const db = getDatabase();
-    const helpers = new DbHelpers(db);
+  const helpers = new DbHelpers(db);
   const body = await request.json();
   const { inviteCode } = body;
 
@@ -21,15 +21,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invite code required' }, { status: 400 });
   }
 
-  const enterprise = await db.collection<Enterprise>('enterprises').findOne({ inviteCode });
+  const enterprise = await helpers.findOne<any>('enterprises', { invite_code: inviteCode });
   if (!enterprise) {
     return NextResponse.json({ error: 'Invalid invite code' }, { status: 404 });
   }
 
   // Check if user is already a member
-  const existingMembership = await db.collection<EnterpriseMembership>('enterpriseMemberships').findOne({
-    userId,
-    enterpriseId: enterprise.id
+  const existingMembership = await helpers.findOne<any>('enterprise_memberships', {
+    user_id: userId,
+    enterprise_id: enterprise.id
   });
 
   if (existingMembership) {
@@ -37,24 +37,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Already a member' }, { status: 409 });
     }
     // Reactivate pending membership
-    await db.collection<EnterpriseMembership>('enterpriseMemberships').updateOne(
+    const now = new Date();
+    await helpers.update('enterprise_memberships',
       { id: existingMembership.id },
-      { $set: { status: 'active', updated_at: new Date() } }
+      { status: 'active', updated_at: dateToTimestamp(now) }
     );
     return NextResponse.json({ id: enterprise.id, name: enterprise.name });
   }
 
   // Create new membership
-  const membership: EnterpriseMembership = {
+  const now = new Date();
+  await helpers.insert('enterprise_memberships', {
     id: crypto.randomUUID(),
-    userId,
-    enterpriseId: enterprise.id,
+    user_id: userId,
+    enterprise_id: enterprise.id,
     role: 'member',
     status: 'active',
-    created_at: new Date(),
-    updated_at: new Date(),
-  };
-
-  await db.collection<EnterpriseMembership>('enterpriseMemberships').insertOne(membership as any);
+    created_at: dateToTimestamp(now),
+    updated_at: dateToTimestamp(now),
+  });
+  
   return NextResponse.json({ id: enterprise.id, name: enterprise.name });
 }

@@ -24,21 +24,33 @@ export async function GET() {
   }
   const userId = s.userId as string;
   const db = getDatabase();
-    const helpers = new DbHelpers(db);
+  const helpers = new DbHelpers(db);
   
   // Get enterprises where user is a member OR owner
-  const memberships = await db.collection<EnterpriseMembership>('enterpriseMemberships').find({ userId, status: 'active' }).toArray();
-  const enterpriseIds = memberships.map(m => m.enterpriseId);
+  const memberships = await helpers.findMany<any>('enterprise_memberships', { user_id: userId, status: 'active' });
+  const enterpriseIds = memberships.map((m: any) => m.enterprise_id);
   
   // Also get enterprises owned by the user
-  const ownedEnterprises = await db.collection<Enterprise>('enterprises').find({ ownerUserId: userId } as any).toArray();
-  const ownedEnterpriseIds = ownedEnterprises.map(e => e.id);
+  const ownedEnterprises = await helpers.findMany<any>('enterprises', { owner_user_id: userId });
+  const ownedEnterpriseIds = ownedEnterprises.map((e: any) => e.id);
   
   // Combine both lists (using Set to avoid duplicates)
   const allEnterpriseIds = [...new Set([...enterpriseIds, ...ownedEnterpriseIds])];
-  const enterprises = await db.collection<Enterprise>('enterprises').find({ id: { $in: allEnterpriseIds } } as any).toArray();
   
-  return NextResponse.json({ enterprises: enterprises.map(e => ({ id: e.id, name: e.name, inviteCode: e.inviteCode, ownerUserId: e.ownerUserId })) });
+  if (allEnterpriseIds.length === 0) {
+    return NextResponse.json({ enterprises: [] });
+  }
+  
+  const enterprises = await helpers.findWhereIn<any>('enterprises', 'id', allEnterpriseIds);
+  
+  return NextResponse.json({ 
+    enterprises: enterprises.map((e: any) => ({ 
+      id: e.id, 
+      name: e.name, 
+      inviteCode: e.invite_code, 
+      ownerUserId: e.owner_user_id 
+    })) 
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -49,7 +61,7 @@ export async function POST(request: NextRequest) {
   }
   const userId = s.userId as string;
   const db = getDatabase();
-    const helpers = new DbHelpers(db);
+  const helpers = new DbHelpers(db);
   const body = await request.json();
   const { name } = body;
   
@@ -58,32 +70,32 @@ export async function POST(request: NextRequest) {
   }
   
   const now = new Date();
-  const enterprise: Enterprise = {
-    id: crypto.randomUUID(),
+  const enterpriseId = crypto.randomUUID();
+  const inviteCode = randomCode(8);
+  
+  // Insert enterprise with snake_case column names
+  await helpers.insert('enterprises', {
+    id: enterpriseId,
     name: name.trim(),
     slug: slugify(name),
-    ownerUserId: userId,
-    inviteCode: randomCode(8),
-    inviteLinkSalt: crypto.randomUUID(),
-    domainAllowlist: [],
-    created_at: now,
-    updated_at: now,
-  };
+    owner_user_id: userId,
+    invite_code: inviteCode,
+    invite_link_salt: crypto.randomUUID(),
+    domain_allowlist: stringifyJsonField([]),
+    created_at: dateToTimestamp(now),
+    updated_at: dateToTimestamp(now),
+  });
   
-  await db.collection<Enterprise>('enterprises').insertOne(enterprise as any);
-  
-  // Create owner membership
-  const membership: EnterpriseMembership = {
+  // Create owner membership with snake_case column names
+  await helpers.insert('enterprise_memberships', {
     id: crypto.randomUUID(),
-    userId,
-    enterpriseId: enterprise.id,
+    user_id: userId,
+    enterprise_id: enterpriseId,
     role: 'owner',
     status: 'active',
-    created_at: now,
-    updated_at: now,
-  };
+    created_at: dateToTimestamp(now),
+    updated_at: dateToTimestamp(now),
+  });
   
-  await db.collection<EnterpriseMembership>('enterpriseMemberships').insertOne(membership as any);
-  
-  return NextResponse.json({ id: enterprise.id, name: enterprise.name, inviteCode: enterprise.inviteCode });
+  return NextResponse.json({ id: enterpriseId, name: name.trim(), inviteCode });
 }

@@ -18,45 +18,39 @@ export async function POST(request: NextRequest) {
 
     const db = getDatabase();
     const helpers = new DbHelpers(db);
-    const { ObjectId } = await import('mongodb');
     
     // Get all columns with PR tracking enabled
-    const columns = await db
-      .collection('columns')
-      .find({ 
-        boardId,
-        requiresPr: true
-      })
-      .toArray();
+    const columns = await helpers.execute<any>(
+      'SELECT * FROM columns WHERE board_id = ? AND requires_pr = 1',
+      boardId
+    );
 
     if (columns.length === 0) {
       return NextResponse.json({ movedTasks: [], statusUpdates: [], syncedStatuses: [] });
     }
 
-    const columnIds = columns.map(c => c._id?.toString() || c.id);
+    const columnIds = columns.map((c: any) => c.id);
     
     // Get all tasks in those columns that have PR URLs
-    const tasks = await db
-      .collection<Task>('tasks')
-      .find({
-        boardId,
-        columnId: { $in: columnIds },
-        prUrl: { $exists: true, $ne: null }
-      })
-      .toArray();
+    const tasks = columnIds.length > 0
+      ? await helpers.execute<any>(
+          `SELECT * FROM tasks WHERE board_id = ? AND column_id IN (${columnIds.map(() => '?').join(',')}) AND pr_url IS NOT NULL`,
+          boardId, ...columnIds
+        )
+      : [];
 
     const movedTasks: Array<{ taskId: string; fromColumn: string; toColumn: string; reason: string }> = [];
     const statusUpdates: Array<{ taskId: string; oldStatus: string; newStatus: string }> = [];
     const githubToken = process.env.GITHUB_TOKEN;
 
     for (const task of tasks) {
-      if (!task.prUrl) continue;
+      if (!task.pr_url) continue;
 
-      const column = columns.find(c => (c._id?.toString() || c.id) === task.columnId);
+      const column = columns.find((c: any) => c.id === task.column_id);
       if (!column) continue;
 
       // Check PR status comprehensively
-      const prStatus = await checkPRStatus(task.prUrl, githubToken);
+      const prStatus = await checkPRStatus(task.pr_url, githubToken);
       
       if (prStatus.error) {
         console.log(`Skipping task ${task.id}: ${prStatus.error}`);
@@ -69,7 +63,7 @@ export async function POST(request: NextRequest) {
 
       // Priority 1: Handle merged PRs
       if (prStatus.merged) {
-        const moveToColumn = (column as any).moveToColumnOnMerge;
+        const moveToColumn = (column as any).move_to_column_on_merge;
         if (moveToColumn) {
           newColumnId = moveToColumn;
           moveReason = 'PR merged';
@@ -78,7 +72,7 @@ export async function POST(request: NextRequest) {
       }
       // Priority 2: Handle closed (but not merged) PRs
       else if (prStatus.closed && !prStatus.merged) {
-        const moveToColumn = (column as any).moveToColumnOnClosed;
+        const moveToColumn = (column as any).move_to_column_on_closed;
         if (moveToColumn) {
           newColumnId = moveToColumn;
           moveReason = 'PR closed without merging';
@@ -86,7 +80,7 @@ export async function POST(request: NextRequest) {
       }
       // Priority 3: Handle requested changes
       else if (prStatus.changesRequested) {
-        const moveToColumn = (column as any).moveToColumnOnRequestChanges;
+        const moveToColumn = (column as any).move_to_column_on_request_changes;
         if (moveToColumn) {
           newColumnId = moveToColumn;
           moveReason = 'Changes requested on PR';
@@ -99,15 +93,15 @@ export async function POST(request: NextRequest) {
       }
 
       // Update task if needed
-      const updates: any = { updated_at: new Date() };
+      const updates: any = { updated_at: dateToTimestamp(new Date()) };
       let hasUpdates = false;
 
-      if (newColumnId && newColumnId !== task.columnId) {
-        updates.columnId = newColumnId;
+      if (newColumnId && newColumnId !== task.column_id) {
+        updates.column_id = newColumnId;
         hasUpdates = true;
         movedTasks.push({
-          taskId: task._id?.toString() || task.id,
-          fromColumn: task.columnId,
+          taskId: task.id,
+          fromColumn: task.column_id,
           toColumn: newColumnId,
           reason: moveReason
         });
@@ -117,35 +111,29 @@ export async function POST(request: NextRequest) {
         updates.status = newStatus;
         hasUpdates = true;
         statusUpdates.push({
-          taskId: task._id?.toString() || task.id,
+          taskId: task.id,
           oldStatus: task.status,
           newStatus
         });
       }
 
       if (hasUpdates) {
-        await db
-          .collection<Task>('tasks')
-          .updateOne(
-            { _id: new ObjectId(task._id?.toString() || task.id) },
-            { $set: updates }
-          );
-
+        await helpers.update('tasks', { id: task.id }, updates);
         console.log(`Updated task ${task.id}: ${JSON.stringify(updates)}`);
       }
     }
 
     // Sync task statuses with column names for non-PR columns
-    const allColumns = await helpers.findMany('columns', { boardId  });
-    const allTasks = await db.collection<Task>('tasks').find({ boardId }).toArray();
+    const allColumns = await helpers.findMany<any>('columns', { board_id: boardId });
+    const allTasks = await helpers.findMany<any>('tasks', { board_id: boardId });
     const syncedStatuses: Array<{ taskId: string; columnName: string; newStatus: string }> = [];
 
     for (const task of allTasks) {
-      const taskColumn = allColumns.find(c => (c._id?.toString() || c.id) === task.columnId);
+      const taskColumn = allColumns.find((c: any) => c.id === task.column_id);
       if (!taskColumn) continue;
 
       // For PR columns, status should be "pending" unless it's been updated by PR checks above
-      const isPrColumn = !!(taskColumn as any).requiresPr;
+      const isPrColumn = !!(taskColumn as any).requires_pr;
       let expectedStatus: string;
 
       if (isPrColumn) {
@@ -178,15 +166,13 @@ export async function POST(request: NextRequest) {
       }
 
       if (expectedStatus && expectedStatus !== task.status && ['pending', 'in_progress', 'completed', 'blocked', 'approved', 'merged', 'changes_requested'].includes(expectedStatus)) {
-        await db
-          .collection<Task>('tasks')
-          .updateOne(
-            { _id: new ObjectId(task._id?.toString() || task.id) },
-            { $set: { status: expectedStatus, updated_at: new Date() } }
-          );
+        await helpers.update('tasks', 
+          { id: task.id }, 
+          { status: expectedStatus, updated_at: dateToTimestamp(new Date()) }
+        );
 
         syncedStatuses.push({
-          taskId: task._id?.toString() || task.id,
+          taskId: task.id,
           columnName: taskColumn.name,
           newStatus: expectedStatus
         });

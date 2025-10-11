@@ -66,17 +66,17 @@ export async function POST(
   const enterpriseId = params.id;
 
   const db = getDatabase();
-    const helpers = new DbHelpers(db);
+  const helpers = new DbHelpers(db);
 
-  const enterprise = await db.collection<Enterprise>('enterprises').findOne({ 
+  const enterprise = await helpers.findOne<any>('enterprises', { 
     id: enterpriseId 
-  } as any);
+  });
 
   if (!enterprise) {
     return NextResponse.json({ error: 'Enterprise not found' }, { status: 404 });
   }
 
-  if (enterprise.ownerUserId !== userId) {
+  if (enterprise.owner_user_id !== userId) {
     return NextResponse.json({ 
       error: 'Only the enterprise owner can send invites' 
     }, { status: 403 });
@@ -106,9 +106,9 @@ export async function POST(
     }, { status: 400 });
   }
 
-  const inviter = await db.collection<AppUser>('users').findOne({ 
+  const inviter = await helpers.findOne<any>('users', { 
     id: userId 
-  } as any);
+  });
   const inviterName = inviter?.name || inviter?.email || 'Someone';
 
   const now = new Date();
@@ -122,39 +122,36 @@ export async function POST(
 
   for (const invitee of invitees) {
     try {
-      const existingInvite = await db.collection<EnterpriseInvite>('enterpriseInvites').findOne({
-        enterpriseId,
+      const existingInvite = await helpers.findOne<any>('enterprise_invites', {
+        enterprise_id: enterpriseId,
         email: invitee.email,
         status: 'pending'
-      } as any);
+      });
 
       let token: string;
       if (existingInvite) {
         token = existingInvite.token;
-        await db.collection<EnterpriseInvite>('enterpriseInvites').updateOne(
-          { id: existingInvite.id } as any,
+        await helpers.update('enterprise_invites',
+          { id: existingInvite.id },
           { 
-            $set: { 
-              expiresAt,
-              invitedByUserId: userId,
-              name: invitee.name || existingInvite.name
-            } 
+            expires_at: dateToTimestamp(expiresAt),
+            invited_by_user_id: userId,
+            name: invitee.name || existingInvite.name
           }
         );
       } else {
         token = crypto.randomUUID();
-        const invite: EnterpriseInvite = {
+        await helpers.insert('enterprise_invites', {
           id: crypto.randomUUID(),
-          enterpriseId,
+          enterprise_id: enterpriseId,
           email: invitee.email,
           name: invitee.name,
           token,
-          invitedByUserId: userId,
+          invited_by_user_id: userId,
           status: 'pending',
-          expiresAt,
-          created_at: now,
-        };
-        await db.collection<EnterpriseInvite>('enterpriseInvites').insertOne(invite as any);
+          expires_at: dateToTimestamp(expiresAt),
+          created_at: dateToTimestamp(now),
+        });
       }
 
       await sendEnterpriseInviteEmail(

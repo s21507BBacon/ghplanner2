@@ -12,31 +12,32 @@ export async function GET(request: NextRequest) {
   }
 
   const db = getDatabase();
-    const helpers = new DbHelpers(db);
+  const helpers = new DbHelpers(db);
 
-  const invite = await db.collection<EnterpriseInvite>('enterpriseInvites').findOne({ 
+  const invite = await helpers.findOne<any>('enterprise_invites', { 
     token,
     status: 'pending'
-  } as any);
+  });
 
   if (!invite) {
     return NextResponse.json({ error: 'Invite not found' }, { status: 404 });
   }
 
-  const enterprise = await db.collection<Enterprise>('enterprises').findOne({ 
-    id: invite.enterpriseId 
-  } as any);
+  const enterprise = await helpers.findOne<any>('enterprises', { 
+    id: invite.enterprise_id 
+  });
 
   if (!enterprise) {
     return NextResponse.json({ error: 'Enterprise not found' }, { status: 404 });
   }
 
-  const inviter = await db.collection<AppUser>('users').findOne({ 
-    id: invite.invitedByUserId 
-  } as any);
+  const inviter = await helpers.findOne<any>('users', { 
+    id: invite.invited_by_user_id 
+  });
 
   const now = new Date();
-  const expired = invite.expiresAt < now;
+  const expiresAt = timestampToDate(invite.expires_at);
+  const expired = expiresAt ? expiresAt < now : false;
 
   return NextResponse.json({
     enterpriseName: enterprise.name,

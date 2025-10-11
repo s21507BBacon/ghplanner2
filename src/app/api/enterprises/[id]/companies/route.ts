@@ -18,23 +18,23 @@ export async function GET(
   const enterpriseId = params.id;
 
   const db = getDatabase();
-    const helpers = new DbHelpers(db);
+  const helpers = new DbHelpers(db);
 
-  const membership = await db.collection<EnterpriseMembership>('enterpriseMemberships').findOne({
-    userId,
-    enterpriseId,
+  const membership = await helpers.findOne<any>('enterprise_memberships', {
+    user_id: userId,
+    enterprise_id: enterpriseId,
     status: 'active'
-  } as any);
+  });
 
   if (!membership) {
     return NextResponse.json({ error: 'Not a member of this enterprise' }, { status: 403 });
   }
 
-  const companies = await db.collection<Company>('companies').find({ 
-    enterpriseId 
-  } as any).toArray();
+  const companies = await helpers.findMany<any>('companies', { 
+    enterprise_id: enterpriseId 
+  });
 
   return NextResponse.json({ 
-    companies: companies.map(c => ({ id: c.id, name: c.name })) 
+    companies: companies.map((c: any) => ({ id: c.id, name: c.name })) 
   });
 }

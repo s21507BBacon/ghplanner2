@@ -21,40 +21,41 @@ export async function POST(request: NextRequest) {
   }
 
   const db = getDatabase();
-    const helpers = new DbHelpers(db);
+  const helpers = new DbHelpers(db);
 
-  const invite = await db.collection<EnterpriseInvite>('enterpriseInvites').findOne({ 
+  const invite = await helpers.findOne<any>('enterprise_invites', { 
     token,
     status: 'pending'
-  } as any);
+  });
 
   if (!invite) {
     return NextResponse.json({ error: 'Invite not found or already used' }, { status: 404 });
   }
 
   const now = new Date();
-  if (invite.expiresAt < now) {
+  const expiresAt = timestampToDate(invite.expires_at);
+  if (expiresAt && expiresAt < now) {
     return NextResponse.json({ error: 'Invite has expired' }, { status: 410 });
   }
 
-  const enterprise = await db.collection<Enterprise>('enterprises').findOne({ 
-    id: invite.enterpriseId 
-  } as any);
+  const enterprise = await helpers.findOne<any>('enterprises', { 
+    id: invite.enterprise_id 
+  });
 
   if (!enterprise) {
     return NextResponse.json({ error: 'Enterprise not found' }, { status: 404 });
   }
 
-  const existingMembership = await db.collection<EnterpriseMembership>('enterpriseMemberships').findOne({
-    userId,
-    enterpriseId: enterprise.id
-  } as any);
+  const existingMembership = await helpers.findOne<any>('enterprise_memberships', {
+    user_id: userId,
+    enterprise_id: enterprise.id
+  });
 
   if (existingMembership) {
     if (existingMembership.status === 'active') {
-      await db.collection<EnterpriseInvite>('enterpriseInvites').updateOne(
-        { id: invite.id } as any,
-        { $set: { status: 'accepted', acceptedAt: now } }
+      await helpers.update('enterprise_invites',
+        { id: invite.id },
+        { status: 'accepted', accepted_at: dateToTimestamp(now) }
       );
       return NextResponse.json({ 
         enterpriseId: enterprise.id, 
@@ -62,27 +63,25 @@ export async function POST(request: NextRequest) {
       });
     }
     
-    await db.collection<EnterpriseMembership>('enterpriseMemberships').updateOne(
-      { id: existingMembership.id } as any,
-      { $set: { status: 'active', updated_at: now } }
+    await helpers.update('enterprise_memberships',
+      { id: existingMembership.id },
+      { status: 'active', updated_at: dateToTimestamp(now) }
     );
   } else {
-    const membership: EnterpriseMembership = {
+    await helpers.insert('enterprise_memberships', {
       id: crypto.randomUUID(),
-      userId,
-      enterpriseId: enterprise.id,
+      user_id: userId,
+      enterprise_id: enterprise.id,
       role: 'member',
       status: 'active',
-      created_at: now,
-      updated_at: now,
-    };
-
-    await db.collection<EnterpriseMembership>('enterpriseMemberships').insertOne(membership as any);
+      created_at: dateToTimestamp(now),
+      updated_at: dateToTimestamp(now),
+    });
   }
 
-  await db.collection<EnterpriseInvite>('enterpriseInvites').updateOne(
-    { id: invite.id } as any,
-    { $set: { status: 'accepted', acceptedAt: now } }
+  await helpers.update('enterprise_invites',
+    { id: invite.id },
+    { status: 'accepted', accepted_at: dateToTimestamp(now) }
   );
 
   return NextResponse.json({ 

@@ -18,94 +18,97 @@ export async function GET(
   const enterpriseId = params.id;
 
   const db = getDatabase();
-    const helpers = new DbHelpers(db);
+  const helpers = new DbHelpers(db);
 
-  const membership = await db.collection<EnterpriseMembership>('enterpriseMemberships').findOne({
-    userId,
-    enterpriseId,
+  const membership = await helpers.findOne<any>('enterprise_memberships', {
+    user_id: userId,
+    enterprise_id: enterpriseId,
     status: 'active'
-  } as any);
+  });
 
   if (!membership) {
     return NextResponse.json({ error: 'Not a member of this enterprise' }, { status: 403 });
   }
 
-  const memberships = await db.collection<EnterpriseMembership>('enterpriseMemberships').find({
-    enterpriseId
-  } as any).toArray();
+  const memberships = await helpers.findMany<any>('enterprise_memberships', {
+    enterprise_id: enterpriseId
+  });
 
-  const userIds = memberships.map(m => m.userId);
-  const users = await db.collection<AppUser>('users').find({
-    id: { $in: userIds }
-  } as any).toArray();
+  const userIds = memberships.map((m: any) => m.user_id);
+  const users = userIds.length > 0 
+    ? await helpers.findWhereIn<any>('users', 'id', userIds)
+    : [];
 
-  const userMap = new Map(users.map(u => [u.id, u]));
+  const userMap = new Map(users.map((u: any) => [u.id, u]));
 
   // Get all companies in this enterprise
-  const companies = await db.collection<Company>('companies').find({
-    enterpriseId
-  } as any).toArray();
+  const companies = await helpers.findMany<any>('companies', {
+    enterprise_id: enterpriseId
+  });
 
-  const companyIds = companies.map(c => c.id);
-  const companyMap = new Map(companies.map(c => [c.id, c]));
+  const companyIds = companies.map((c: any) => c.id);
+  const companyMap = new Map(companies.map((c: any) => [c.id, c]));
 
   // Get all assignments for users in this enterprise for companies in this enterprise
-  const assignments = await db.collection<Assignment>('assignments').find({
-    userId: { $in: userIds },
-    companyId: { $in: companyIds }
-  } as any).toArray();
+  let assignments: any[] = [];
+  if (userIds.length > 0 && companyIds.length > 0) {
+    assignments = await helpers.execute<any>(
+      `SELECT * FROM assignments WHERE user_id IN (${userIds.map(() => '?').join(',')}) AND company_id IN (${companyIds.map(() => '?').join(',')})`,
+      ...userIds, ...companyIds
+    );
+  }
 
   // Get all projects for these companies
-  const projectIds = [...new Set(assignments.map(a => a.projectId))];
-  const projects = await db.collection<Project>('projects').find({
-    id: { $in: projectIds }
-  } as any).toArray();
+  const projectIds = [...new Set(assignments.map((a: any) => a.project_id))];
+  const projects = projectIds.length > 0
+    ? await helpers.findWhereIn<any>('projects', 'id', projectIds)
+    : [];
 
-  const projectMap = new Map(projects.map(p => [p.id, p]));
+  const projectMap = new Map(projects.map((p: any) => [p.id, p]));
 
   // Group assignments by userId
   const assignmentsByUser = new Map<string, any[]>();
   for (const assignment of assignments) {
-    if (!assignmentsByUser.has(assignment.userId)) {
-      assignmentsByUser.set(assignment.userId, []);
+    if (!assignmentsByUser.has(assignment.user_id)) {
+      assignmentsByUser.set(assignment.user_id, []);
     }
-    const company = companyMap.get(assignment.companyId);
-    const project = projectMap.get(assignment.projectId);
+    const company = companyMap.get(assignment.company_id);
+    const project = projectMap.get(assignment.project_id);
     if (company && project) {
-      assignmentsByUser.get(assignment.userId)!.push({
+      assignmentsByUser.get(assignment.user_id)!.push({
         assignmentId: assignment.id,
         companyName: company.name,
         projectName: project.name,
-        companyId: assignment.companyId,
-        projectId: assignment.projectId
+        companyId: assignment.company_id,
+        projectId: assignment.project_id
       });
     }
   }
 
-  const members = memberships.map(m => {
-    const user = userMap.get(m.userId);
+  const members = memberships.map((m: any) => {
+    const user = userMap.get(m.user_id);
     return {
-      id: m.userId,
-      userId: m.userId,
+      id: m.user_id,
+      userId: m.user_id,
       name: user?.name || user?.email || 'Unknown',
       email: user?.email,
       userName: user?.name,
       userEmail: user?.email,
       role: m.role,
       status: m.status,
-      assignments: assignmentsByUser.get(m.userId) || []
+      assignments: assignmentsByUser.get(m.user_id) || []
     };
   });
 
   // Get available companies and projects for assignment
-  const availableCompanies = companies.map(c => ({ id: c.id, name: c.name }));
-  const allProjects = await db.collection<Project>('projects').find({
-    companyId: { $in: companyIds }
-  } as any).toArray();
-  const availableProjects = allProjects.map(p => ({ 
+  const availableCompanies = companies.map((c: any) => ({ id: c.id, name: c.name }));
+  const allProjects = companyIds.length > 0
+    ? await helpers.findWhereIn<any>('projects', 'company_id', companyIds)
+    : [];
+  const availableProjects = allProjects.map((p: any) => ({ 
     id: p.id, 
     name: p.name, 
-    companyId: p.companyId 
+    companyId: p.company_id 
   }));
 
   return NextResponse.json({ 
@@ -128,13 +131,13 @@ export async function POST(
   const enterpriseId = params.id;
 
   const db = getDatabase();
-    const helpers = new DbHelpers(db);
+  const helpers = new DbHelpers(db);
 
-  const membership = await db.collection<EnterpriseMembership>('enterpriseMemberships').findOne({
-    userId: currentUserId,
-    enterpriseId,
+  const membership = await helpers.findOne<any>('enterprise_memberships', {
+    user_id: currentUserId,
+    enterprise_id: enterpriseId,
     status: 'active'
-  } as any);
+  });
 
   if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
     return NextResponse.json({ error: 'Not authorised to manage members' }, { status: 403 });
@@ -147,46 +150,47 @@ export async function POST(
     return NextResponse.json({ error: 'userId, companyId and projectId required' }, { status: 400 });
   }
 
-  const company = await db.collection<Company>('companies').findOne({
+  const company = await helpers.findOne<any>('companies', {
     id: companyId,
-    enterpriseId
-  } as any);
+    enterprise_id: enterpriseId
+  });
 
   if (!company) {
     return NextResponse.json({ error: 'Company not found in this enterprise' }, { status: 404 });
   }
 
-  const project = await db.collection<Project>('projects').findOne({
+  const project = await helpers.findOne<any>('projects', {
     id: projectId,
-    companyId
-  } as any);
+    company_id: companyId
+  });
 
   if (!project) {
     return NextResponse.json({ error: 'Project not found in this company' }, { status: 404 });
   }
 
-  const existingAssignment = await db.collection<Assignment>('assignments').findOne({
-    userId,
-    companyId,
-    projectId
-  } as any);
+  const existingAssignment = await helpers.findOne<any>('assignments', {
+    user_id: userId,
+    company_id: companyId,
+    project_id: projectId
+  });
 
   if (existingAssignment) {
     return NextResponse.json({ error: 'User already assigned to this project' }, { status: 409 });
   }
 
-  const assignment: Assignment = {
-    id: crypto.randomUUID(),
-    userId,
-    companyId,
-    projectId,
-    assignedAt: new Date(),
-    assignedByUserId: currentUserId
-  };
+  const now = new Date();
+  const assignmentId = crypto.randomUUID();
+  
+  await helpers.insert('assignments', {
+    id: assignmentId,
+    user_id: userId,
+    company_id: companyId,
+    project_id: projectId,
+    assigned_at: dateToTimestamp(now),
+    assigned_by_user_id: currentUserId
+  });
 
-  await db.collection<Assignment>('assignments').insertOne(assignment as any);
-
-  return NextResponse.json({ success: true, assignmentId: assignment.id });
+  return NextResponse.json({ success: true, assignmentId });
 }
 
 export async function DELETE(
@@ -202,13 +206,13 @@ export async function DELETE(
   const enterpriseId = params.id;
 
   const db = getDatabase();
-    const helpers = new DbHelpers(db);
+  const helpers = new DbHelpers(db);
 
-  const membership = await db.collection<EnterpriseMembership>('enterpriseMemberships').findOne({
-    userId: currentUserId,
-    enterpriseId,
+  const membership = await helpers.findOne<any>('enterprise_memberships', {
+    user_id: currentUserId,
+    enterprise_id: enterpriseId,
     status: 'active'
-  } as any);
+  });
 
   if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
     return NextResponse.json({ error: 'Not authorised to manage members' }, { status: 403 });
@@ -220,24 +224,24 @@ export async function DELETE(
     return NextResponse.json({ error: 'assignmentId required' }, { status: 400 });
   }
 
-  const assignment = await db.collection<Assignment>('assignments').findOne({
+  const assignment = await helpers.findOne<any>('assignments', {
     id: assignmentId
-  } as any);
+  });
 
   if (!assignment) {
     return NextResponse.json({ error: 'Assignment not found' }, { status: 404 });
   }
 
-  const company = await db.collection<Company>('companies').findOne({
-    id: assignment.companyId,
-    enterpriseId
-  } as any);
+  const company = await helpers.findOne<any>('companies', {
+    id: assignment.company_id,
+    enterprise_id: enterpriseId
+  });
 
   if (!company) {
     return NextResponse.json({ error: 'Assignment not in this enterprise' }, { status: 403 });
   }
 
-  await db.collection<Assignment>('assignments').deleteOne({ id: assignmentId } as any);
+  await helpers.delete('assignments', { id: assignmentId });
 
   return NextResponse.json({ success: true });
 }
