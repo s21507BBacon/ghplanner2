@@ -5,10 +5,8 @@ declare global {
   var _mongoClientPromise: Promise<MongoClient> | undefined;
 }
 
-const uri = process.env.MONGODB_URI as string | undefined;
-if (!uri) {
-  throw new Error('Please define the MONGODB_URI environment variable');
-}
+// Use placeholder during build, real URI at runtime
+const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/placeholder';
 
 let clientPromise: Promise<MongoClient>;
 
