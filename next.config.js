@@ -23,11 +23,12 @@ const nextConfig = {
   
   // Ensure proper handling of environment variables
   env: {
-    MONGODB_URI: process.env.MONGODB_URI || 'mongodb://localhost:27017/placeholder',
+    MONGODB_URI: process.env.MONGODB_URI,
     GITHUB_TOKEN: process.env.GITHUB_TOKEN,
     JWT_SECRET: process.env.JWT_SECRET,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
+    BUILDING: process.env.BUILDING,
   },
   // Optimize for containerized development with webpack configuration
   webpack: (config, { dev }) => {
