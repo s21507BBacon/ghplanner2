@@ -15,6 +15,14 @@ if [ -f ".open-next/worker.js" ]; then
     mv .open-next/worker.js .open-next/_worker.js
 fi
 
+# Copy _routes.json to output directory for static asset routing
+if [ -f "_routes.json" ]; then
+    echo "Copying _routes.json to .open-next/"
+    cp _routes.json .open-next/_routes.json
+else
+    echo "Warning: _routes.json not found"
+fi
+
 # Ensure static assets are in place
 if [ -d ".open-next/assets" ]; then
     echo "Static assets found"

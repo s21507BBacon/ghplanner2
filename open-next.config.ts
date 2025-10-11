@@ -23,6 +23,9 @@ const config: OpenNextConfig = {
       queue: 'dummy',
     },
   },
+  cloudflare: {
+    copyPackageJsonFiles: true,
+  },
 };
 
 export default config;
