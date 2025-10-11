@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/database';
+import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import type { Membership, Project } from '@/lib/types';
@@ -15,7 +16,8 @@ export async function GET(request: NextRequest) {
   const companyId = request.nextUrl.searchParams.get('companyId');
   if (!companyId) return NextResponse.json({ error: 'companyId required' }, { status: 400 });
 
-  const db = await connectToDatabase();
+  const db = getDatabase();
+    const helpers = new DbHelpers(db);
   const member = await db.collection<Membership>('memberships').findOne({ userId, companyId } as any);
   if (!member) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
@@ -38,7 +40,8 @@ export async function POST(request: NextRequest) {
   if (!companyId || !name || typeof maxSeats !== 'number') {
     return NextResponse.json({ error: 'companyId, name, and maxSeats are required' }, { status: 400 });
   }
-  const db = await connectToDatabase();
+  const db = getDatabase();
+    const helpers = new DbHelpers(db);
   const member = await db.collection<Membership>('memberships').findOne({ userId, companyId } as any);
   if (!member || (member.role !== 'owner' && member.role !== 'admin')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -60,8 +63,8 @@ export async function POST(request: NextRequest) {
     isActive: true,
     inviteCode: randomCode(8),
     inviteLinkSalt: crypto.randomUUID(),
-    createdAt: now,
-    updatedAt: now,
+    created_at: now,
+    updated_at: now,
   };
   await db.collection<Project>('projects').insertOne(project as any);
   return NextResponse.json({ id: project.id, name: project.name, maxSeats: project.maxSeats, isActive: true, inviteCode: project.inviteCode });
@@ -77,7 +80,8 @@ export async function PUT(request: NextRequest) {
   const body = await request.json();
   const { id, companyId, ...updates } = body as any;
   if (!id || !companyId) return NextResponse.json({ error: 'id and companyId required' }, { status: 400 });
-  const db = await connectToDatabase();
+  const db = getDatabase();
+    const helpers = new DbHelpers(db);
   const member = await db.collection<Membership>('memberships').findOne({ userId, companyId } as any);
   if (!member || (member.role !== 'owner' && member.role !== 'admin')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -87,7 +91,7 @@ export async function PUT(request: NextRequest) {
     (updates as any).repoTokenEncrypted = encrypt(updates.repoToken);
     delete updates.repoToken;
   }
-  updates.updatedAt = new Date();
+  updates.updated_at = new Date();
   const result = await db.collection<Project>('projects').findOneAndUpdate({ id, companyId } as any, { $set: updates }, { returnDocument: 'after' });
   if (!result || !(result as any).value) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const p = (result as any).value as Project;
@@ -104,7 +108,8 @@ export async function DELETE(request: NextRequest) {
   const id = request.nextUrl.searchParams.get('id');
   const companyId = request.nextUrl.searchParams.get('companyId');
   if (!id || !companyId) return NextResponse.json({ error: 'id and companyId required' }, { status: 400 });
-  const db = await connectToDatabase();
+  const db = getDatabase();
+    const helpers = new DbHelpers(db);
   const member = await db.collection<Membership>('memberships').findOne({ userId, companyId } as any);
   if (!member || (member.role !== 'owner' && member.role !== 'admin')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

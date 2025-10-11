@@ -1,27 +1,6 @@
 version: '3.8'
 
 services:
-  mongo:
-    image: mongo:7
-    container_name: github-planner-mongo
-    restart: unless-stopped
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: password
-      MONGO_INITDB_DATABASE: github_planner
-    volumes:
-      - mongo_data:/data/db
-    ports:
-      - "27017:27017"
-    networks:
-      - github-planner-network
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
   web:
     build:
       context: .
@@ -29,15 +8,18 @@ services:
     container_name: github-planner-web
     restart: unless-stopped
     environment:
-      - MONGODB_URI=mongodb://admin:password@mongo:27017/github_planner?authSource=admin
+      - SQLITE_DB_PATH=/app/data/database.sqlite
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
       - JWT_SECRET=${JWT_SECRET:-default-jwt-secret-change-in-production}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-default-nextauth-secret-change-in-production}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - EMAIL_FROM=${EMAIL_FROM:-GitHub Planner <noreply@localhost>}
       - NODE_ENV=production
     ports:
       - "3000:3000"
-    depends_on:
-      mongo:
-        condition: service_healthy
+    volumes:
+      - db_data:/app/data
     networks:
       - github-planner-network
     healthcheck:
@@ -54,9 +36,13 @@ services:
     container_name: github-planner-web-dev
     restart: unless-stopped
     environment:
-      - MONGODB_URI=mongodb://admin:password@mongo:27017/github_planner?authSource=admin
+      - SQLITE_DB_PATH=/app/data/database.sqlite
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
       - JWT_SECRET=${JWT_SECRET:-default-jwt-secret-for-dev}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-default-nextauth-secret-for-dev}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - EMAIL_FROM=${EMAIL_FROM:-GitHub Planner <dev@localhost>}
       - NODE_ENV=development
       - WATCHPACK_POLLING=true
       - CHOKIDAR_USEPOLLING=true
@@ -65,17 +51,16 @@ services:
     volumes:
       # Mount source code for hot reload
       - .:/app:Z
+      # Persist SQLite database
+      - db_data_dev:/app/data
       # Preserve node_modules and build cache in named volumes for performance
       - node_modules_dev:/app/node_modules
       - next_cache_dev:/app/.next
-    depends_on:
-      mongo:
-        condition: service_healthy
     networks:
       - github-planner-network
     profiles:
       - dev
-    command: sh -lc "npm ci && npm run dev"
+    command: sh -lc "npm install --legacy-peer-deps && npm run dev"
     # Improve performance for file watching in containers
     security_opt:
       - label=disable
@@ -83,7 +68,9 @@ services:
     tty: true
 
 volumes:
-  mongo_data:
+  db_data:
+    driver: local
+  db_data_dev:
     driver: local
   node_modules_dev:
     driver: local

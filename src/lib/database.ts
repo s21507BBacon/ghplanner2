@@ -1,0 +1,161 @@
+// Database connection - works with both D1 (Cloudflare) and SQLite (local dev)
+import type { Database, Statement, BatchStatement } from './db';
+
+// SQLite implementation for local development
+class SQLiteDatabase implements Database {
+  private sqlite: any;
+  private db: any;
+
+  constructor() {
+    // Only require better-sqlite3 if not in Cloudflare environment
+    if (typeof process !== 'undefined' && !process.env.CF_PAGES) {
+      const BetterSqlite3 = require('better-sqlite3');
+      const path = require('path');
+      const fs = require('fs');
+
+      const dbPath = process.env.SQLITE_DB_PATH || './data/database.sqlite';
+      const dbDir = path.dirname(dbPath);
+
+      // Ensure directory exists
+      if (!fs.existsSync(dbDir)) {
+        fs.mkdirSync(dbDir, { recursive: true });
+      }
+
+      this.db = new BetterSqlite3(dbPath);
+      
+      // Initialize schema if needed
+      this.initSchema();
+    }
+  }
+
+  private initSchema() {
+    const fs = require('fs');
+    const path = require('path');
+
+    // Check if tables exist
+    const tables = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
+    
+    if (tables.length === 0) {
+      // Load and execute schema
+      const schemaPath = path.join(process.cwd(), 'schema.sql');
+      if (fs.existsSync(schemaPath)) {
+        const schema = fs.readFileSync(schemaPath, 'utf-8');
+        this.db.exec(schema);
+        console.log('Database schema initialised');
+      }
+    }
+  }
+
+  prepare(sql: string): Statement {
+    const stmt = this.db.prepare(sql);
+    let boundValues: any[] = [];
+
+    return {
+      bind(...values: any[]) {
+        boundValues = values;
+        return this;
+      },
+      async run() {
+        const result = stmt.run(...boundValues);
+        return { success: true, meta: result };
+      },
+      async first<T>() {
+        const result = stmt.get(...boundValues);
+        return result as T | null;
+      },
+      async all<T>() {
+        const results = stmt.all(...boundValues);
+        return { results: results as T[] };
+      }
+    };
+  }
+
+  exec(sql: string): void {
+    this.db.exec(sql);
+  }
+
+  async batch<T = unknown>(statements: BatchStatement[]): Promise<T[]> {
+    const results: T[] = [];
+    for (const stmt of statements) {
+      const prepared = this.db.prepare(stmt.sql);
+      const result = stmt.args ? prepared.run(...stmt.args) : prepared.run();
+      results.push(result as T);
+    }
+    return results;
+  }
+}
+
+// D1 implementation for Cloudflare Pages
+class D1Database implements Database {
+  private d1: any;
+
+  constructor(d1Instance: any) {
+    this.d1 = d1Instance;
+  }
+
+  prepare(sql: string): Statement {
+    const stmt = this.d1.prepare(sql);
+    return {
+      bind(...values: any[]) {
+        stmt.bind(...values);
+        return this;
+      },
+      async run() {
+        const result = await stmt.run();
+        return { success: result.success, meta: result.meta };
+      },
+      async first<T>() {
+        return await stmt.first<T>();
+      },
+      async all<T>() {
+        return await stmt.all<T>();
+      }
+    };
+  }
+
+  exec(sql: string): void {
+    this.d1.exec(sql);
+  }
+
+  async batch<T = unknown>(statements: BatchStatement[]): Promise<T[]> {
+    const preparedStatements = statements.map(stmt => {
+      const prepared = this.d1.prepare(stmt.sql);
+      return stmt.args ? prepared.bind(...stmt.args) : prepared;
+    });
+    return await this.d1.batch(preparedStatements);
+  }
+}
+
+let cachedDb: Database | null = null;
+
+// Get database instance
+export function getDatabase(d1Instance?: any): Database {
+  if (cachedDb) {
+    return cachedDb;
+  }
+
+  // In Cloudflare Pages environment, d1Instance will be provided
+  if (d1Instance) {
+    cachedDb = new D1Database(d1Instance);
+    return cachedDb;
+  }
+
+  // In local development, use SQLite
+  if (typeof process !== 'undefined' && !process.env.CF_PAGES) {
+    cachedDb = new SQLiteDatabase();
+    return cachedDb;
+  }
+
+  throw new Error('Database not available');
+}
+
+// Helper to get database from Cloudflare context or local
+export function getDatabaseFromContext(context?: { env?: { DB?: any } }): Database {
+  if (context?.env?.DB) {
+    return getDatabase(context.env.DB);
+  }
+  return getDatabase();
+}
+
+export type { Database };
+

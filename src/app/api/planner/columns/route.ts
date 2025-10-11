@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/database';
+import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
 import { Column, COLUMN_COLORS } from '@/lib/types';
 
 export async function GET(request: NextRequest) {
@@ -14,7 +15,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const db = await connectToDatabase();
+    const db = getDatabase();
+    const helpers = new DbHelpers(db);
     const columns = await db
       .collection<Column>('columns')
       .find({ boardId })
@@ -28,8 +30,8 @@ export async function GET(request: NextRequest) {
         color: column.color,
         order: column.order,
         boardId: column.boardId,
-        createdAt: column.createdAt.toISOString(),
-        updatedAt: column.updatedAt.toISOString(),
+        created_at: column.created_at.toISOString(),
+        updated_at: column.updated_at.toISOString(),
         requiresPr: !!(column as any).requiresPr,
         moveToColumnOnMerge: (column as any).moveToColumnOnMerge || undefined,
         moveToColumnOnClosed: (column as any).moveToColumnOnClosed || undefined,
@@ -73,7 +75,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = await connectToDatabase();
+    const db = getDatabase();
+    const helpers = new DbHelpers(db);
 
     // Get the next order number
     const lastColumn = await db
@@ -89,8 +92,8 @@ export async function POST(request: NextRequest) {
       color: color || 'slate',
       order: nextOrder,
       boardId,
-      createdAt: now,
-      updatedAt: now,
+      created_at: now,
+      updated_at: now,
       requiresPr: typeof requiresPr === 'boolean' ? requiresPr : false,
       moveToColumnOnMerge: moveToColumnOnMerge || undefined,
       moveToColumnOnClosed: moveToColumnOnClosed || undefined,
@@ -105,8 +108,8 @@ export async function POST(request: NextRequest) {
       color: column.color,
       order: column.order,
       boardId: column.boardId,
-      createdAt: column.createdAt.toISOString(),
-      updatedAt: column.updatedAt.toISOString(),
+      created_at: column.created_at.toISOString(),
+      updated_at: column.updated_at.toISOString(),
       requiresPr: column.requiresPr || false,
       moveToColumnOnMerge: column.moveToColumnOnMerge || undefined,
       moveToColumnOnClosed: column.moveToColumnOnClosed || undefined,
@@ -142,7 +145,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const updateData: any = { updatedAt: new Date() };
+    const updateData: any = { updated_at: new Date() };
 
     if (name !== undefined) {
       if (typeof name !== 'string' || name.trim().length === 0) {
@@ -215,7 +218,8 @@ export async function PUT(request: NextRequest) {
       (updateData as any).moveToColumnOnRequestChanges = moveToColumnOnRequestChanges || null;
     }
 
-    const db = await connectToDatabase();
+    const db = getDatabase();
+    const helpers = new DbHelpers(db);
     const { ObjectId } = await import('mongodb');
 
     // Try to match by _id if id is a valid ObjectId, otherwise match by id field
@@ -248,8 +252,8 @@ export async function PUT(request: NextRequest) {
       color: updated.color,
       order: updated.order,
       boardId: updated.boardId,
-      createdAt: updated.createdAt instanceof Date ? updated.createdAt.toISOString() : new Date(updated.createdAt).toISOString(),
-      updatedAt: updated.updatedAt instanceof Date ? updated.updatedAt.toISOString() : new Date(updated.updatedAt).toISOString(),
+      created_at: updated.created_at instanceof Date ? updated.created_at.toISOString() : new Date(updated.created_at).toISOString(),
+      updated_at: updated.updated_at instanceof Date ? updated.updated_at.toISOString() : new Date(updated.updated_at).toISOString(),
       requiresPr: !!(updated as any).requiresPr,
       moveToColumnOnMerge: (updated as any).moveToColumnOnMerge || undefined,
       moveToColumnOnClosed: (updated as any).moveToColumnOnClosed || undefined,
@@ -285,7 +289,8 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    const db = await connectToDatabase();
+    const db = getDatabase();
+    const helpers = new DbHelpers(db);
     const { ObjectId } = await import('mongodb');
 
     // Try to match by _id if id is a valid ObjectId, otherwise match by id field

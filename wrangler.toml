@@ -1,17 +1,25 @@
 name = "ghplanner"
-compatibility_date = "2024-01-01"
+compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = ".open-next"
+
+# D1 Database Binding
+# Create your D1 database with: wrangler d1 create ghplanner-db
+# Initialize schema with: wrangler d1 execute ghplanner-db --file ./schema.sql
+# IMPORTANT: In Cloudflare Pages dashboard, set Variable name to "DB" (uppercase)
+[[d1_databases]]
+binding = "DB"  # Must be uppercase "DB" to match code
+database_name = "ghplanner-db"
+database_id = "09244402-09b6-45ac-b36d-2ba5efe7e0ca"
 
 # For Cloudflare Pages, environment variables should be set in the dashboard:
 # Pages → Your Project → Settings → Environment variables
 # 
 # Required variables:
-# - MONGODB_URI
 # - NEXTAUTH_SECRET
 # - NEXTAUTH_URL
-# - GITHUB_ID
-# - GITHUB_SECRET
-# - EMAIL_SERVER
+# - JWT_SECRET
+# - GITHUB_TOKEN
+# - RESEND_API_KEY
 # - EMAIL_FROM
 

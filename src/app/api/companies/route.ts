@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/database';
+import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import type { Company, Membership } from '@/lib/types';
@@ -22,14 +23,15 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const userId = s.userId as string;
-  const db = await connectToDatabase();
+  const db = getDatabase();
+    const helpers = new DbHelpers(db);
   
   // Get companies from memberships
   const memberships = await db.collection<Membership>('memberships').find({ userId, status: 'active' }).toArray();
   const companyIds = memberships.map(m => m.companyId);
   
   // Get companies from owned enterprises
-  const ownedEnterprises = await db.collection('enterprises').find({ ownerUserId: userId } as any).toArray();
+  const ownedEnterprises = await helpers.findMany('enterprises', { ownerUserId: userId  });
   const ownedEnterpriseIds = ownedEnterprises.map((e: any) => e.id);
   const enterpriseCompanies = await db.collection<Company>('companies').find({ enterpriseId: { $in: ownedEnterpriseIds } } as any).toArray();
   const enterpriseCompanyIds = enterpriseCompanies.map(c => c.id);
@@ -48,7 +50,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const userId = s.userId as string;
-  const db = await connectToDatabase();
+  const db = getDatabase();
+    const helpers = new DbHelpers(db);
   const body = await request.json();
   const { name, enterpriseId } = body;
   if (!name || typeof name !== 'string') {
@@ -64,8 +67,8 @@ export async function POST(request: NextRequest) {
     inviteCode: randomCode(8),
     inviteLinkSalt: crypto.randomUUID(),
     domainAllowlist: [],
-    createdAt: now,
-    updatedAt: now,
+    created_at: now,
+    updated_at: now,
   };
   await db.collection<Company>('companies').insertOne(company as any);
   const membership: Membership = {
@@ -74,7 +77,7 @@ export async function POST(request: NextRequest) {
     companyId: company.id,
     role: 'owner',
     status: 'active',
-    createdAt: now,
+    created_at: now,
   };
   await db.collection<Membership>('memberships').insertOne(membership as any);
   return NextResponse.json({ id: company.id, name: company.name, inviteCode: company.inviteCode, enterpriseId: company.enterpriseId });
@@ -87,7 +90,8 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const userId = s.userId as string;
-  const db = await connectToDatabase();
+  const db = getDatabase();
+    const helpers = new DbHelpers(db);
   const body = await request.json();
   const { id, name } = body;
   
@@ -103,7 +107,7 @@ export async function PUT(request: NextRequest) {
   const now = new Date();
   const result = await db.collection<Company>('companies').findOneAndUpdate(
     { id } as any,
-    { $set: { name: name.trim(), slug: slugify(name), updatedAt: now } },
+    { $set: { name: name.trim(), slug: slugify(name), updated_at: now } },
     { returnDocument: 'after' }
   );
   
@@ -128,7 +132,8 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'id required' }, { status: 400 });
   }
   
-  const db = await connectToDatabase();
+  const db = getDatabase();
+    const helpers = new DbHelpers(db);
   const member = await db.collection<Membership>('memberships').findOne({ userId, companyId: id } as any);
   if (!member || member.role !== 'owner') {
     return NextResponse.json({ error: 'Forbidden - Only owners can delete companies' }, { status: 403 });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/database';
+import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import type { Assignment, AppUser } from '@/lib/types';
@@ -15,7 +16,8 @@ export async function GET(
   }
   
   const projectId = params.id;
-  const db = await connectToDatabase();
+  const db = getDatabase();
+    const helpers = new DbHelpers(db);
   
   const assignments = await db.collection<Assignment>('assignments')
     .find({ projectId } as any)

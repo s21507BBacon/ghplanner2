@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/database';
+import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
 import { Task } from '@/lib/types';
 import { parsePRUrl } from '@/lib/github';
 import { getServerSession } from 'next-auth';
@@ -18,13 +19,14 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const db = await connectToDatabase();
+    const db = getDatabase();
+    const helpers = new DbHelpers(db);
     const query: any = { boardId };
     if (projectId) query.projectId = projectId;
     const tasks = await db
       .collection<Task>('tasks')
       .find(query)
-      .sort({ createdAt: -1 })
+      .sort({ created_at: -1 })
       .toArray();
 
     return NextResponse.json({
@@ -39,8 +41,8 @@ export async function GET(request: NextRequest) {
         assignee: task.assignee,
         assignees: (task as any).assignees || (task.assignee ? [task.assignee] : []),
         isLocked: (task as any).isLocked || false,
-        createdAt: task.createdAt.toISOString(),
-        updatedAt: task.updatedAt.toISOString(),
+        created_at: task.created_at.toISOString(),
+        updated_at: task.updated_at.toISOString(),
         checklist: task.checklist || [],
         order: task.order || 0,
         companyId: (task as any).companyId,
@@ -95,8 +97,9 @@ export async function POST(request: NextRequest) {
     // Validate prUrl if provided (or try to build from prNumber + project repo)
     let finalPrUrl: string | undefined = prUrl?.trim() || undefined;
     if (!finalPrUrl && prNumber && projectId) {
-      const db = await connectToDatabase();
-      const proj = await db.collection('projects').findOne({ id: projectId } as any);
+      const db = getDatabase();
+    const helpers = new DbHelpers(db);
+      const proj = await helpers.findOne('projects', { id: projectId  });
       if (proj && proj.repoOwner && proj.repoName && typeof prNumber === 'number') {
         finalPrUrl = `https://github.com/${proj.repoOwner}/${proj.repoName}/pull/${prNumber}`;
       }
@@ -113,7 +116,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = await connectToDatabase();
+    const db = getDatabase();
+    const helpers = new DbHelpers(db);
 
     // Get the next order number for this column
     const lastTask = await db
@@ -139,8 +143,8 @@ export async function POST(request: NextRequest) {
       createdByUserId: userId,
       isLocked: isLocked === true,
       order: nextOrder,
-      createdAt: now,
-      updatedAt: now,
+      created_at: now,
+      updated_at: now,
       checklist: [],
     } as Task;
 
@@ -159,8 +163,8 @@ export async function POST(request: NextRequest) {
       companyId: task.companyId,
       projectId: task.projectId,
       isLocked: (task as any).isLocked || false,
-      createdAt: task.createdAt.toISOString(),
-      updatedAt: task.updatedAt.toISOString(),
+      created_at: task.created_at.toISOString(),
+      updated_at: task.updated_at.toISOString(),
       checklist: task.checklist,
       order: task.order,
     }, { status: 201 });
@@ -247,9 +251,10 @@ export async function PATCH(request: NextRequest) {
       updateData[key] = value;
     }
 
-    updateData.updatedAt = new Date();
+    updateData.updated_at = new Date();
 
-    const db = await connectToDatabase();
+    const db = getDatabase();
+    const helpers = new DbHelpers(db);
     const { ObjectId } = require('mongodb');
 
     // Enforce assignee permission: only assignees or admins can modify
@@ -266,7 +271,7 @@ export async function PATCH(request: NextRequest) {
     let isAdmin = false;
     if ((existing as any).companyId && userId) {
       try {
-        const membership = await db.collection('memberships').findOne({ userId, companyId: (existing as any).companyId } as any);
+        const membership = await helpers.findOne('memberships', { userId, companyId: (existing as any).companyId  });
         const role = (membership as any)?.role as string | undefined;
         if (role && (role === 'owner' || role === 'admin' || role === 'staff')) {
           isAdmin = true;
@@ -313,8 +318,8 @@ export async function PATCH(request: NextRequest) {
       assignee: updated.assignee,
       assignees: (updated as any).assignees || [],
       isLocked: (updated as any).isLocked || false,
-      createdAt: updated.createdAt instanceof Date ? updated.createdAt.toISOString() : new Date(updated.createdAt).toISOString(),
-      updatedAt: updated.updatedAt instanceof Date ? updated.updatedAt.toISOString() : new Date(updated.updatedAt).toISOString(),
+      created_at: updated.created_at instanceof Date ? updated.created_at.toISOString() : new Date(updated.created_at).toISOString(),
+      updated_at: updated.updated_at instanceof Date ? updated.updated_at.toISOString() : new Date(updated.updated_at).toISOString(),
       checklist: updated.checklist || [],
       order: updated.order || 0,
     });
@@ -350,7 +355,8 @@ export async function DELETE(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions as any);
     const userId = (session as any)?.userId as string | undefined;
-    const db = await connectToDatabase();
+    const db = getDatabase();
+    const helpers = new DbHelpers(db);
     const { ObjectId } = require('mongodb');
 
     const existing = await db.collection<Task>('tasks').findOne({ _id: new ObjectId(id) } as any);
@@ -364,7 +370,7 @@ export async function DELETE(request: NextRequest) {
     let isAdmin = false;
     if ((existing as any).companyId && userId) {
       try {
-        const membership = await db.collection('memberships').findOne({ userId, companyId: (existing as any).companyId } as any);
+        const membership = await helpers.findOne('memberships', { userId, companyId: (existing as any).companyId  });
         const role = (membership as any)?.role as string | undefined;
         if (role && (role === 'owner' || role === 'admin' || role === 'staff')) {
           isAdmin = true;

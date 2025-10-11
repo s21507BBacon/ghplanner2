@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/database';
+import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import type { Company, Membership } from '@/lib/types';
@@ -11,7 +12,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const userId = s.userId as string;
-  const db = await connectToDatabase();
+  const db = getDatabase();
+    const helpers = new DbHelpers(db);
   const { code } = await request.json();
   if (!code || typeof code !== 'string') {
     return NextResponse.json({ error: 'Join code is required' }, { status: 400 });
@@ -30,7 +32,7 @@ export async function POST(request: NextRequest) {
     companyId: company.id,
     role: 'member',
     status: 'active',
-    createdAt: new Date(),
+    created_at: new Date(),
   };
   await db.collection<Membership>('memberships').insertOne(membership as any);
   return NextResponse.json({ ok: true });

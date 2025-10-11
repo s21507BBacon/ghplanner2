@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/database';
+import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import type { Enterprise, EnterpriseInvite, EnterpriseMembership } from '@/lib/types';
@@ -19,7 +20,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Token required' }, { status: 400 });
   }
 
-  const db = await connectToDatabase();
+  const db = getDatabase();
+    const helpers = new DbHelpers(db);
 
   const invite = await db.collection<EnterpriseInvite>('enterpriseInvites').findOne({ 
     token,
@@ -62,7 +64,7 @@ export async function POST(request: NextRequest) {
     
     await db.collection<EnterpriseMembership>('enterpriseMemberships').updateOne(
       { id: existingMembership.id } as any,
-      { $set: { status: 'active', updatedAt: now } }
+      { $set: { status: 'active', updated_at: now } }
     );
   } else {
     const membership: EnterpriseMembership = {
@@ -71,8 +73,8 @@ export async function POST(request: NextRequest) {
       enterpriseId: enterprise.id,
       role: 'member',
       status: 'active',
-      createdAt: now,
-      updatedAt: now,
+      created_at: now,
+      updated_at: now,
     };
 
     await db.collection<EnterpriseMembership>('enterpriseMemberships').insertOne(membership as any);

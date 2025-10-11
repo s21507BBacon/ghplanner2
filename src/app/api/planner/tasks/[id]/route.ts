@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/database';
+import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
 import { Task } from '@/lib/types';
 
 export async function GET(
@@ -16,7 +17,8 @@ export async function GET(
   }
 
   try {
-    const db = await connectToDatabase();
+    const db = getDatabase();
+    const helpers = new DbHelpers(db);
     const { ObjectId } = await import('mongodb');
 
     const task = await db
@@ -41,8 +43,8 @@ export async function GET(
       assignee: task.assignee,
       assignees: (task as any).assignees || (task.assignee ? [task.assignee] : []),
       isLocked: (task as any).isLocked || false,
-      createdAt: task.createdAt.toISOString(),
-      updatedAt: task.updatedAt.toISOString(),
+      created_at: task.created_at.toISOString(),
+      updated_at: task.updated_at.toISOString(),
       checklist: task.checklist || [],
       boardId: task.boardId,
       order: task.order || 0,

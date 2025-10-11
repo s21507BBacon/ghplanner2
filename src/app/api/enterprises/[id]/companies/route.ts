@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/database';
+import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import type { Company, EnterpriseMembership } from '@/lib/types';
@@ -16,7 +17,8 @@ export async function GET(
   const userId = s.userId as string;
   const enterpriseId = params.id;
 
-  const db = await connectToDatabase();
+  const db = getDatabase();
+    const helpers = new DbHelpers(db);
 
   const membership = await db.collection<EnterpriseMembership>('enterpriseMemberships').findOne({
     userId,

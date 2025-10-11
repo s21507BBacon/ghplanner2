@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/database';
+import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import type { Assignment, Project } from '@/lib/types';
@@ -16,7 +17,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'companyId required' }, { status: 400 });
   }
 
-  const db = await connectToDatabase();
+  const db = getDatabase();
+    const helpers = new DbHelpers(db);
   const projects = await db.collection<Project>('projects').find({ companyId } as any).toArray();
   
   const projectsWithCapacity = await Promise.all(

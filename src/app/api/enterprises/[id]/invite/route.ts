@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/database';
+import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { sendEnterpriseInviteEmail } from '@/lib/email';
@@ -64,7 +65,8 @@ export async function POST(
   const userId = s.userId as string;
   const enterpriseId = params.id;
 
-  const db = await connectToDatabase();
+  const db = getDatabase();
+    const helpers = new DbHelpers(db);
 
   const enterprise = await db.collection<Enterprise>('enterprises').findOne({ 
     id: enterpriseId 
@@ -150,7 +152,7 @@ export async function POST(
           invitedByUserId: userId,
           status: 'pending',
           expiresAt,
-          createdAt: now,
+          created_at: now,
         };
         await db.collection<EnterpriseInvite>('enterpriseInvites').insertOne(invite as any);
       }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/database';
+import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import type { Assignment, Company, Project, Membership, EnterpriseMembership, Enterprise } from '@/lib/types';
@@ -12,36 +13,25 @@ export async function GET(request: NextRequest) {
   }
   
   const userId = s.userId as string;
-  const db = await connectToDatabase();
+  const db = getDatabase();
+  const helpers = new DbHelpers(db);
   
-  const assignments = await db.collection<Assignment>('assignments')
-    .find({ userId } as any)
-    .toArray();
+  const assignments = await helpers.findMany<Assignment>('assignments', { user_id: userId });
   
   const companyIds = [...new Set(assignments.map(a => a.companyId))];
   const projectIds = assignments.map(a => a.projectId);
   
-  const companies = await db.collection<Company>('companies')
-    .find({ id: { $in: companyIds } } as any)
-    .toArray();
+  const companies = await helpers.findWhereIn<Company>('companies', 'id', companyIds);
   
-  const projects = await db.collection<Project>('projects')
-    .find({ id: { $in: projectIds } } as any)
-    .toArray();
+  const projects = await helpers.findWhereIn<Project>('projects', 'id', projectIds);
   
-  const memberships = await db.collection<Membership>('memberships')
-    .find({ userId, companyId: { $in: companyIds } } as any)
-    .toArray();
+  const memberships = await helpers.findWhereIn<Membership>('memberships', 'company_id', companyIds, { user_id: userId });
   
   const enterpriseIds = [...new Set(companies.filter(c => c.enterpriseId).map(c => c.enterpriseId!))];
-  const enterpriseMemberships = await db.collection<EnterpriseMembership>('enterpriseMemberships')
-    .find({ userId, enterpriseId: { $in: enterpriseIds } } as any)
-    .toArray();
+  const enterpriseMemberships = await helpers.findWhereIn<EnterpriseMembership>('enterprise_memberships', 'enterprise_id', enterpriseIds, { user_id: userId });
 
   // Check if user created any enterprises
-  const createdEnterprises = await db.collection<Enterprise>('enterprises')
-    .find({ ownerUserId: userId } as any)
-    .toArray();
+  const createdEnterprises = await helpers.findMany<Enterprise>('enterprises', { owner_user_id: userId });
   
   const isOwnerOrAdmin = memberships.some(m => m.role === 'owner' || m.role === 'admin') ||
                          enterpriseMemberships.some(m => m.role === 'owner' || m.role === 'admin') ||

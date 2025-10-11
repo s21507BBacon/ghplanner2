@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/database';
+import { DbHelpers, dateToTimestamp, timestampToDate } from '@/lib/db';
 
 const MAX_OTP_ATTEMPTS = 5;
 
@@ -15,16 +16,17 @@ export async function POST(request: NextRequest) {
     // Normalize the code: uppercase and ensure proper format
     const normalizedCode = code.toUpperCase().trim();
 
-    const db = await connectToDatabase();
-    const user = await db.collection('users').findOne({ email } as any);
+    const db = getDatabase();
+    const helpers = new DbHelpers(db);
+    const user = await helpers.findOne('users', { email });
 
     if (!user) {
       return NextResponse.json({ error: 'Invalid code' }, { status: 401 });
     }
 
-    const otpCode = (user as any).otpCode;
-    const otpExpires = (user as any).otpExpires;
-    const otpAttempts = (user as any).otpAttempts || 0;
+    const otpCode = user.otp_code;
+    const otpExpires = user.otp_expires;
+    const otpAttempts = user.otp_attempts || 0;
 
     // Check if OTP exists
     if (!otpCode) {
@@ -34,10 +36,13 @@ export async function POST(request: NextRequest) {
     // Check attempts
     if (otpAttempts >= MAX_OTP_ATTEMPTS) {
       // Clear the OTP
-      await db.collection('users').updateOne(
-        { email } as any,
+      await helpers.update(
+        'users',
+        { email },
         { 
-          $unset: { otpCode: '', otpExpires: '', otpAttempts: '' }
+          otp_code: null,
+          otp_expires: null,
+          otp_attempts: 0
         }
       );
       return NextResponse.json({ 
@@ -47,11 +52,15 @@ export async function POST(request: NextRequest) {
 
     // Check if expired
     const now = new Date();
-    if (otpExpires && new Date(otpExpires) < now) {
-      await db.collection('users').updateOne(
-        { email } as any,
+    const expiresDate = timestampToDate(otpExpires);
+    if (expiresDate && expiresDate < now) {
+      await helpers.update(
+        'users',
+        { email },
         { 
-          $unset: { otpCode: '', otpExpires: '', otpAttempts: '' }
+          otp_code: null,
+          otp_expires: null,
+          otp_attempts: 0
         }
       );
       return NextResponse.json({ error: 'Code expired. Please request a new one.' }, { status: 410 });
@@ -60,10 +69,11 @@ export async function POST(request: NextRequest) {
     // Verify the code (case-insensitive comparison)
     if (otpCode.toUpperCase() !== normalizedCode) {
       // Increment attempts
-      await db.collection('users').updateOne(
-        { email } as any,
+      await helpers.update(
+        'users',
+        { email },
         { 
-          $set: { otpAttempts: otpAttempts + 1 }
+          otp_attempts: otpAttempts + 1
         }
       );
       
@@ -74,11 +84,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Code is valid! Mark email as verified and clear the OTP
-    await db.collection('users').updateOne(
-      { email } as any,
+    await helpers.update(
+      'users',
+      { email },
       { 
-        $set: { emailVerified: true },
-        $unset: { otpCode: '', otpExpires: '', otpAttempts: '' }
+        email_verified: 1,
+        otp_code: null,
+        otp_expires: null,
+        otp_attempts: 0
       }
     );
 
@@ -88,9 +101,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       ok: true,
       user: {
-        id: (user as any).id,
-        email: (user as any).email,
-        name: (user as any).name || '',
+        id: user.id,
+        email: user.email,
+        name: user.name || '',
       }
     });
   } catch (e) {

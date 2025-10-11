@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/database';
+import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,15 +11,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
     }
 
-    const db = await connectToDatabase();
-    const user = await db.collection('users').findOne({ email } as any);
+    const db = getDatabase();
+    const helpers = new DbHelpers(db);
+    const user = await helpers.findOne('users', { email  });
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     return NextResponse.json({
-      emailVerified: (user as any).emailVerified || false,
+      email_verified: (user as any).email_verified || false,
       hasToken: !!(user as any).emailVerificationToken,
     });
   } catch (e) {

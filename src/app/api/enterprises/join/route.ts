@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/database';
+import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import type { Enterprise, EnterpriseMembership } from '@/lib/types';
@@ -11,7 +12,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const userId = s.userId as string;
-  const db = await connectToDatabase();
+  const db = getDatabase();
+    const helpers = new DbHelpers(db);
   const body = await request.json();
   const { inviteCode } = body;
 
@@ -37,7 +39,7 @@ export async function POST(request: NextRequest) {
     // Reactivate pending membership
     await db.collection<EnterpriseMembership>('enterpriseMemberships').updateOne(
       { id: existingMembership.id },
-      { $set: { status: 'active', updatedAt: new Date() } }
+      { $set: { status: 'active', updated_at: new Date() } }
     );
     return NextResponse.json({ id: enterprise.id, name: enterprise.name });
   }
@@ -49,8 +51,8 @@ export async function POST(request: NextRequest) {
     enterpriseId: enterprise.id,
     role: 'member',
     status: 'active',
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    created_at: new Date(),
+    updated_at: new Date(),
   };
 
   await db.collection<EnterpriseMembership>('enterpriseMemberships').insertOne(membership as any);

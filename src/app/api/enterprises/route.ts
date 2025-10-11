@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/database';
+import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import type { Enterprise, EnterpriseMembership } from '@/lib/types';
@@ -22,7 +23,8 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const userId = s.userId as string;
-  const db = await connectToDatabase();
+  const db = getDatabase();
+    const helpers = new DbHelpers(db);
   
   // Get enterprises where user is a member OR owner
   const memberships = await db.collection<EnterpriseMembership>('enterpriseMemberships').find({ userId, status: 'active' }).toArray();
@@ -46,7 +48,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const userId = s.userId as string;
-  const db = await connectToDatabase();
+  const db = getDatabase();
+    const helpers = new DbHelpers(db);
   const body = await request.json();
   const { name } = body;
   
@@ -63,8 +66,8 @@ export async function POST(request: NextRequest) {
     inviteCode: randomCode(8),
     inviteLinkSalt: crypto.randomUUID(),
     domainAllowlist: [],
-    createdAt: now,
-    updatedAt: now,
+    created_at: now,
+    updated_at: now,
   };
   
   await db.collection<Enterprise>('enterprises').insertOne(enterprise as any);
@@ -76,8 +79,8 @@ export async function POST(request: NextRequest) {
     enterpriseId: enterprise.id,
     role: 'owner',
     status: 'active',
-    createdAt: now,
-    updatedAt: now,
+    created_at: now,
+    updated_at: now,
   };
   
   await db.collection<EnterpriseMembership>('enterpriseMemberships').insertOne(membership as any);

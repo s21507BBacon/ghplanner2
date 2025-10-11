@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/database';
+import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,10 +13,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Verification token is required' }, { status: 400 });
     }
 
-    const db = await connectToDatabase();
-    const user = await db.collection('users').findOne({ 
-      emailVerificationToken: token 
-    } as any);
+    const db = getDatabase();
+    const helpers = new DbHelpers(db);
+    const user = await helpers.findOne('users', { emailVerificationToken: token 
+     });
 
     console.log('[VERIFY] User found:', user ? 'yes' : 'no');
     
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if already verified
-    if ((user as any).emailVerified) {
+    if ((user as any).email_verified) {
       console.log('[VERIFY] Email already verified');
       return NextResponse.json({ 
         ok: true, 
@@ -45,12 +46,9 @@ export async function POST(request: NextRequest) {
 
     // Verify the email
     console.log('[VERIFY] Updating user to verified');
-    const result = await db.collection('users').updateOne(
-      { emailVerificationToken: token } as any,
-      { 
-        $set: { 
-          emailVerified: true, 
-          updatedAt: now 
+    const result = await helpers.update('users', { emailVerificationToken: token  }, { 
+          email_verified: true, 
+          updated_at: now 
         },
         $unset: { 
           emailVerificationToken: '',

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/database';
+import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
@@ -13,8 +14,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email and userId required' }, { status: 400 });
     }
 
-    const db = await connectToDatabase();
-    const user = await db.collection('users').findOne({ email, id: userId } as any);
+    const db = getDatabase();
+    const helpers = new DbHelpers(db);
+    const user = await helpers.findOne('users', { email, id: userId  });
 
     if (!user) {
       return NextResponse.json({ error: 'Invalid session data' }, { status: 401 });

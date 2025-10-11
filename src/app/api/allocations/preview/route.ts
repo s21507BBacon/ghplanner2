@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { connectToDatabase } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/database';
+import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
 import type { EnterpriseMembership, Membership, Project, ProjectPreference, UserPreference, AppUser } from '@/lib/types';
 
 interface PreviewResult { projectId: string; userIds: string[] }
@@ -16,7 +17,8 @@ export async function GET(request: NextRequest) {
   const enterpriseId = request.nextUrl.searchParams.get('enterpriseId');
   const companyId = request.nextUrl.searchParams.get('companyId');
   
-  const db = await connectToDatabase();
+  const db = getDatabase();
+    const helpers = new DbHelpers(db);
   
   if (enterpriseId) {
     const entMember = await db.collection<EnterpriseMembership>('enterpriseMemberships').findOne({ userId: adminUserId, enterpriseId } as any);

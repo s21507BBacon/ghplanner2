@@ -1,4 +1,4 @@
-import * as nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
 interface SendEmailOptions {
   to: string;
@@ -7,47 +7,38 @@ interface SendEmailOptions {
   text?: string;
 }
 
-// Create reusable transporter
-const createTransporter = () => {
-  const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER;
-  const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
-  const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
-  const smtpPort = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 587;
-
-  if (!smtpUser || !smtpPass) {
-    console.error('SMTP credentials not configured');
+// Initialize Resend client
+function getResendClient() {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.error('RESEND_API_KEY not configured');
     throw new Error('Email service not configured');
   }
-
-  const transporter = nodemailer.createTransport({
-    host: smtpHost,
-    port: smtpPort,
-    secure: smtpPort === 465, // true for 465, false for other ports
-    auth: {
-      user: smtpUser,
-      pass: smtpPass,
-    },
-  });
-
-  return transporter;
-};
+  return new Resend(apiKey);
+}
 
 export async function sendEmail({ to, subject, html, text }: SendEmailOptions) {
   try {
-    console.log('[EMAIL] Creating transporter...');
-    const transporter = createTransporter();
-
     console.log('[EMAIL] Sending email to:', to);
-    const info = await transporter.sendMail({
-      from: process.env.SMTP_FROM || `"GitHub Planner" <${process.env.SMTP_USER || process.env.GMAIL_USER}>`,
+    const resend = getResendClient();
+    
+    const fromEmail = process.env.EMAIL_FROM || 'GitHub Planner <onboarding@resend.dev>';
+
+    const result = await resend.emails.send({
+      from: fromEmail,
       to,
       subject,
-      text: text || '',
       html,
+      text: text || undefined,
     });
 
-    console.log('[EMAIL] Email sent successfully! MessageId:', info.messageId);
-    return { success: true, messageId: info.messageId };
+    if (result.error) {
+      console.error('[EMAIL] Failed to send email:', result.error);
+      throw new Error(`Email send failed: ${result.error.message}`);
+    }
+
+    console.log('[EMAIL] Email sent successfully! ID:', result.data?.id);
+    return { success: true, messageId: result.data?.id };
   } catch (error) {
     console.error('[EMAIL] Failed to send email:', error);
     throw error;

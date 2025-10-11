@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/database';
+import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
 import { Task } from '@/lib/types';
 import { checkPRStatus } from '@/lib/github';
 
@@ -15,7 +16,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = await connectToDatabase();
+    const db = getDatabase();
+    const helpers = new DbHelpers(db);
     const { ObjectId } = await import('mongodb');
     
     // Get all columns with PR tracking enabled
@@ -97,7 +99,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Update task if needed
-      const updates: any = { updatedAt: new Date() };
+      const updates: any = { updated_at: new Date() };
       let hasUpdates = false;
 
       if (newColumnId && newColumnId !== task.columnId) {
@@ -134,7 +136,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Sync task statuses with column names for non-PR columns
-    const allColumns = await db.collection('columns').find({ boardId }).toArray();
+    const allColumns = await helpers.findMany('columns', { boardId  });
     const allTasks = await db.collection<Task>('tasks').find({ boardId }).toArray();
     const syncedStatuses: Array<{ taskId: string; columnName: string; newStatus: string }> = [];
 
@@ -180,7 +182,7 @@ export async function POST(request: NextRequest) {
           .collection<Task>('tasks')
           .updateOne(
             { _id: new ObjectId(task._id?.toString() || task.id) },
-            { $set: { status: expectedStatus, updatedAt: new Date() } }
+            { $set: { status: expectedStatus, updated_at: new Date() } }
           );
 
         syncedStatuses.push({

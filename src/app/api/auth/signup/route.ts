@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/database';
+import { DbHelpers, dateToTimestamp } from '@/lib/db';
 import { sendEmail } from '@/lib/email';
 
 // Generate alphanumeric OTP code in format: 1A2B-3C4D
@@ -29,45 +30,48 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid email format' }, { status: 400 });
     }
 
-    const db = await connectToDatabase();
-    let user = await db.collection('users').findOne({ email });
+    const db = getDatabase();
+    const helpers = new DbHelpers(db);
+    let user = await helpers.findOne('users', { email });
     
     const isDev = process.env.NODE_ENV === 'development';
     const otpCode = generateOTP();
     const now = new Date();
+    const nowTimestamp = dateToTimestamp(now);
     const expiresAt = new Date(now.getTime() + 10 * 60 * 1000); // 10 minutes
+    const expiresTimestamp = dateToTimestamp(expiresAt);
 
     if (user) {
       // User exists, just send new OTP (or skip in dev)
-      await db.collection('users').updateOne(
-        { email } as any,
+      await helpers.update(
+        'users',
+        { email },
         { 
-          $set: { 
-            otpCode,
-            otpExpires: expiresAt,
-            otpAttempts: 0,
-            emailVerified: isDev ? true : (user as any).emailVerified,
-            updatedAt: now
-          }
+          otp_code: otpCode,
+          otp_expires: expiresTimestamp,
+          otp_attempts: 0,
+          email_verified: isDev ? 1 : user.email_verified,
+          updated_at: nowTimestamp
         }
       );
     } else {
       // Create new user
+      const userId = crypto.randomUUID();
       const newUser = {
-        id: crypto.randomUUID(),
+        id: userId,
         email,
         name: name || '',
-        emailVerified: isDev, // Auto-verify in dev
-        otpCode,
-        otpExpires: expiresAt,
-        otpAttempts: 0,
-        createdAt: now,
-        updatedAt: now,
+        email_verified: isDev ? 1 : 0, // Auto-verify in dev
+        otp_code: otpCode,
+        otp_expires: expiresTimestamp,
+        otp_attempts: 0,
+        created_at: nowTimestamp,
+        updated_at: nowTimestamp,
       };
       
       console.log('[SIGNUP] Creating user with OTP:', otpCode, isDev ? '(DEV MODE - Auto-verified)' : '');
-      await db.collection('users').insertOne(newUser);
-      user = newUser as any;
+      await helpers.insert('users', newUser);
+      user = { id: userId, email, name: name || '' } as any;
     }
 
     // Send OTP email

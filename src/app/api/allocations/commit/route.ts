@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { connectToDatabase } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/database';
+import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
 import type { Assignment, EnterpriseMembership, Membership, UserPreference } from '@/lib/types';
 
 export async function POST(request: NextRequest) {
@@ -13,7 +14,8 @@ export async function POST(request: NextRequest) {
   const adminUserId = s.userId as string;
   const { preferenceId, companyId, projectId, preview } = await request.json();
   
-  const db = await connectToDatabase();
+  const db = getDatabase();
+    const helpers = new DbHelpers(db);
   
   if (preferenceId && companyId && projectId) {
     const userPref = await db.collection<UserPreference>('userPreferences').findOne({ id: preferenceId } as any);
@@ -42,7 +44,7 @@ export async function POST(request: NextRequest) {
         companyId,
         role: 'member',
         status: 'active',
-        createdAt: new Date(),
+        created_at: new Date(),
       };
       await db.collection<Membership>('memberships').insertOne(membership as any);
     }
@@ -60,7 +62,7 @@ export async function POST(request: NextRequest) {
     await db.collection<Assignment>('assignments').insertOne(assignment as any);
     await db.collection<UserPreference>('userPreferences').updateOne(
       { id: preferenceId } as any,
-      { $set: { status: 'allocated', updatedAt: now } }
+      { $set: { status: 'allocated', updated_at: now } }
     );
     
     return NextResponse.json({ ok: true });

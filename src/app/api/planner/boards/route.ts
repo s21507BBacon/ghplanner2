@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/database';
+import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
 import { Board } from '@/lib/types';
 
 export async function GET(request: NextRequest) {
   try {
-    const db = await connectToDatabase();
+    const db = getDatabase();
+    const helpers = new DbHelpers(db);
     const projectId = request.nextUrl.searchParams.get('projectId');
     const companyId = request.nextUrl.searchParams.get('companyId');
 
@@ -15,7 +17,7 @@ export async function GET(request: NextRequest) {
     const boards = await db
       .collection<Board>('boards')
       .find(query)
-      .sort({ createdAt: -1 })
+      .sort({ created_at: -1 })
       .toArray();
 
     return NextResponse.json({
@@ -25,8 +27,8 @@ export async function GET(request: NextRequest) {
         description: board.description,
         companyId: (board as any).companyId,
         projectId: (board as any).projectId,
-        createdAt: board.createdAt.toISOString(),
-        updatedAt: board.updatedAt.toISOString(),
+        created_at: board.created_at.toISOString(),
+        updated_at: board.updated_at.toISOString(),
       })),
     });
   } catch (error) {
@@ -52,7 +54,8 @@ export async function POST(request: NextRequest) {
 
     // projectId is optional for backward compatibility; when provided, board is scoped to project
 
-    const db = await connectToDatabase();
+    const db = getDatabase();
+    const helpers = new DbHelpers(db);
     const now = new Date();
 
     const board: Board = {
@@ -61,8 +64,8 @@ export async function POST(request: NextRequest) {
       description: description?.trim() || '',
       projectId,
       companyId,
-      createdAt: now,
-      updatedAt: now,
+      created_at: now,
+      updated_at: now,
     };
 
     const result = await db.collection<Board>('boards').insertOne(board);
@@ -73,8 +76,8 @@ export async function POST(request: NextRequest) {
       description: board.description,
       projectId: board.projectId,
       companyId: (board as any).companyId,
-      createdAt: board.createdAt.toISOString(),
-      updatedAt: board.updatedAt.toISOString(),
+      created_at: board.created_at.toISOString(),
+      updated_at: board.updated_at.toISOString(),
     }, { status: 201 });
 
   } catch (error) {
@@ -106,7 +109,8 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    const db = await connectToDatabase();
+    const db = getDatabase();
+    const helpers = new DbHelpers(db);
     const { ObjectId } = await import('mongodb');
 
     // Check if board has columns

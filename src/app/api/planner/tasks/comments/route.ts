@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/database';
+import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
 
 interface TaskComment {
   _id?: string;
   taskId: string;
   author: string;
   content: string;
-  createdAt: Date;
-  updatedAt: Date;
+  created_at: Date;
+  updated_at: Date;
 }
 
 export async function GET(request: NextRequest) {
@@ -22,11 +23,12 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const db = await connectToDatabase();
+    const db = getDatabase();
+    const helpers = new DbHelpers(db);
     const comments = await db
       .collection<TaskComment>('task_comments')
       .find({ taskId })
-      .sort({ createdAt: 1 })
+      .sort({ created_at: 1 })
       .toArray();
 
     return NextResponse.json({
@@ -34,8 +36,8 @@ export async function GET(request: NextRequest) {
         id: comment._id?.toString(),
         author: comment.author,
         content: comment.content,
-        createdAt: comment.createdAt.toISOString(),
-        updatedAt: comment.updatedAt.toISOString(),
+        created_at: comment.created_at.toISOString(),
+        updated_at: comment.updated_at.toISOString(),
       })),
     });
   } catch (error) {
@@ -73,15 +75,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = await connectToDatabase();
+    const db = getDatabase();
+    const helpers = new DbHelpers(db);
     const now = new Date();
 
     const comment: TaskComment = {
       taskId,
       author: author.trim(),
       content: content.trim(),
-      createdAt: now,
-      updatedAt: now,
+      created_at: now,
+      updated_at: now,
     };
 
     const result = await db.collection<TaskComment>('task_comments').insertOne(comment);
@@ -90,8 +93,8 @@ export async function POST(request: NextRequest) {
       id: result.insertedId.toString(),
       author: comment.author,
       content: comment.content,
-      createdAt: comment.createdAt.toISOString(),
-      updatedAt: comment.updatedAt.toISOString(),
+      created_at: comment.created_at.toISOString(),
+      updated_at: comment.updated_at.toISOString(),
     }, { status: 201 });
 
   } catch (error) {
@@ -130,7 +133,8 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const db = await connectToDatabase();
+    const db = getDatabase();
+    const helpers = new DbHelpers(db);
     const { ObjectId } = await import('mongodb');
 
     const result = await db
@@ -140,7 +144,7 @@ export async function PUT(request: NextRequest) {
         {
           $set: {
             content: content.trim(),
-            updatedAt: new Date(),
+            updated_at: new Date(),
           },
         },
         { returnDocument: 'after' }
@@ -157,8 +161,8 @@ export async function PUT(request: NextRequest) {
       id: result._id?.toString(),
       author: result.author,
       content: result.content,
-      createdAt: result.createdAt.toISOString(),
-      updatedAt: result.updatedAt.toISOString(),
+      created_at: result.created_at.toISOString(),
+      updated_at: result.updated_at.toISOString(),
     });
 
   } catch (error) {
@@ -190,7 +194,8 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    const db = await connectToDatabase();
+    const db = getDatabase();
+    const helpers = new DbHelpers(db);
     const { ObjectId } = await import('mongodb');
 
     const result = await db
