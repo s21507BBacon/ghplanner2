@@ -10,8 +10,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "pages:build": "opennextjs-cloudflare build",
-    "pages:dev": "wrangler pages dev .open-next/worker --compatibility-flag=nodejs_compat",
-    "pages:deploy": "npm run pages:build && wrangler pages deploy .open-next/worker"
+    "pages:dev": "wrangler pages dev .open-next --compatibility-flag=nodejs_compat",
+    "pages:deploy": "npm run pages:build && wrangler pages deploy .open-next"
   },
   "dependencies": {
     "@auth/mongodb-adapter": "^3.10.0",

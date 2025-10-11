@@ -1,7 +1,7 @@
 {
   "build": {
     "command": "./build.sh",
-    "directory": ".open-next/worker"
+    "directory": ".open-next"
   },
   "headers": {
     "/*": {

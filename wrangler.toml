@@ -1,7 +1,7 @@
 name = "ghplanner"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
-pages_build_output_dir = ".open-next/worker"
+pages_build_output_dir = ".open-next"
 
 # For Cloudflare Pages, environment variables should be set in the dashboard:
 # Pages → Your Project → Settings → Environment variables
