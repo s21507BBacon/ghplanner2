@@ -156,10 +156,21 @@ If you didn't request this code, you can safely ignore this email.
         text,
       });
       console.log('[SIGNUP] Verification code sent successfully');
-    } catch (emailError) {
+    } catch (emailError: any) {
       console.error('[SIGNUP] Failed to send verification email:', emailError);
+      console.error('[SIGNUP] Error details:', {
+        message: emailError?.message,
+        name: emailError?.name,
+        stack: emailError?.stack
+      });
+      
+      const errorMessage = emailError?.message || 'Failed to send verification code';
       return NextResponse.json({ 
-        error: 'Failed to send verification code. Please try again.' 
+        error: errorMessage,
+        debug: process.env.NODE_ENV === 'development' ? {
+          type: emailError?.name,
+          details: emailError?.message
+        } : undefined
       }, { status: 500 });
     }
 

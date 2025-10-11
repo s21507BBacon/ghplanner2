@@ -10,20 +10,41 @@ interface SendEmailOptions {
 // Initialize Resend client
 function getResendClient() {
   const apiKey = process.env.RESEND_API_KEY;
+  
+  console.log('[EMAIL] Environment check:');
+  console.log('  - RESEND_API_KEY:', apiKey ? `Set (${apiKey.substring(0, 8)}...)` : 'NOT SET');
+  console.log('  - EMAIL_FROM:', process.env.EMAIL_FROM || 'NOT SET');
+  console.log('  - NODE_ENV:', process.env.NODE_ENV);
+  
   if (!apiKey) {
-    console.error('RESEND_API_KEY not configured');
-    throw new Error('Email service not configured');
+    console.error('[EMAIL] ERROR: RESEND_API_KEY not configured');
+    throw new Error('Email service not configured: RESEND_API_KEY missing');
   }
+  
+  if (!apiKey.startsWith('re_')) {
+    console.error('[EMAIL] ERROR: Invalid RESEND_API_KEY format (should start with "re_")');
+    throw new Error('Email service not configured: Invalid RESEND_API_KEY format');
+  }
+  
   return new Resend(apiKey);
 }
 
 export async function sendEmail({ to, subject, html, text }: SendEmailOptions) {
   try {
-    console.log('[EMAIL] Sending email to:', to);
-    const resend = getResendClient();
+    console.log('[EMAIL] Starting email send process');
+    console.log('[EMAIL] To:', to);
+    console.log('[EMAIL] Subject:', subject);
     
+    const resend = getResendClient();
     const fromEmail = process.env.EMAIL_FROM || 'GitHub Planner <onboarding@resend.dev>';
+    
+    console.log('[EMAIL] From:', fromEmail);
+    
+    if (fromEmail.includes('localhost') || fromEmail.includes('onboarding@resend.dev')) {
+      console.warn('[EMAIL] WARNING: Using default/localhost email address. This may fail in production.');
+    }
 
+    console.log('[EMAIL] Calling Resend API...');
     const result = await resend.emails.send({
       from: fromEmail,
       to,
@@ -32,16 +53,40 @@ export async function sendEmail({ to, subject, html, text }: SendEmailOptions) {
       text: text || undefined,
     });
 
+    console.log('[EMAIL] Resend API response:', JSON.stringify(result, null, 2));
+
     if (result.error) {
-      console.error('[EMAIL] Failed to send email:', result.error);
-      throw new Error(`Email send failed: ${result.error.message}`);
+      console.error('[EMAIL] Resend returned error:', JSON.stringify(result.error, null, 2));
+      console.error('[EMAIL] Error name:', result.error.name);
+      console.error('[EMAIL] Error message:', result.error.message);
+      
+      throw new Error(`Email send failed: ${result.error.message} (${result.error.name})`);
     }
 
-    console.log('[EMAIL] Email sent successfully! ID:', result.data?.id);
+    console.log('[EMAIL] ✓ Email sent successfully!');
+    console.log('[EMAIL] Message ID:', result.data?.id);
     return { success: true, messageId: result.data?.id };
-  } catch (error) {
-    console.error('[EMAIL] Failed to send email:', error);
-    throw error;
+  } catch (error: any) {
+    console.error('[EMAIL] ✗ Failed to send email - Full error details:');
+    console.error('[EMAIL] Error type:', typeof error);
+    console.error('[EMAIL] Error name:', error?.name);
+    console.error('[EMAIL] Error message:', error?.message);
+    console.error('[EMAIL] Error stack:', error?.stack);
+    console.error('[EMAIL] Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+    
+    if (error?.message?.includes('not configured')) {
+      throw new Error(`Email configuration error: ${error.message}`);
+    }
+    
+    if (error?.message?.includes('401') || error?.message?.includes('unauthorized')) {
+      throw new Error('Email authentication failed: Invalid API key');
+    }
+    
+    if (error?.message?.includes('domain')) {
+      throw new Error('Email domain error: Verify your domain in Resend dashboard');
+    }
+    
+    throw new Error(`Email send failed: ${error?.message || 'Unknown error'}`);
   }
 }
 

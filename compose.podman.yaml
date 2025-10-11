@@ -1,63 +1,71 @@
 version: '3.8'
 
 services:
-  web:
+  app:
+    image: ${PODMAN_IMAGE:-githubplanner:latest}
     build:
       context: .
       dockerfile: Containerfile
-    container_name: github-planner-web
+    container_name: github-planner-app
     restart: unless-stopped
     environment:
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
       - SQLITE_DB_PATH=/app/data/database.sqlite
-      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
-      - JWT_SECRET=${JWT_SECRET:-default-jwt-secret-change-in-production}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-default-nextauth-secret-change-in-production}
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - JWT_SECRET=${JWT_SECRET:-default-jwt-secret-change-in-production}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - EMAIL_FROM=${EMAIL_FROM:-GitHub Planner <noreply@localhost>}
-      - NODE_ENV=production
     ports:
       - "3000:3000"
     volumes:
-      - db_data:/app/data
+      - db_data:/app/data:Z
     networks:
-      - github-planner-network
+      - app-network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-  web-dev:
+  app-dev:
     build:
       context: .
       dockerfile: Containerfile.dev
-    container_name: github-planner-web-dev
+    container_name: github-planner-app-dev
     restart: unless-stopped
     environment:
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
       - SQLITE_DB_PATH=/app/data/database.sqlite
-      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
-      - JWT_SECRET=${JWT_SECRET:-default-jwt-secret-for-dev}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-default-nextauth-secret-for-dev}
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - JWT_SECRET=${JWT_SECRET:-default-jwt-secret-for-dev}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - EMAIL_FROM=${EMAIL_FROM:-GitHub Planner <dev@localhost>}
-      - NODE_ENV=development
       - WATCHPACK_POLLING=true
       - CHOKIDAR_USEPOLLING=true
     ports:
       - "3000:3000"
     volumes:
-      # Mount source code for hot reload
+      # Mount source code for hot reload (Podman Z flag for SELinux)
       - .:/app:Z
       # Persist SQLite database
-      - db_data_dev:/app/data
+      - db_data_dev:/app/data:Z
       # Preserve node_modules and build cache in named volumes for performance
       - node_modules_dev:/app/node_modules
       - next_cache_dev:/app/.next
     networks:
-      - github-planner-network
+      - app-network
     profiles:
       - dev
     command: sh -lc "npm install --legacy-peer-deps && npm run dev"
@@ -78,5 +86,5 @@ volumes:
     driver: local
 
 networks:
-  github-planner-network:
+  app-network:
     driver: bridge

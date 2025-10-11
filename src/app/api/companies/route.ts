@@ -24,23 +24,34 @@ export async function GET() {
   }
   const userId = s.userId as string;
   const db = getDatabase();
-    const helpers = new DbHelpers(db);
+  const helpers = new DbHelpers(db);
   
   // Get companies from memberships
-  const memberships = await db.collection<Membership>('memberships').find({ userId, status: 'active' }).toArray();
-  const companyIds = memberships.map(m => m.companyId);
+  const memberships: any[] = await helpers.findMany('memberships', { user_id: userId, status: 'active' });
+  const companyIds = memberships.map(m => m.company_id);
   
   // Get companies from owned enterprises
-  const ownedEnterprises = await helpers.findMany('enterprises', { ownerUserId: userId  });
+  const ownedEnterprises = await helpers.findMany('enterprises', { owner_user_id: userId });
   const ownedEnterpriseIds = ownedEnterprises.map((e: any) => e.id);
-  const enterpriseCompanies = await db.collection<Company>('companies').find({ enterpriseId: { $in: ownedEnterpriseIds } } as any).toArray();
-  const enterpriseCompanyIds = enterpriseCompanies.map(c => c.id);
+  const enterpriseCompanies = ownedEnterpriseIds.length > 0 
+    ? await helpers.findWhereIn<any>('companies', 'enterprise_id', ownedEnterpriseIds)
+    : [];
+  const enterpriseCompanyIds = enterpriseCompanies.map((c: any) => c.id);
   
   // Combine both lists
   const allCompanyIds = [...new Set([...companyIds, ...enterpriseCompanyIds])];
-  const companies = await db.collection<Company>('companies').find({ id: { $in: allCompanyIds } } as any).toArray();
+  const companies = allCompanyIds.length > 0
+    ? await helpers.findWhereIn<any>('companies', 'id', allCompanyIds)
+    : [];
   
-  return NextResponse.json({ companies: companies.map(c => ({ id: c.id, name: c.name, inviteCode: c.inviteCode, enterpriseId: c.enterpriseId })) });
+  return NextResponse.json({ 
+    companies: companies.map((c: any) => ({ 
+      id: c.id, 
+      name: c.name, 
+      inviteCode: c.invite_code, 
+      enterpriseId: c.enterprise_id || undefined 
+    })) 
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -51,36 +62,42 @@ export async function POST(request: NextRequest) {
   }
   const userId = s.userId as string;
   const db = getDatabase();
-    const helpers = new DbHelpers(db);
+  const helpers = new DbHelpers(db);
   const body = await request.json();
   const { name, enterpriseId } = body;
   if (!name || typeof name !== 'string') {
     return NextResponse.json({ error: 'Name required' }, { status: 400 });
   }
   const now = new Date();
-  const company: Company = {
+  const nowTs = dateToTimestamp(now);
+  const company = {
     id: crypto.randomUUID(),
     name: name.trim(),
     slug: slugify(name),
-    ownerUserId: userId,
-    enterpriseId: enterpriseId || undefined,
-    inviteCode: randomCode(8),
-    inviteLinkSalt: crypto.randomUUID(),
-    domainAllowlist: [],
-    created_at: now,
-    updated_at: now,
+    owner_user_id: userId,
+    enterprise_id: enterpriseId || null,
+    invite_code: randomCode(8),
+    invite_link_salt: crypto.randomUUID(),
+    domain_allowlist: JSON.stringify([]),
+    created_at: nowTs,
+    updated_at: nowTs,
   };
-  await db.collection<Company>('companies').insertOne(company as any);
-  const membership: Membership = {
+  await helpers.insert('companies', company);
+  const membership = {
     id: crypto.randomUUID(),
-    userId,
-    companyId: company.id,
+    user_id: userId,
+    company_id: company.id,
     role: 'owner',
     status: 'active',
-    created_at: now,
+    created_at: nowTs,
   };
-  await db.collection<Membership>('memberships').insertOne(membership as any);
-  return NextResponse.json({ id: company.id, name: company.name, inviteCode: company.inviteCode, enterpriseId: company.enterpriseId });
+  await helpers.insert('memberships', membership);
+  return NextResponse.json({ 
+    id: company.id, 
+    name: company.name, 
+    inviteCode: company.invite_code, 
+    enterpriseId: company.enterprise_id || undefined 
+  });
 }
 
 export async function PUT(request: NextRequest) {
@@ -91,7 +108,7 @@ export async function PUT(request: NextRequest) {
   }
   const userId = s.userId as string;
   const db = getDatabase();
-    const helpers = new DbHelpers(db);
+  const helpers = new DbHelpers(db);
   const body = await request.json();
   const { id, name } = body;
   
@@ -99,24 +116,30 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: 'id and name required' }, { status: 400 });
   }
   
-  const member = await db.collection<Membership>('memberships').findOne({ userId, companyId: id } as any);
+  const member: any = await helpers.findOne('memberships', { user_id: userId, company_id: id });
   if (!member || (member.role !== 'owner' && member.role !== 'admin')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
   
   const now = new Date();
-  const result = await db.collection<Company>('companies').findOneAndUpdate(
-    { id } as any,
-    { $set: { name: name.trim(), slug: slugify(name), updated_at: now } },
-    { returnDocument: 'after' }
-  );
+  const nowTs = dateToTimestamp(now);
+  await helpers.update('companies', { id }, {
+    name: name.trim(),
+    slug: slugify(name),
+    updated_at: nowTs
+  });
   
-  if (!result || !(result as any).value) {
+  const company: any = await helpers.findOne('companies', { id });
+  if (!company) {
     return NextResponse.json({ error: 'Company not found' }, { status: 404 });
   }
   
-  const company = (result as any).value as Company;
-  return NextResponse.json({ id: company.id, name: company.name, inviteCode: company.inviteCode, enterpriseId: company.enterpriseId });
+  return NextResponse.json({ 
+    id: company.id, 
+    name: company.name, 
+    inviteCode: company.invite_code, 
+    enterpriseId: company.enterprise_id || undefined 
+  });
 }
 
 export async function DELETE(request: NextRequest) {
@@ -133,16 +156,17 @@ export async function DELETE(request: NextRequest) {
   }
   
   const db = getDatabase();
-    const helpers = new DbHelpers(db);
-  const member = await db.collection<Membership>('memberships').findOne({ userId, companyId: id } as any);
+  const helpers = new DbHelpers(db);
+  const member: any = await helpers.findOne('memberships', { user_id: userId, company_id: id });
   if (!member || member.role !== 'owner') {
     return NextResponse.json({ error: 'Forbidden - Only owners can delete companies' }, { status: 403 });
   }
   
-  const result = await db.collection<Company>('companies').deleteOne({ id } as any);
-  if (result.deletedCount === 0) {
+  const exists = await helpers.findOne('companies', { id });
+  if (!exists) {
     return NextResponse.json({ error: 'Company not found' }, { status: 404 });
   }
   
+  await helpers.delete('companies', { id });
   return NextResponse.json({ ok: true });
 }
