@@ -43,5 +43,14 @@
     "eslint": "^8.0.0",
     "eslint-config-next": "^14.0.0",
     "wrangler": "^4.42.2"
+  },
+  "overrides": {
+    "@auth/core": "0.41.0",
+    "jose": "6.1.0",
+    "oauth4webapi": "3.8.2",
+    "preact": "10.11.3",
+    "preact-render-to-string": "6.5.11",
+    "@types/cookie": "0.6.0",
+    "cookie": "0.6.0"
   }
 }
