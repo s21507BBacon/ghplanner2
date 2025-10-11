@@ -1,0 +1,136 @@
+stages:
+  - test
+  - build
+  - deploy
+
+variables:
+  DOCKER_IMAGE: $CI_REGISTRY_IMAGE
+  DOCKER_TAG: $CI_COMMIT_SHORT_SHA
+  CONTAINER_IMAGE: $DOCKER_IMAGE:$DOCKER_TAG
+  CONTAINER_IMAGE_LATEST: $DOCKER_IMAGE:latest
+
+.docker_base:
+  image: docker:24-cli
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+
+test:
+  stage: test
+  image: node:18-alpine
+  cache:
+    key:
+      files:
+        - package-lock.json
+    paths:
+      - node_modules/
+  script:
+    - npm ci
+    - npm run typecheck
+    - npm run lint
+  only:
+    - merge_requests
+    - main
+
+build:
+  extends: .docker_base
+  stage: build
+  script:
+    - echo "Building Docker image for commit $CI_COMMIT_SHORT_SHA"
+    - docker build -f Containerfile -t $CONTAINER_IMAGE -t $CONTAINER_IMAGE_LATEST .
+    - docker push $CONTAINER_IMAGE
+    - docker push $CONTAINER_IMAGE_LATEST
+  only:
+    - main
+    - tags
+
+deploy:staging:
+  extends: .docker_base
+  stage: deploy
+  environment:
+    name: staging
+    url: https://staging.yourdomain.com
+  script:
+    - echo "Deploying to staging environment"
+    - echo "Container image ready at $CONTAINER_IMAGE"
+    # Add your deployment commands here
+    # Example for cloud providers:
+    # - gcloud run deploy $SERVICE_NAME --image $CONTAINER_IMAGE --region $REGION
+    # - aws apprunner update-service --service-arn $SERVICE_ARN --source-configuration ImageRepository={ImageIdentifier=$CONTAINER_IMAGE}
+  only:
+    - main
+  when: manual
+
+deploy:production:
+  extends: .docker_base
+  stage: deploy
+  environment:
+    name: production
+    url: https://yourdomain.com
+  script:
+    - echo "Deploying to production environment"
+    - echo "Container image ready at $CONTAINER_IMAGE"
+    # Add your deployment commands here
+  only:
+    - tags
+  when: manual
+
+# Optional: Deploy to a server via SSH
+deploy:server:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client docker
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan $SERVER_IP >> ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+  script:
+    - |
+      ssh $SERVER_USER@$SERVER_IP bash -s << ENDSSH
+        set -e
+        echo "Logging into GitLab Container Registry..."
+        echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
+        
+        echo "Pulling latest image..."
+        docker pull $CONTAINER_IMAGE
+        
+        echo "Stopping existing container..."
+        docker stop githubplanner 2>/dev/null || true
+        docker rm githubplanner 2>/dev/null || true
+        
+        echo "Starting new container..."
+        docker run -d \
+          --name githubplanner \
+          --restart unless-stopped \
+          -p 3000:3000 \
+          -e NODE_ENV=production \
+          -e NEXT_TELEMETRY_DISABLED=1 \
+          -e MONGODB_URI="$MONGODB_URI" \
+          -e NEXTAUTH_SECRET="$NEXTAUTH_SECRET" \
+          -e NEXTAUTH_URL="$NEXTAUTH_URL" \
+          -e GITHUB_TOKEN="$GITHUB_TOKEN" \
+          -e JWT_SECRET="$JWT_SECRET" \
+          -e SMTP_HOST="$SMTP_HOST" \
+          -e SMTP_PORT="$SMTP_PORT" \
+          -e SMTP_USER="$SMTP_USER" \
+          -e SMTP_PASS="$SMTP_PASS" \
+          -e SMTP_FROM="$SMTP_FROM" \
+          $CONTAINER_IMAGE
+        
+        echo "Cleaning up old images..."
+        docker system prune -af --filter "until=24h"
+        
+        echo "Deployment complete!"
+        docker ps --filter name=githubplanner
+      ENDSSH
+  environment:
+    name: production
+    url: https://yourdomain.com
+  only:
+    - tags
+  when: manual
+

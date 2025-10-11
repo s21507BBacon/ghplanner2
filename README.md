@@ -99,14 +99,50 @@ Notes:
 
 ### Production Deployment
 
+#### Local/Server Deployment
+
 ```bash
 ./run.sh prod
 ```
 
 This will:
-- Build optimized production containers
+- Build optimised production containers
 - Start all services with health checks
 - Run detached for production use
+
+#### Cloud Deployment with GitLab CI/CD
+
+For deploying to production with GitLab pipelines, MongoDB Atlas, and Cloudflare:
+
+1. **📋 Step-by-Step Guide**: See [SETUP_GUIDE.md](./SETUP_GUIDE.md) - **START HERE!** Complete walkthrough with every step
+2. **✅ Checklist**: See [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md) - Track your progress
+3. **⚡ Quick Start**: See [QUICKSTART.md](./QUICKSTART.md) - 15-minute abbreviated guide
+4. **📖 Full Reference**: See [DEPLOYMENT.md](./DEPLOYMENT.md) - Comprehensive documentation
+5. **⚙️ Environment Variables**: See [ENV_VARIABLES.md](./ENV_VARIABLES.md) - All configuration options
+
+**Quick deployment steps:**
+```bash
+# Generate secrets
+./scripts/setup-secrets.sh
+
+# Manual deployment (optional)
+./scripts/deploy-manual.sh
+
+# Test deployment
+./scripts/test-deployment.sh https://yourdomain.com
+```
+
+The GitLab CI/CD pipeline (`.gitlab-ci.yml`) automatically:
+- Runs tests and type checking
+- Builds Docker images
+- Pushes to GitLab Container Registry
+- Deploys to staging/production environments
+
+**Supported deployment targets:**
+- Your own server via SSH (recommended with Cloudflare CDN)
+- Google Cloud Run
+- AWS App Runner
+- Any Docker-compatible platform
 
 ### Available Commands
 
