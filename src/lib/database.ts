@@ -126,6 +126,24 @@ class D1Database implements Database {
   }
 }
 
+// Try to resolve the Cloudflare Pages (OpenNext) request context at runtime
+// and extract the D1 binding (named "DB"). This works when running on
+// Cloudflare Pages with the cloudflare-node wrapper from @opennextjs/cloudflare.
+function tryGetD1FromOpenNextContext(): any | undefined {
+  try {
+    // Prefer @cloudflare/next-on-pages if available
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const cfNext = require('@cloudflare/next-on-pages');
+    if (cfNext && typeof cfNext.getRequestContext === 'function') {
+      const ctx = cfNext.getRequestContext();
+      return ctx?.env?.DB;
+    }
+  } catch (err) {
+    // Ignore - this simply means we're not running within OpenNext on Cloudflare
+  }
+  return undefined;
+}
+
 // No-op database used during build time to avoid initialising a real DB
 class NoopDatabase implements Database {
   prepare(_sql: string) {
@@ -158,6 +176,13 @@ export function getDatabase(d1Instance?: any): Database {
     return cachedDb;
   }
 
+  // Attempt to auto-detect D1 binding via OpenNext request context
+  const d1FromCtx = tryGetD1FromOpenNextContext();
+  if (d1FromCtx) {
+    cachedDb = new D1Database(d1FromCtx);
+    return cachedDb;
+  }
+
   // In local development, use SQLite
   if (typeof process !== 'undefined' && !process.env.CF_PAGES) {
     cachedDb = new SQLiteDatabase();
@@ -165,6 +190,7 @@ export function getDatabase(d1Instance?: any): Database {
   }
 
   // During build (CF_PAGES is set, no D1 binding available) return a no-op DB
+  console.error('[DB] No D1 binding detected at runtime. Ensure a D1 database is bound as "DB" in Cloudflare Pages → Settings → Functions → D1 Databases.');
   cachedDb = new NoopDatabase();
   return cachedDb;
 }
