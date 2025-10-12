@@ -13,6 +13,9 @@ echo "Fixing worker structure for Cloudflare Pages..."
 chmod +x fix-worker.sh
 ./fix-worker.sh
 
+echo "Renaming worker.js to _worker.js for Cloudflare Pages..."
+mv .open-next/worker.js .open-next/_worker.js
+
 echo "Creating routing configuration..."
 cat > .open-next/_routes.json << 'EOF'
 {
