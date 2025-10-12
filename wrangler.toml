@@ -3,9 +3,6 @@ name = "ghplanner"
 pages_build_output_dir = ".open-next"
 compatibility_date = "2025-10-11"
 
-[build]
-command = "./build.sh"
-
 [[d1_databases]]
 database_id = "bcf9eff9-b898-434b-8273-791d231987c9"
 binding = "DB"
