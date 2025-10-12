@@ -131,13 +131,20 @@ class D1Database implements Database {
 // Cloudflare Pages with the cloudflare-node wrapper from @opennextjs/cloudflare.
 function tryGetD1FromOpenNextContext(): any | undefined {
   try {
-    // Prefer @cloudflare/next-on-pages if available
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const cfNext = require('@cloudflare/next-on-pages');
-    if (cfNext && typeof cfNext.getRequestContext === 'function') {
-      const ctx = cfNext.getRequestContext();
-      return ctx?.env?.DB;
-    }
+    // Access the context directly via the global symbol that next-on-pages/opennext set
+    const symbol = (Symbol as any).for?.('__cloudflare-request-context__');
+    const ctx = (globalThis as any)?.[symbol];
+    if (ctx?.env?.DB) return ctx.env.DB;
+
+    // Optional: if the package is present, use its helper (but don't require it for success)
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const cfNext = require('@cloudflare/next-on-pages');
+      if (cfNext && typeof cfNext.getRequestContext === 'function') {
+        const fromHelper = cfNext.getRequestContext();
+        return fromHelper?.env?.DB;
+      }
+    } catch {}
   } catch (err) {
     // Ignore - this simply means we're not running within OpenNext on Cloudflare
   }
