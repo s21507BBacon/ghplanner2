@@ -7,13 +7,39 @@ interface SendEmailOptions {
   text?: string;
 }
 
+// Get environment variable from Cloudflare context or process.env
+function getEnvVar(key: string): string | undefined {
+  // Try Cloudflare context first (for Pages/Workers)
+  try {
+    const globalAny = globalThis as any;
+    
+    // Check OpenNext context
+    const symbol = Symbol.for('__cloudflare-request-context__');
+    if (globalAny[symbol]?.env?.[key]) {
+      return globalAny[symbol].env[key];
+    }
+    
+    // Check global env
+    if (globalAny.__env?.[key]) {
+      return globalAny.__env[key];
+    }
+    
+    if (globalAny.env?.[key]) {
+      return globalAny.env[key];
+    }
+  } catch {}
+  
+  // Fallback to process.env (for local development)
+  return process.env[key];
+}
+
 // Initialize Resend client
 function getResendClient() {
-  const apiKey = process.env.RESEND_API_KEY;
+  const apiKey = getEnvVar('RESEND_API_KEY');
   
   console.log('[EMAIL] Environment check:');
   console.log('  - RESEND_API_KEY:', apiKey ? `Set (${apiKey.substring(0, 8)}...)` : 'NOT SET');
-  console.log('  - EMAIL_FROM:', process.env.EMAIL_FROM || 'NOT SET');
+  console.log('  - EMAIL_FROM:', getEnvVar('EMAIL_FROM') || 'NOT SET');
   console.log('  - NODE_ENV:', process.env.NODE_ENV);
   
   if (!apiKey) {
@@ -46,7 +72,7 @@ export async function sendEmail({ to, subject, html, text }: SendEmailOptions) {
 
     console.log('[EMAIL] Calling Resend API...');
     const result = await resend.emails.send({
-      from: fromEmail,
+      from: getEnvVar('EMAIL_FROM') || fromEmail,
       to,
       subject,
       html,
@@ -91,7 +117,7 @@ export async function sendEmail({ to, subject, html, text }: SendEmailOptions) {
 }
 
 export async function sendVerificationEmail(email: string, token: string, name?: string) {
-  const appUrl = process.env.NEXTAUTH_URL || process.env.APP_URL || 'http://localhost:3000';
+  const appUrl = getEnvVar('NEXTAUTH_URL') || getEnvVar('APP_URL') || 'http://localhost:3000';
   const verificationUrl = `${appUrl}/verify-email?token=${token}`;
 
   const html = `
@@ -171,7 +197,7 @@ export async function sendEnterpriseInviteEmail(
   invitedByName: string, 
   recipientName?: string
 ) {
-  const appUrl = process.env.NEXTAUTH_URL || process.env.APP_URL || 'http://localhost:3000';
+  const appUrl = getEnvVar('NEXTAUTH_URL') || getEnvVar('APP_URL') || 'http://localhost:3000';
   const inviteUrl = `${appUrl}/enterprises/invite?token=${token}`;
 
   const greeting = recipientName ? `Hi ${recipientName}` : 'Hi';

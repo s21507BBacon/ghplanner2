@@ -122,7 +122,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Send OTP email
-    const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    // Get env vars from Cloudflare context
+    const getEnvVar = (key: string): string | undefined => {
+      try {
+        const globalAny = globalThis as any;
+        const symbol = Symbol.for('__cloudflare-request-context__');
+        if (globalAny[symbol]?.env?.[key]) return globalAny[symbol].env[key];
+        if (globalAny.__env?.[key]) return globalAny.__env[key];
+        if (globalAny.env?.[key]) return globalAny.env[key];
+      } catch {}
+      return process.env[key];
+    };
+    
+    const appUrl = getEnvVar('APP_URL') || 'http://localhost:3000';
     const html = `
 <!DOCTYPE html>
 <html>
