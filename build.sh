@@ -22,7 +22,10 @@ cat > .open-next/_routes.json << 'EOF'
   "version": 1,
   "include": ["/*"],
   "exclude": [
-    "/_next/static/*"
+    "/assets/*",
+    "/favicon.ico",
+    "/robots.txt",
+    "/sitemap.xml"
   ]
 }
 EOF
