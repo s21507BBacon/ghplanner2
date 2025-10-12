@@ -18,18 +18,24 @@ function generateOTP(): string {
 // Helper to get Cloudflare env from request on Pages
 function getCloudflareContext() {
   try {
+    console.log('[SIGNUP] Attempting to get Cloudflare context...');
     // Try to get context from @cloudflare/next-on-pages
     const { getRequestContext } = require('@cloudflare/next-on-pages');
-    return getRequestContext();
-  } catch {
+    const ctx = getRequestContext();
+    console.log('[SIGNUP] Got context, has env:', !!ctx?.env, 'has DB:', !!ctx?.env?.DB);
+    return ctx;
+  } catch (err) {
+    console.error('[SIGNUP] Failed to get CF context:', err);
     return undefined;
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('[SIGNUP] POST request received');
     const body = await request.json();
     const { email, name } = body;
+    console.log('[SIGNUP] Email:', email);
 
     if (!email) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
@@ -42,8 +48,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Get D1 from Cloudflare context on Pages
+    console.log('[SIGNUP] Getting database...');
     const cfContext = getCloudflareContext();
     const db = getDatabaseFromContext(cfContext);
+    console.log('[SIGNUP] Got database instance');
     const helpers = new DbHelpers(db);
     let user = await helpers.findOne('users', { email });
     
@@ -187,13 +195,24 @@ If you didn't request this code, you can safely ignore this email.
       }, { status: 500 });
     }
 
+    console.log('[SIGNUP] Success - returning response');
     return NextResponse.json({ 
       ok: true, 
       message: 'Verification code sent. Please check your inbox.' 
     });
-  } catch (e) {
-    console.error('Signup error:', e);
-    return NextResponse.json({ error: 'Failed to sign up' }, { status: 500 });
+  } catch (e: any) {
+    console.error('[SIGNUP] ===== CRITICAL ERROR =====');
+    console.error('[SIGNUP] Error:', e);
+    console.error('[SIGNUP] Error message:', e?.message);
+    console.error('[SIGNUP] Error name:', e?.name);
+    console.error('[SIGNUP] Error stack:', e?.stack);
+    console.error('[SIGNUP] ===========================');
+    
+    return NextResponse.json({ 
+      error: 'Failed to sign up',
+      details: e?.message || 'Unknown error',
+      debug: process.env.NODE_ENV === 'development' ? String(e) : undefined
+    }, { status: 500 });
   }
 }
 
