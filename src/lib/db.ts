@@ -1,5 +1,5 @@
-// Database abstraction layer for both D1 (Cloudflare Pages) and SQLite (local dev)
-// This provides a unified interface regardless of environment
+// Database abstraction layer for Neon PostgreSQL
+// This provides a unified interface for database operations
 
 type DatabaseRow = Record<string, any>;
 
@@ -35,7 +35,7 @@ export class DbHelpers {
     where: Record<string, any>
   ): Promise<T | null> {
     const whereClause = Object.keys(where)
-      .map((key) => `${key} = ?`)
+      .map((key, idx) => `${key} = $${idx + 1}`)
       .join(' AND ');
     const values = Object.values(where);
 
@@ -57,7 +57,7 @@ export class DbHelpers {
 
     if (where && Object.keys(where).length > 0) {
       const whereClause = Object.keys(where)
-        .map((key) => `${key} = ?`)
+        .map((key, idx) => `${key} = $${idx + 1}`)
         .join(' AND ');
       values.push(...Object.values(where));
       sql += ` WHERE ${whereClause}`;
@@ -80,7 +80,7 @@ export class DbHelpers {
   async insert(table: string, data: Record<string, any>): Promise<void> {
     const keys = Object.keys(data);
     const values = Object.values(data);
-    const placeholders = keys.map(() => '?').join(', ');
+    const placeholders = keys.map((_, idx) => `$${idx + 1}`).join(', ');
 
     const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`;
     await this.db.prepare(sql).bind(...values).run();
@@ -93,10 +93,10 @@ export class DbHelpers {
     data: Record<string, any>
   ): Promise<void> {
     const setClause = Object.keys(data)
-      .map((key) => `${key} = ?`)
+      .map((key, idx) => `${key} = $${idx + 1}`)
       .join(', ');
     const whereClause = Object.keys(where)
-      .map((key) => `${key} = ?`)
+      .map((key, idx) => `${key} = $${Object.keys(data).length + idx + 1}`)
       .join(' AND ');
 
     const values = [...Object.values(data), ...Object.values(where)];
@@ -108,7 +108,7 @@ export class DbHelpers {
   // Delete a record
   async delete(table: string, where: Record<string, any>): Promise<void> {
     const whereClause = Object.keys(where)
-      .map((key) => `${key} = ?`)
+      .map((key, idx) => `${key} = $${idx + 1}`)
       .join(' AND ');
     const values = Object.values(where);
 
@@ -140,13 +140,13 @@ export class DbHelpers {
       return [];
     }
 
-    const placeholders = values.map(() => '?').join(', ');
+    const placeholders = values.map((_, idx) => `$${idx + 1}`).join(', ');
     let sql = `SELECT * FROM ${table} WHERE ${field} IN (${placeholders})`;
     const allValues = [...values];
 
     if (additionalWhere && Object.keys(additionalWhere).length > 0) {
       const whereClause = Object.keys(additionalWhere)
-        .map((key) => `${key} = ?`)
+        .map((key, idx) => `${key} = $${values.length + idx + 1}`)
         .join(' AND ');
       sql += ` AND ${whereClause}`;
       allValues.push(...Object.values(additionalWhere));
@@ -158,7 +158,7 @@ export class DbHelpers {
   }
 }
 
-// Utility functions for date conversions (SQLite stores dates as integers - Unix timestamps)
+// Utility functions for date conversions (PostgreSQL stores dates as BIGINT Unix timestamps)
 export function dateToTimestamp(date: Date | string): number {
   if (typeof date === 'string') {
     return Math.floor(new Date(date).getTime() / 1000);
@@ -171,28 +171,33 @@ export function timestampToDate(timestamp: number | null | undefined): Date | un
   return new Date(timestamp * 1000);
 }
 
-// Helper to convert boolean to integer for SQLite
-export function boolToInt(value: boolean | undefined): number {
-  return value ? 1 : 0;
+// Helper to convert boolean (PostgreSQL native boolean support)
+export function boolToInt(value: boolean | undefined): boolean {
+  return value || false;
 }
 
-// Helper to convert integer to boolean from SQLite
-export function intToBool(value: number | null | undefined): boolean {
+// Helper to convert to boolean (PostgreSQL native boolean support)
+export function intToBool(value: boolean | number | null | undefined): boolean {
+  if (typeof value === 'boolean') return value;
   return value === 1;
 }
 
-// Helper to parse JSON fields
-export function parseJsonField<T>(value: string | null | undefined, defaultValue: T): T {
+// Helper to parse JSON fields (PostgreSQL JSONB support)
+export function parseJsonField<T>(value: any, defaultValue: T): T {
   if (!value) return defaultValue;
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return defaultValue;
+  if (typeof value === 'object') return value as T; // Already parsed
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return defaultValue;
+    }
   }
+  return defaultValue;
 }
 
-// Helper to stringify JSON fields
-export function stringifyJsonField<T>(value: T): string {
-  return JSON.stringify(value);
+// Helper to stringify JSON fields (PostgreSQL JSONB support)
+export function stringifyJsonField<T>(value: T): any {
+  // PostgreSQL JSONB can accept objects directly
+  return value;
 }
-

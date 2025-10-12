@@ -1,11 +1,11 @@
 import type { NextAuthOptions } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
-import { D1Adapter } from './auth-adapter';
+import { DatabaseAdapter } from './auth-adapter';
 import { getDatabase } from './database';
 import { DbHelpers } from './db';
 
 export const authOptions: NextAuthOptions = {
-  adapter: D1Adapter(getDatabase()) as any,
+  adapter: DatabaseAdapter(getDatabase()) as any,
   session: { strategy: 'jwt' },
   secret: process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET,
   pages: {

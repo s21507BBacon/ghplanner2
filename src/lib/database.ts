@@ -1,54 +1,21 @@
-// Database connection - works with both D1 (Cloudflare) and SQLite (local dev)
+// Database connection - works with Neon PostgreSQL
+import { neon, neonConfig } from '@neondatabase/serverless';
 import type { Database, Statement, BatchStatement } from './db';
 
-// SQLite implementation for local development
-class SQLiteDatabase implements Database {
-  private sqlite: any;
-  private db: any;
+// Enable connection pooling for better performance
+neonConfig.fetchConnectionCache = true;
 
-  constructor() {
-    // Only require better-sqlite3 if not in Cloudflare environment
-    if (typeof process !== 'undefined' && !process.env.CF_PAGES) {
-      const BetterSqlite3 = require('better-sqlite3');
-      const path = require('path');
-      const fs = require('fs');
+// Neon PostgreSQL implementation
+class NeonDatabase implements Database {
+  private sql: ReturnType<typeof neon>;
 
-      const dbPath = process.env.SQLITE_DB_PATH || './data/database.sqlite';
-      const dbDir = path.dirname(dbPath);
-
-      // Ensure directory exists
-      if (!fs.existsSync(dbDir)) {
-        fs.mkdirSync(dbDir, { recursive: true });
-      }
-
-      this.db = new BetterSqlite3(dbPath);
-      
-      // Initialize schema if needed
-      this.initSchema();
-    }
-  }
-
-  private initSchema() {
-    const fs = require('fs');
-    const path = require('path');
-
-    // Check if tables exist
-    const tables = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
-    
-    if (tables.length === 0) {
-      // Load and execute schema
-      const schemaPath = path.join(process.cwd(), 'schema.sql');
-      if (fs.existsSync(schemaPath)) {
-        const schema = fs.readFileSync(schemaPath, 'utf-8');
-        this.db.exec(schema);
-        console.log('Database schema initialised');
-      }
-    }
+  constructor(connectionString: string) {
+    this.sql = neon(connectionString);
   }
 
   prepare(sql: string): Statement {
-    const stmt = this.db.prepare(sql);
     let boundValues: any[] = [];
+    const sqlClient = this.sql; // Capture sql client reference
 
     return {
       bind(...values: any[]) {
@@ -56,99 +23,49 @@ class SQLiteDatabase implements Database {
         return this;
       },
       async run() {
-        const result = stmt.run(...boundValues);
-        return { success: true, meta: result };
+        try {
+          await sqlClient.query(sql, boundValues);
+          return { success: true, meta: {} };
+        } catch (error) {
+          console.error('Database run error:', error);
+          throw error;
+        }
       },
       async first<T>() {
-        const result = stmt.get(...boundValues);
-        return result as T | null;
+        try {
+          const results = await sqlClient.query(sql, boundValues);
+          return (results[0] as T) || null;
+        } catch (error) {
+          console.error('Database first error:', error);
+          throw error;
+        }
       },
       async all<T>() {
-        const results = stmt.all(...boundValues);
-        return { results: results as T[] };
+        try {
+          const results = await sqlClient.query(sql, boundValues);
+          return { results: results as T[] };
+        } catch (error) {
+          console.error('Database all error:', error);
+          throw error;
+        }
       }
     };
   }
 
   exec(sql: string): void {
-    this.db.exec(sql);
+    // PostgreSQL doesn't support synchronous exec
+    throw new Error('Use prepare().run() instead of exec()');
   }
 
   async batch<T = unknown>(statements: BatchStatement[]): Promise<T[]> {
     const results: T[] = [];
+    // Execute statements sequentially (Neon doesn't have native batch API)
     for (const stmt of statements) {
-      const prepared = this.db.prepare(stmt.sql);
-      const result = stmt.args ? prepared.run(...stmt.args) : prepared.run();
+      const result = await this.sql.query(stmt.sql, stmt.args || []);
       results.push(result as T);
     }
     return results;
   }
-}
-
-// D1 implementation for Cloudflare Pages
-class D1Database implements Database {
-  private d1: any;
-
-  constructor(d1Instance: any) {
-    this.d1 = d1Instance;
-  }
-
-  prepare(sql: string): Statement {
-    const stmt = this.d1.prepare(sql);
-    return {
-      bind(...values: any[]) {
-        stmt.bind(...values);
-        return this;
-      },
-      async run() {
-        const result = await stmt.run();
-        return { success: result.success, meta: result.meta };
-      },
-      async first<T>() {
-        return await stmt.first<T>();
-      },
-      async all<T>() {
-        return await stmt.all<T>();
-      }
-    };
-  }
-
-  exec(sql: string): void {
-    this.d1.exec(sql);
-  }
-
-  async batch<T = unknown>(statements: BatchStatement[]): Promise<T[]> {
-    const preparedStatements = statements.map(stmt => {
-      const prepared = this.d1.prepare(stmt.sql);
-      return stmt.args ? prepared.bind(...stmt.args) : prepared;
-    });
-    return await this.d1.batch(preparedStatements);
-  }
-}
-
-// Try to resolve the Cloudflare Pages (OpenNext) request context at runtime
-// and extract the D1 binding (named "DB"). This works when running on
-// Cloudflare Pages with the cloudflare-node wrapper from @opennextjs/cloudflare.
-function tryGetD1FromOpenNextContext(): any | undefined {
-  try {
-    // Access the context directly via the global symbol that next-on-pages/opennext set
-    const symbol = (Symbol as any).for?.('__cloudflare-request-context__');
-    const ctx = (globalThis as any)?.[symbol];
-    if (ctx?.env?.DB) return ctx.env.DB;
-
-    // Optional: if the package is present, use its helper (but don't require it for success)
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const cfNext = require('@cloudflare/next-on-pages');
-      if (cfNext && typeof cfNext.getRequestContext === 'function') {
-        const fromHelper = cfNext.getRequestContext();
-        return fromHelper?.env?.DB;
-      }
-    } catch {}
-  } catch (err) {
-    // Ignore - this simply means we're not running within OpenNext on Cloudflare
-  }
-  return undefined;
 }
 
 // No-op database used during build time to avoid initialising a real DB
@@ -172,43 +89,35 @@ class NoopDatabase implements Database {
 let cachedDb: Database | null = null;
 
 // Get database instance
-export function getDatabase(d1Instance?: any): Database {
+export function getDatabase(): Database {
   if (cachedDb) {
     return cachedDb;
   }
 
-  // In Cloudflare Pages environment, d1Instance will be provided
-  if (d1Instance) {
-    cachedDb = new D1Database(d1Instance);
+  // During build time, return no-op database
+  if (process.env.BUILDING === 'true' || process.env.BUILDING_FOR_CLOUDFLARE === 'true') {
+    cachedDb = new NoopDatabase();
     return cachedDb;
   }
 
-  // Attempt to auto-detect D1 binding via OpenNext request context
-  const d1FromCtx = tryGetD1FromOpenNextContext();
-  if (d1FromCtx) {
-    cachedDb = new D1Database(d1FromCtx);
+  // Get Neon connection string from environment
+  const connectionString = 
+    process.env.DATABASE_URL || 
+    process.env.NEON_DATABASE_URL;
+
+  if (!connectionString) {
+    console.error('[DB] No Neon database connection string found. Set DATABASE_URL or NEON_DATABASE_URL environment variable.');
+    cachedDb = new NoopDatabase();
     return cachedDb;
   }
 
-  // In local development, use SQLite
-  if (typeof process !== 'undefined' && !process.env.CF_PAGES) {
-    cachedDb = new SQLiteDatabase();
-    return cachedDb;
-  }
-
-  // During build (CF_PAGES is set, no D1 binding available) return a no-op DB
-  console.error('[DB] No D1 binding detected at runtime. Ensure a D1 database is bound as "DB" in Cloudflare Pages → Settings → Functions → D1 Databases.');
-  cachedDb = new NoopDatabase();
+  cachedDb = new NeonDatabase(connectionString);
   return cachedDb;
 }
 
-// Helper to get database from Cloudflare context or local
-export function getDatabaseFromContext(context?: { env?: { DB?: any } }): Database {
-  if (context?.env?.DB) {
-    return getDatabase(context.env.DB);
-  }
+// Helper to get database from context (for compatibility)
+export function getDatabaseFromContext(context?: any): Database {
   return getDatabase();
 }
 
 export type { Database };
-

@@ -48,10 +48,11 @@ logs
 
 # Claude Code
 .claude
-# Local setup guides
-SETUP_GUIDE.md
-DEPLOYMENT_CHECKLIST.md
+
 
 # Cloudflare build output
 .open-next/
 *.backup*
+
+# Database schema (contains sensitive structure)
+schema.sql

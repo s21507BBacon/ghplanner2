@@ -19,7 +19,7 @@ const nextConfig = {
     },
   },
   // Skip collecting page data for API routes during build
-  // This prevents MongoDB connection errors at build time
+  // This prevents database connection errors at build time
   staticPageGenerationTimeout: 1000,
 
   // Optimise for containerised development with webpack configuration

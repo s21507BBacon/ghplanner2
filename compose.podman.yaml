@@ -1,6 +1,30 @@
 version: '3.8'
 
 services:
+  # PostgreSQL database for local development
+  postgres:
+    image: postgres:16-alpine
+    container_name: github-planner-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=ghplanner
+      - POSTGRES_PASSWORD=ghplanner_dev_password
+      - POSTGRES_DB=ghplanner
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data:Z
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql:Z
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ghplanner"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - dev
+
   app:
     image: ${PODMAN_IMAGE:-githubplanner:latest}
     build:
@@ -11,7 +35,7 @@ services:
     environment:
       - NODE_ENV=production
       - NEXT_TELEMETRY_DISABLED=1
-      - SQLITE_DB_PATH=/app/data/database.sqlite
+      - DATABASE_URL=${DATABASE_URL:-postgresql://neondb_owner:npg_OmYxj7pKUZI1@ep-shiny-bonus-a7gj8u7o-pooler.ap-southeast-2.aws.neon.tech/neondb?sslmode=require}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-default-nextauth-secret-change-in-production}
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
       - JWT_SECRET=${JWT_SECRET:-default-jwt-secret-change-in-production}
@@ -20,8 +44,6 @@ services:
       - EMAIL_FROM=${EMAIL_FROM:-GitHub Planner <noreply@localhost>}
     ports:
       - "3000:3000"
-    volumes:
-      - db_data:/app/data:Z
     networks:
       - app-network
     healthcheck:
@@ -42,10 +64,13 @@ services:
       dockerfile: Containerfile.dev
     container_name: github-planner-app-dev
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       - NODE_ENV=development
       - NEXT_TELEMETRY_DISABLED=1
-      - SQLITE_DB_PATH=/app/data/database.sqlite
+      - DATABASE_URL=postgresql://ghplanner:ghplanner_dev_password@postgres:5432/ghplanner?sslmode=disable
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-default-nextauth-secret-for-dev}
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
       - JWT_SECRET=${JWT_SECRET:-default-jwt-secret-for-dev}
@@ -59,8 +84,6 @@ services:
     volumes:
       # Mount source code for hot reload (Podman Z flag for SELinux)
       - .:/app:Z
-      # Persist SQLite database
-      - db_data_dev:/app/data:Z
       # Preserve node_modules and build cache in named volumes for performance
       - node_modules_dev:/app/node_modules
       - next_cache_dev:/app/.next
@@ -76,9 +99,7 @@ services:
     tty: true
 
 volumes:
-  db_data:
-    driver: local
-  db_data_dev:
+  postgres_data:
     driver: local
   node_modules_dev:
     driver: local

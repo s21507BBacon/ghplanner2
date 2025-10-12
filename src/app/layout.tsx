@@ -9,7 +9,7 @@ import Navigation from '@/components/Navigation'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'GitHub Planner',
+  title: 'GH Planner',
   description: 'A comprehensive GitHub PR inspector and project planner',
 }
 

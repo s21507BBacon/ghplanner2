@@ -82,7 +82,7 @@ start_dev() {
     print_status "Starting development web server with file watching..."
     print_status "Hot reload enabled - local changes will automatically update the application"
     print_status "Files are mounted from: $(pwd)"
-    print_status "SQLite database will be created at: ./data/database.sqlite"
+    print_status "Using Neon PostgreSQL database (configured via DATABASE_URL)"
     print_status "Application will be available at: http://localhost:3000"
     echo ""
     print_warning "To stop the development server, press Ctrl+C"
@@ -104,7 +104,7 @@ start_prod() {
     if wait_for_app; then
         print_success "Production environment started successfully!"
         print_status "Application available at: http://localhost:3000"
-        print_status "SQLite database location: ./data/database.sqlite"
+        print_status "Database: Neon PostgreSQL (cloud-hosted)"
         print_status ""
         print_status "To view logs: ./run.sh logs"
         print_status "To stop: ./run.sh down"
@@ -188,7 +188,7 @@ show_help() {
     echo "  EMAIL_FROM            # From address for emails"
     echo ""
     echo "Database:"
-    echo "  SQLite database will be stored in ./data/database.sqlite"
+    echo "  Database: Neon PostgreSQL (configured via DATABASE_URL env var)"
     echo "  Schema is automatically initialised from schema.sql on first run"
 }
 

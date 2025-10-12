@@ -1,5 +1,5 @@
--- GitHub Planner D1 Database Schema
--- Compatible with Cloudflare D1 and SQLite
+-- GitHub Planner PostgreSQL Database Schema
+-- Compatible with Neon PostgreSQL
 
 -- Users table
 CREATE TABLE IF NOT EXISTS users (
@@ -7,14 +7,14 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT UNIQUE NOT NULL,
   name TEXT,
   password_hash TEXT,
-  email_verified INTEGER DEFAULT 0,
+  email_verified BOOLEAN DEFAULT FALSE,
   email_verification_token TEXT,
-  email_verification_expires INTEGER,
+  email_verification_expires BIGINT,
   otp_code TEXT,
-  otp_expires INTEGER,
+  otp_expires BIGINT,
   otp_attempts INTEGER DEFAULT 0,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS accounts (
   provider_account_id TEXT NOT NULL,
   refresh_token TEXT,
   access_token TEXT,
-  expires_at INTEGER,
+  expires_at BIGINT,
   token_type TEXT,
   scope TEXT,
   id_token TEXT,
@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
   session_token TEXT UNIQUE NOT NULL,
   user_id TEXT NOT NULL,
-  expires INTEGER NOT NULL,
+  expires BIGINT NOT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
@@ -52,7 +52,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 CREATE TABLE IF NOT EXISTS verification_tokens (
   identifier TEXT NOT NULL,
   token TEXT UNIQUE NOT NULL,
-  expires INTEGER NOT NULL,
+  expires BIGINT NOT NULL,
   PRIMARY KEY (identifier, token)
 );
 
@@ -64,9 +64,9 @@ CREATE TABLE IF NOT EXISTS enterprises (
   owner_user_id TEXT NOT NULL,
   invite_code TEXT UNIQUE NOT NULL,
   invite_link_salt TEXT NOT NULL,
-  domain_allowlist TEXT, -- JSON array
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  domain_allowlist JSONB, -- JSON array
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   FOREIGN KEY (owner_user_id) REFERENCES users(id)
 );
 
@@ -80,8 +80,8 @@ CREATE TABLE IF NOT EXISTS enterprise_memberships (
   enterprise_id TEXT NOT NULL,
   role TEXT NOT NULL CHECK(role IN ('owner', 'admin', 'staff', 'member')),
   status TEXT NOT NULL CHECK(status IN ('active', 'pending')),
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (enterprise_id) REFERENCES enterprises(id) ON DELETE CASCADE,
   UNIQUE(user_id, enterprise_id)
@@ -99,9 +99,9 @@ CREATE TABLE IF NOT EXISTS enterprise_invites (
   token TEXT UNIQUE NOT NULL,
   invited_by_user_id TEXT NOT NULL,
   status TEXT NOT NULL CHECK(status IN ('pending', 'accepted', 'expired')),
-  expires_at INTEGER NOT NULL,
-  created_at INTEGER NOT NULL,
-  accepted_at INTEGER,
+  expires_at BIGINT NOT NULL,
+  created_at BIGINT NOT NULL,
+  accepted_at BIGINT,
   FOREIGN KEY (enterprise_id) REFERENCES enterprises(id) ON DELETE CASCADE,
   FOREIGN KEY (invited_by_user_id) REFERENCES users(id)
 );
@@ -118,9 +118,9 @@ CREATE TABLE IF NOT EXISTS companies (
   enterprise_id TEXT,
   invite_code TEXT UNIQUE NOT NULL,
   invite_link_salt TEXT NOT NULL,
-  domain_allowlist TEXT, -- JSON array
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  domain_allowlist JSONB, -- JSON array
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   FOREIGN KEY (owner_user_id) REFERENCES users(id),
   FOREIGN KEY (enterprise_id) REFERENCES enterprises(id) ON DELETE SET NULL
 );
@@ -136,7 +136,7 @@ CREATE TABLE IF NOT EXISTS memberships (
   company_id TEXT NOT NULL,
   role TEXT NOT NULL CHECK(role IN ('owner', 'admin', 'staff', 'member')),
   status TEXT NOT NULL CHECK(status IN ('active', 'pending')),
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
   UNIQUE(user_id, company_id)
@@ -152,14 +152,14 @@ CREATE TABLE IF NOT EXISTS projects (
   name TEXT NOT NULL,
   description TEXT,
   max_seats INTEGER NOT NULL,
-  is_active INTEGER DEFAULT 1,
+  is_active BOOLEAN DEFAULT TRUE,
   invite_code TEXT UNIQUE NOT NULL,
   invite_link_salt TEXT NOT NULL,
   repo_owner TEXT,
   repo_name TEXT,
   repo_token_encrypted TEXT,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
 );
 
@@ -173,7 +173,7 @@ CREATE TABLE IF NOT EXISTS project_preferences (
   company_id TEXT NOT NULL,
   project_id TEXT NOT NULL,
   rank INTEGER NOT NULL,
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
@@ -188,7 +188,7 @@ CREATE TABLE IF NOT EXISTS assignments (
   user_id TEXT NOT NULL,
   company_id TEXT NOT NULL,
   project_id TEXT NOT NULL,
-  assigned_at INTEGER NOT NULL,
+  assigned_at BIGINT NOT NULL,
   assigned_by_user_id TEXT NOT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
@@ -207,8 +207,8 @@ CREATE TABLE IF NOT EXISTS user_preferences (
   company_id TEXT,
   project_id TEXT,
   status TEXT NOT NULL CHECK(status IN ('pending', 'allocated', 'rejected')),
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (enterprise_id) REFERENCES enterprises(id) ON DELETE CASCADE,
   FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL,
@@ -225,8 +225,8 @@ CREATE TABLE IF NOT EXISTS boards (
   description TEXT,
   company_id TEXT,
   project_id TEXT,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
@@ -241,12 +241,12 @@ CREATE TABLE IF NOT EXISTS columns (
   color TEXT NOT NULL,
   order_num INTEGER NOT NULL,
   board_id TEXT NOT NULL,
-  requires_pr INTEGER DEFAULT 0,
+  requires_pr BOOLEAN DEFAULT FALSE,
   move_to_column_on_merge TEXT,
   move_to_column_on_closed TEXT,
   move_to_column_on_request_changes TEXT,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE
 );
 
@@ -259,21 +259,21 @@ CREATE TABLE IF NOT EXISTS tasks (
   description TEXT,
   column_id TEXT NOT NULL,
   status TEXT NOT NULL CHECK(status IN ('pending', 'in_progress', 'completed', 'blocked', 'approved', 'merged', 'changes_requested')),
-  labels TEXT, -- JSON array
+  labels JSONB, -- JSON array
   pr_url TEXT,
   pr_number INTEGER,
   assignee TEXT, -- deprecated
-  assignees TEXT, -- JSON array of user IDs
-  checklist TEXT, -- JSON array of checklist items
+  assignees JSONB, -- JSON array of user IDs
+  checklist JSONB, -- JSON array of checklist items
   board_id TEXT NOT NULL,
   order_num INTEGER NOT NULL,
   company_id TEXT,
   project_id TEXT,
   created_by_user_id TEXT,
-  is_locked INTEGER DEFAULT 0,
+  is_locked BOOLEAN DEFAULT FALSE,
   locked_by_user_id TEXT,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   FOREIGN KEY (column_id) REFERENCES columns(id) ON DELETE CASCADE,
   FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE,
   FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
@@ -292,10 +292,9 @@ CREATE TABLE IF NOT EXISTS task_comments (
   task_id TEXT NOT NULL,
   user_id TEXT NOT NULL,
   content TEXT NOT NULL,
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_task_comments_task ON task_comments(task_id, created_at);
-

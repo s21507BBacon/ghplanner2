@@ -1,9 +1,9 @@
-// Custom NextAuth adapter for D1/SQLite database
+// Custom NextAuth adapter for Neon PostgreSQL database
 import type { Adapter, AdapterUser, AdapterAccount, AdapterSession, VerificationToken } from 'next-auth/adapters';
 import type { Database } from './db';
 import { DbHelpers, dateToTimestamp, timestampToDate } from './db';
 
-export function D1Adapter(db: Database): Adapter {
+export function DatabaseAdapter(db: Database): Adapter {
   const helpers = new DbHelpers(db);
 
   return {

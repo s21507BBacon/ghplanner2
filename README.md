@@ -20,7 +20,7 @@ A comprehensive GitHub PR inspector and project planning tool built with Next.js
 
 ### 🛠 Technical Features
 - **Robust API**: RESTful endpoints with comprehensive error handling and validation
-- **MongoDB Integration**: Persistent storage for comments, tasks, and boards
+- **Neon PostgreSQL**: Serverless PostgreSQL database for scalable data storage
 
 ## New: Authentication, Companies, and Projects (beta)
 
@@ -29,7 +29,7 @@ The app now includes a basic sign up / sign in flow (Credentials via NextAuth), 
 Quick start:
 
 1. Environment
-   - Set `MONGODB_URI` and `NEXTAUTH_SECRET` (or `JWT_SECRET`) in `.env`.
+   - Set `DATABASE_URL` and `NEXTAUTH_SECRET` (or `JWT_SECRET`) in `.env`.
 2. Run the app and visit `/signup` to create an account, then sign in at `/signin`.
 3. Onboarding at `/onboarding`: create a company or join with a code.
 4. Dashboard at `/dashboard`: manage projects and grab your join code.
@@ -59,7 +59,7 @@ Notes:
 ### Prerequisites
 - Node.js 18+
 - Podman or Docker
-- MongoDB (handled automatically in containerized setup)
+- Neon PostgreSQL account (free tier available at neon.tech)
 
 ### Local Development
 
@@ -79,8 +79,8 @@ Notes:
    # Required for authentication
    JWT_SECRET=your-secure-secret-here
 
-   # Database (automatically configured for containers)
-   MONGODB_URI=mongodb://admin:password@mongo:27017/github_planner?authSource=admin
+   # Database - Neon PostgreSQL
+   DATABASE_URL=postgresql://user:password@host.neon.tech/database?sslmode=require
    ```
 
 3. **Start development environment**:
@@ -89,13 +89,13 @@ Notes:
    ```
 
    This will:
-   - Start MongoDB container
    - Start Next.js development server with hot reload
+   - Connect to Neon PostgreSQL database
    - Bind mount source code for live editing
 
 4. **Access the application**:
    - Application: http://localhost:3000
-   - MongoDB: localhost:27017
+   - Database: Managed by Neon (cloud-hosted)
 
 ### Production Deployment
 
@@ -112,7 +112,7 @@ This will:
 
 #### Cloud Deployment with GitLab CI/CD
 
-For deploying to production with GitLab pipelines, MongoDB Atlas, and Cloudflare:
+For deploying to production with GitLab pipelines, Neon PostgreSQL, and Cloudflare:
 
 1. **📋 Step-by-Step Guide**: See [SETUP_GUIDE.md](./SETUP_GUIDE.md) - **START HERE!** Complete walkthrough with every step
 2. **✅ Checklist**: See [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md) - Track your progress
@@ -202,9 +202,9 @@ POST /api/planner/boards                     # Create board
 
 ### Backend
 - **Next.js API Routes** for serverless functions
-- **MongoDB** for data persistence
+- **Neon PostgreSQL** for scalable data persistence
 - **GitHub API** integration with rate limiting
-- **JWT** for authentication (future feature)
+- **NextAuth** for authentication
 
 ### Infrastructure
 - **Containerized** with Podman/Docker
@@ -218,9 +218,12 @@ POST /api/planner/boards                     # Create board
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `MONGODB_URI` | MongoDB connection string | `mongodb://mongo:27017/github_planner` |
+| `DATABASE_URL` | Neon PostgreSQL connection string | Required |
 | `GITHUB_TOKEN` | GitHub personal access token | None (optional) |
 | `JWT_SECRET` | Secret for JWT signing | Required for production |
+| `NEXTAUTH_SECRET` | NextAuth session secret | Required for production |
+| `NEXTAUTH_URL` | Application URL | `http://localhost:3000` |
+| `RESEND_API_KEY` | Email service API key | Optional |
 | `NODE_ENV` | Environment mode | `development` |
 | `PORT` | Application port | `3000` |
 
@@ -246,7 +249,8 @@ src/
 │   └── layout.tsx         # Root layout
 ├── lib/                   # Shared utilities
 │   ├── github.ts          # GitHub API utilities
-│   ├── mongodb.ts         # Database connection
+│   ├── database.ts        # Neon PostgreSQL connection
+│   ├── db.ts              # Database helpers and types
 │   └── types.ts           # TypeScript definitions
 ```
 
