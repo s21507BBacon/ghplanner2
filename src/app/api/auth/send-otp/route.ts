@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/database';
+import { getDatabaseFromContext } from '@/lib/database';
 import { DbHelpers, dateToTimestamp } from '@/lib/db';
 import { sendEmail } from '@/lib/email';
 
@@ -17,6 +17,17 @@ function generateOTP(): string {
   return code.slice(0, 4) + '-' + code.slice(4);
 }
 
+// Helper to get Cloudflare env from request on Pages
+function getCloudflareContext() {
+  try {
+    // Try to get context from @cloudflare/next-on-pages
+    const { getRequestContext } = require('@cloudflare/next-on-pages');
+    return getRequestContext();
+  } catch {
+    return undefined;
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -26,7 +37,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
     }
 
-    const db = getDatabase();
+    // Get D1 from Cloudflare context on Pages
+    const cfContext = getCloudflareContext();
+    const db = getDatabaseFromContext(cfContext);
     const helpers = new DbHelpers(db);
     const user = await helpers.findOne('users', { email  });
 
