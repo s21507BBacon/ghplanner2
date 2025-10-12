@@ -17,13 +17,33 @@ function generateOTP(): string {
   return code.slice(0, 4) + '-' + code.slice(4);
 }
 
-// Helper to get Cloudflare env from request on Pages
+// Helper to get Cloudflare env from OpenNext global context
 function getCloudflareContext() {
   try {
-    // Try to get context from @cloudflare/next-on-pages
-    const { getRequestContext } = require('@cloudflare/next-on-pages');
-    return getRequestContext();
-  } catch {
+    // OpenNext sets up a global context with env bindings
+    const globalAny = globalThis as any;
+    
+    // Try multiple ways to access the DB binding
+    if (globalAny.__env?.DB) {
+      return { env: globalAny.__env };
+    }
+    
+    if (globalAny.env?.DB) {
+      return { env: globalAny.env };
+    }
+    
+    const symbol = Symbol.for('__cloudflare-request-context__');
+    if (globalAny[symbol]?.env?.DB) {
+      return globalAny[symbol];
+    }
+    
+    if (typeof process !== 'undefined' && (process as any).env?.DB) {
+      return { env: (process as any).env };
+    }
+    
+    return undefined;
+  } catch (err) {
+    console.error('[SEND-OTP] Failed to get CF context:', err);
     return undefined;
   }
 }

@@ -15,15 +15,41 @@ function generateOTP(): string {
   return code.slice(0, 4) + '-' + code.slice(4);
 }
 
-// Helper to get Cloudflare env from request on Pages
+// Helper to get Cloudflare env from OpenNext global context
 function getCloudflareContext() {
   try {
-    console.log('[SIGNUP] Attempting to get Cloudflare context...');
-    // Try to get context from @cloudflare/next-on-pages
-    const { getRequestContext } = require('@cloudflare/next-on-pages');
-    const ctx = getRequestContext();
-    console.log('[SIGNUP] Got context, has env:', !!ctx?.env, 'has DB:', !!ctx?.env?.DB);
-    return ctx;
+    console.log('[SIGNUP] Attempting to get Cloudflare context from global...');
+    
+    // OpenNext sets up a global context with env bindings
+    // Try multiple ways to access it
+    const globalAny = globalThis as any;
+    
+    // Method 1: Check for __env or env on globalThis
+    if (globalAny.__env?.DB) {
+      console.log('[SIGNUP] Found DB in globalThis.__env');
+      return { env: globalAny.__env };
+    }
+    
+    if (globalAny.env?.DB) {
+      console.log('[SIGNUP] Found DB in globalThis.env');
+      return { env: globalAny.env };
+    }
+    
+    // Method 2: Check for the cloudflare request context symbol
+    const symbol = Symbol.for('__cloudflare-request-context__');
+    if (globalAny[symbol]?.env?.DB) {
+      console.log('[SIGNUP] Found DB in cloudflare request context symbol');
+      return globalAny[symbol];
+    }
+    
+    // Method 3: Check process.env for Cloudflare Worker context
+    if (typeof process !== 'undefined' && (process as any).env?.DB) {
+      console.log('[SIGNUP] Found DB in process.env');
+      return { env: (process as any).env };
+    }
+    
+    console.error('[SIGNUP] Could not find DB binding in any context');
+    return undefined;
   } catch (err) {
     console.error('[SIGNUP] Failed to get CF context:', err);
     return undefined;
