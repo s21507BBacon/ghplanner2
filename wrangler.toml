@@ -3,6 +3,9 @@ name = "ghplanner"
 pages_build_output_dir = ".open-next"
 compatibility_date = "2025-10-11"
 
+[build]
+command = "./build.sh"
+
 [[d1_databases]]
 database_id = "bcf9eff9-b898-434b-8273-791d231987c9"
 binding = "DB"
@@ -17,7 +20,6 @@ GITHUB_TOKEN = "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"
 JWT_SECRET = "bCpsNIwBNMa1vTwd4LZJkDrw1UF4SiHnUsdkorYVBEY="
 NEXTAUTH_SECRET = "OA4K2phXdJgye8ahzESmWqpERVWZHaTlsuj2eOJA5EY="
 NEXTAUTH_URL = "https://ghplanner.com/"
-NODE_VERSION = "20"
 RESEND_API_KEY = "re_XtrXSEge_Ge3q1ihTYUVR84qrWS7HwvSB"
 
 [[env.production.d1_databases]]
