@@ -24,4 +24,4 @@ RESEND_API_KEY = "re_XtrXSEge_Ge3q1ihTYUVR84qrWS7HwvSB"
 [[env.production.d1_databases]]
 database_id = "09244402-09b6-45ac-b36d-2ba5efe7e0ca"
 binding = "DB"
-database_name = "ghplanner"
+database_name = "ghplanner-db"
