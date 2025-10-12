@@ -1,4 +1,3 @@
-export const runtime = 'edge';
 import { NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/database';
 import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
