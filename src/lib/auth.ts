@@ -1,12 +1,14 @@
 import type { NextAuthOptions } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
-import { DatabaseAdapter } from './auth-adapter';
 import { getDatabase } from './database';
 import { DbHelpers } from './db';
 
 export const authOptions: NextAuthOptions = {
-  adapter: DatabaseAdapter(getDatabase()) as any,
-  session: { strategy: 'jwt' },
+  // Don't use adapter with JWT strategy - causes Node.js crypto issues in Cloudflare Workers
+  session: { 
+    strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
   secret: process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET,
   pages: {
     signIn: '/signin',
