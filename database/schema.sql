@@ -1,5 +1,7 @@
 -- GitHub Planner PostgreSQL Database Schema
 -- Compatible with Neon PostgreSQL
+-- This file combines the initial schema with all migrations
+-- Safe to run multiple times due to IF NOT EXISTS clauses
 
 -- Users table
 CREATE TABLE IF NOT EXISTS users (
@@ -299,3 +301,15 @@ CREATE TABLE IF NOT EXISTS task_comments (
 );
 
 CREATE INDEX IF NOT EXISTS idx_task_comments_task ON task_comments(task_id, created_at);
+
+-- Migration: Add github_token_encrypted column to enterprises table (if not exists)
+-- This adds support for enterprise-level GitHub access tokens
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name = 'enterprises'
+                   AND column_name = 'github_token_encrypted') THEN
+        ALTER TABLE enterprises ADD COLUMN github_token_encrypted TEXT;
+        COMMENT ON COLUMN enterprises.github_token_encrypted IS 'Enterprise admin''s personal GitHub access token (encrypted)';
+    END IF;
+END $$;

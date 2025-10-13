@@ -73,16 +73,27 @@ class NoopDatabase implements Database {
   prepare(_sql: string) {
     return {
       bind() { return this; },
-      async run() { throw new Error('Database not available at build time'); },
-      async first() { throw new Error('Database not available at build time'); },
-      async all() { throw new Error('Database not available at build time'); }
+      async run() { 
+        console.error('[DB] NoopDatabase: Database not available - check environment configuration');
+        throw new Error('Database not available - check environment configuration'); 
+      },
+      async first() { 
+        console.error('[DB] NoopDatabase: Database not available - check environment configuration');
+        throw new Error('Database not available - check environment configuration'); 
+      },
+      async all() { 
+        console.error('[DB] NoopDatabase: Database not available - check environment configuration');
+        throw new Error('Database not available - check environment configuration'); 
+      }
     } as unknown as Statement;
   }
   exec(_sql: string): void {
-    throw new Error('Database not available at build time');
+    console.error('[DB] NoopDatabase: Database not available - check environment configuration');
+    throw new Error('Database not available - check environment configuration');
   }
   async batch<T = unknown>(_statements: BatchStatement[]): Promise<T[]> {
-    throw new Error('Database not available at build time');
+    console.error('[DB] NoopDatabase: Database not available - check environment configuration');
+    throw new Error('Database not available - check environment configuration');
   }
 }
 
@@ -96,6 +107,7 @@ export function getDatabase(): Database {
 
   // During build time, return no-op database
   if (process.env.BUILDING === 'true' || process.env.BUILDING_FOR_CLOUDFLARE === 'true') {
+    console.log('[DB] Build time detected, returning no-op database');
     cachedDb = new NoopDatabase();
     return cachedDb;
   }
@@ -105,13 +117,23 @@ export function getDatabase(): Database {
     process.env.DATABASE_URL || 
     process.env.NEON_DATABASE_URL;
 
+  console.log('[DB] Environment check:', {
+    hasDATABASE_URL: !!process.env.DATABASE_URL,
+    hasNEON_DATABASE_URL: !!process.env.NEON_DATABASE_URL,
+    hasConnectionString: !!connectionString,
+    connectionStringPrefix: connectionString ? connectionString.substring(0, 20) + '...' : 'none'
+  });
+
   if (!connectionString) {
     console.error('[DB] No Neon database connection string found. Set DATABASE_URL or NEON_DATABASE_URL environment variable.');
+    console.error('[DB] Available env vars:', Object.keys(process.env).filter(k => k.includes('DATABASE') || k.includes('NEON')));
     cachedDb = new NoopDatabase();
     return cachedDb;
   }
 
+  console.log('[DB] Creating NeonDatabase instance');
   cachedDb = new NeonDatabase(connectionString);
+  console.log('[DB] NeonDatabase instance created successfully');
   return cachedDb;
 }
 

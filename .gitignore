@@ -55,4 +55,4 @@ logs
 *.backup*
 
 # Database schema (contains sensitive structure)
-schema.sql
+# schema.sql - moved to database/ folder

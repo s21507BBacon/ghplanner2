@@ -22,7 +22,7 @@ fi
 
 # Apply schema
 echo "Applying database schema..."
-psql "$DATABASE_URL" -f schema.sql
+psql "$DATABASE_URL" -f ../database/schema.sql
 
 echo "✓ Database schema initialised successfully!"
 echo ""

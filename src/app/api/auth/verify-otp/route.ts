@@ -6,18 +6,29 @@ const MAX_OTP_ATTEMPTS = 5;
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('[VERIFY-OTP] Request received');
     const body = await request.json();
     const { email, code } = body;
 
     if (!email || !code) {
+      console.log('[VERIFY-OTP] Missing email or code');
       return NextResponse.json({ error: 'Email and code are required' }, { status: 400 });
     }
 
     // Normalize the code: uppercase and ensure proper format
     const normalizedCode = code.toUpperCase().trim();
+    console.log('[VERIFY-OTP] Normalized code format check:', { 
+      length: normalizedCode.length,
+      hasDash: normalizedCode.includes('-')
+    });
 
     const db = getDatabase();
     console.log('[VERIFY-OTP] Database instance:', db ? 'Created' : 'Failed');
+    
+    if (!db) {
+      console.error('[VERIFY-OTP] Failed to get database connection');
+      return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
+    }
 
     const helpers = new DbHelpers(db);
     const user = await helpers.findOne('users', { email });

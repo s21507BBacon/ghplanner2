@@ -5,6 +5,32 @@ echo "Building Next.js application..."
 # Set env vars to bypass database connection during build
 BUILDING=true BUILDING_FOR_CLOUDFLARE=true npm run build
 
+echo "Checking and applying database schema..."
+# Check if DATABASE_URL is set and schema needs to be applied
+if [ -n "$DATABASE_URL" ]; then
+  echo "Database URL found, checking schema..."
+
+  # Check if we can connect to the database and if the users table exists
+  if psql "$DATABASE_URL" -c "SELECT 1 FROM information_schema.tables WHERE table_name = 'users' LIMIT 1;" -q 2>/dev/null | grep -q "1"; then
+    echo "✓ Database schema appears to be already applied"
+  else
+    echo "Database schema not found, applying..."
+
+    # Check if psql is available
+    if command -v psql &> /dev/null; then
+      echo "Applying database schema..."
+      psql "$DATABASE_URL" -f database/schema.sql
+      echo "✓ Database schema applied successfully"
+    else
+      echo "Warning: psql not found. Please ensure database schema is applied manually."
+      echo "You can run: psql \$DATABASE_URL -f database/schema.sql"
+    fi
+  fi
+else
+  echo "Warning: DATABASE_URL not set. Skipping database schema check."
+  echo "Set DATABASE_URL environment variable if you want automatic schema application."
+fi
+
 echo "Converting build for Cloudflare Pages..."
 # Now run OpenNext build to convert for Cloudflare
 npx --yes @opennextjs/cloudflare@latest build

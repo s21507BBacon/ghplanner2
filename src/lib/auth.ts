@@ -21,7 +21,12 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         try {
-          console.log('[AUTH] Authorize called with:', { email: credentials?.email, passwordType: credentials?.password?.substring(0, 20) });
+          console.log('[AUTH] Authorize called with:', { 
+            email: credentials?.email, 
+            passwordPrefix: credentials?.password?.substring(0, 20),
+            hasEmail: !!credentials?.email,
+            hasPassword: !!credentials?.password
+          });
 
           if (!credentials?.email || !credentials?.password) {
             console.log('[AUTH] Missing credentials');
@@ -31,45 +36,67 @@ export const authOptions: NextAuthOptions = {
           console.log('[AUTH] Getting database connection...');
           const db = getDatabase();
           if (!db) {
-            console.error('[AUTH] Database connection failed');
+            console.error('[AUTH] Database connection failed - no database instance');
             return null;
           }
+          console.log('[AUTH] Database connection successful');
 
           console.log('[AUTH] Creating database helpers...');
           const helpers = new DbHelpers(db);
 
           console.log('[AUTH] Finding user by email:', credentials.email);
-          const user = await helpers.findOne('users', { email: credentials.email });
+          let user;
+          try {
+            user = await helpers.findOne('users', { email: credentials.email });
+          } catch (dbError) {
+            console.error('[AUTH] Database query error:', dbError);
+            return null;
+          }
 
           if (!user) {
             console.log('[AUTH] User not found:', credentials.email);
             return null;
           }
 
-          console.log('[AUTH] User found:', { id: user.id, email: user.email, emailVerified: user.email_verified });
+          console.log('[AUTH] User found:', { 
+            id: user.id, 
+            email: user.email, 
+            emailVerified: user.email_verified,
+            name: user.name 
+          });
 
           // Check for OTP verification (special password from OTP flow)
           if (credentials.password.startsWith('__OTP_VERIFIED__')) {
             const userId = credentials.password.replace('__OTP_VERIFIED__', '');
-            console.log('[AUTH] OTP verification attempt:', { expectedUserId: userId, actualUserId: user.id, emailVerified: user.email_verified });
+            console.log('[AUTH] OTP verification attempt:', { 
+              expectedUserId: userId, 
+              actualUserId: user.id, 
+              idsMatch: user.id === userId,
+              emailVerified: user.email_verified 
+            });
 
             if (user.id === userId && user.email_verified) {
-              console.log('[AUTH] OTP verification successful');
+              console.log('[AUTH] OTP verification successful - returning user');
               return {
                 id: user.id,
                 email: user.email,
                 name: user.name || undefined,
               };
             }
-            console.log('[AUTH] OTP verification failed');
+            console.log('[AUTH] OTP verification failed - ID mismatch or email not verified');
             return null;
           }
 
-          console.log('[AUTH] No OTP verification, rejecting');
+          console.log('[AUTH] No OTP verification token, rejecting');
           // No password-based login - only OTP
           return null;
         } catch (error) {
           console.error('[AUTH] Authorize error:', error);
+          console.error('[AUTH] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+          console.error('[AUTH] Error details:', {
+            message: error instanceof Error ? error.message : String(error),
+            name: error instanceof Error ? error.name : typeof error
+          });
           return null;
         }
       }

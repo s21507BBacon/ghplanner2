@@ -7,21 +7,36 @@ import { authOptions } from '@/lib/auth';
 // This endpoint creates a session after OTP verification
 export async function POST(request: NextRequest) {
   try {
+    console.log('[OTP-SESSION] Request received');
     const body = await request.json();
     const { email, userId } = body;
 
+    console.log('[OTP-SESSION] Request data:', { email, userId });
+
     if (!email || !userId) {
+      console.log('[OTP-SESSION] Missing email or userId');
       return NextResponse.json({ error: 'Email and userId required' }, { status: 400 });
     }
 
+    console.log('[OTP-SESSION] Getting database connection');
     const db = getDatabase();
+    if (!db) {
+      console.error('[OTP-SESSION] Failed to get database connection');
+      return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
+    }
+
+    console.log('[OTP-SESSION] Creating database helpers');
     const helpers = new DbHelpers(db);
+    
+    console.log('[OTP-SESSION] Finding user with email and userId');
     const user = await helpers.findOne('users', { email, id: userId  });
 
     if (!user) {
+      console.log('[OTP-SESSION] User not found with provided email and userId');
       return NextResponse.json({ error: 'Invalid session data' }, { status: 401 });
     }
 
+    console.log('[OTP-SESSION] User found, returning success');
     // Return success - the client will handle NextAuth sign in
     return NextResponse.json({
       ok: true,
@@ -32,7 +47,11 @@ export async function POST(request: NextRequest) {
       }
     });
   } catch (e) {
-    console.error('OTP session error:', e);
+    console.error('[OTP-SESSION] Error:', e);
+    console.error('[OTP-SESSION] Error details:', {
+      message: e instanceof Error ? e.message : String(e),
+      stack: e instanceof Error ? e.stack : 'No stack trace'
+    });
     return NextResponse.json({ error: 'Failed to create session' }, { status: 500 });
   }
 }
