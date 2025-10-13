@@ -14,7 +14,12 @@ chmod +x fix-worker.sh
 ./fix-worker.sh
 
 echo "Renaming worker.js to _worker.js for Cloudflare Pages..."
-mv .open-next/worker.js .open-next/_worker.js
+if [ -f ".open-next/worker.js" ]; then
+  mv .open-next/worker.js .open-next/_worker.js
+  echo "Worker file renamed successfully"
+else
+  echo "Warning: worker.js not found"
+fi
 
 echo "Creating routing configuration..."
 cat > .open-next/_routes.json << 'EOF'
