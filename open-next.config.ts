@@ -11,8 +11,7 @@ const config: OpenNextConfig = {
       queue: "dummy",
     },
   },
-  // Empty array allows proper polyfilling of crypto instead of using node:crypto
-  edgeExternals: [],
+  edgeExternals: ["node:crypto"],
   middleware: {
     external: true,
     override: {

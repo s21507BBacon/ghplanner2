@@ -2,6 +2,7 @@ import type { NextAuthOptions } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import { getDatabase } from './database';
 import { DbHelpers } from './db';
+import * as webCryptoJwt from './jwt-web-crypto';
 
 export const authOptions: NextAuthOptions = {
   // Don't use adapter with JWT strategy - causes Node.js crypto issues in Cloudflare Workers
@@ -12,6 +13,11 @@ export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET,
   pages: {
     signIn: '/signin',
+  },
+  // Use Web Crypto API for JWT encoding/decoding (Cloudflare Workers compatible)
+  jwt: {
+    encode: webCryptoJwt.encode,
+    decode: webCryptoJwt.decode,
   },
   providers: [
     Credentials({
