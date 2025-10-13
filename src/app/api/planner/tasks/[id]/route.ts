@@ -29,6 +29,13 @@ export async function GET(
       );
     }
 
+    // Get enterprise ID from company if available
+    let enterpriseId: string | undefined;
+    if (task.company_id) {
+      const company: any = await helpers.findOne('companies', { id: task.company_id });
+      enterpriseId = company?.enterprise_id;
+    }
+
     return NextResponse.json({
       id: task.id,
       title: task.title,
@@ -47,6 +54,7 @@ export async function GET(
       order: task.order_num || 0,
       companyId: task.company_id || undefined,
       projectId: task.project_id || undefined,
+      enterpriseId,
     });
 
   } catch (error) {

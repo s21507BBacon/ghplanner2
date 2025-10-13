@@ -225,7 +225,18 @@ export default function TaskDetailPage() {
 
     setPrLoading(true);
     try {
-      const response = await fetch(`/api/github/pr?url=${encodeURIComponent(task.prUrl)}`);
+      const params = new URLSearchParams({
+        url: task.prUrl,
+      });
+
+      if ((task as any).enterpriseId) {
+        params.set('enterpriseId', (task as any).enterpriseId);
+      }
+      if ((task as any).projectId) {
+        params.set('projectId', (task as any).projectId);
+      }
+
+      const response = await fetch(`/api/github/pr?${params.toString()}`);
       const data = await response.json();
 
       if (!response.ok) {

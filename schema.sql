@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS enterprises (
   invite_code TEXT UNIQUE NOT NULL,
   invite_link_salt TEXT NOT NULL,
   domain_allowlist JSONB, -- JSON array
+  github_token_encrypted TEXT, -- Enterprise admin's personal GitHub access token (encrypted)
   created_at BIGINT NOT NULL,
   updated_at BIGINT NOT NULL,
   FOREIGN KEY (owner_user_id) REFERENCES users(id)

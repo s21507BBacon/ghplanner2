@@ -247,6 +247,7 @@ export interface Enterprise {
   inviteCode: string;
   inviteLinkSalt: string;
   domainAllowlist?: string[];
+  githubTokenEncrypted?: string; // Enterprise admin's personal GitHub access token (encrypted)
   createdAt: Date;
   updatedAt: Date;
 }

@@ -59,7 +59,12 @@ export async function POST(request: NextRequest) {
 
     // Get D1 from Cloudflare context on Pages
     const cfContext = getCloudflareContext();
+    console.log('[SEND-OTP] Cloudflare context:', cfContext ? 'Found' : 'Not found');
+    console.log('[SEND-OTP] CF context env.DB:', cfContext?.env?.DB ? 'Found' : 'Not found');
+
     const db = getDatabaseFromContext(cfContext);
+    console.log('[SEND-OTP] Database instance:', db ? 'Created' : 'Failed');
+
     const helpers = new DbHelpers(db);
     const user = await helpers.findOne('users', { email  });
 

@@ -17,8 +17,11 @@ export async function POST(request: NextRequest) {
     const normalizedCode = code.toUpperCase().trim();
 
     const db = getDatabase();
+    console.log('[VERIFY-OTP] Database instance:', db ? 'Created' : 'Failed');
+
     const helpers = new DbHelpers(db);
     const user = await helpers.findOne('users', { email });
+    console.log('[VERIFY-OTP] User found:', user ? 'Yes' : 'No');
 
     if (!user) {
       return NextResponse.json({ error: 'Invalid code' }, { status: 401 });

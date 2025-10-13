@@ -17,6 +17,8 @@ const GITHUB_API_BASE = 'https://api.github.com';
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const url = searchParams.get('url');
+  const enterpriseId = searchParams.get('enterpriseId');
+  const projectId = searchParams.get('projectId');
 
   if (!url) {
     return NextResponse.json(
@@ -32,7 +34,21 @@ export async function GET(request: NextRequest) {
   }
 
   const { owner, repo, number } = parsed;
-  const token = process.env.GITHUB_TOKEN;
+
+  // Get context-aware token
+  let token: string | undefined;
+  if (enterpriseId || projectId) {
+    const { getDatabase } = await import('@/lib/database');
+    const { DbHelpers } = await import('@/lib/db');
+    const { getGitHubTokenForContext } = await import('@/lib/github');
+
+    const db = getDatabase();
+    const helpers = new DbHelpers(db);
+    token = await getGitHubTokenForContext(enterpriseId || undefined, projectId || undefined, helpers);
+  } else {
+    token = process.env.GITHUB_TOKEN;
+  }
+
   const headers = getGitHubHeaders(token);
 
   try {

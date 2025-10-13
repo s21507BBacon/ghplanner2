@@ -18,7 +18,13 @@ export async function POST(request: NextRequest) {
 
     const db = getDatabase();
     const helpers = new DbHelpers(db);
-    
+
+    // Get the board to determine enterprise and project context
+    const board = await helpers.findOne<any>('boards', { id: boardId });
+    if (!board) {
+      return NextResponse.json({ error: 'Board not found' }, { status: 404 });
+    }
+
     // Get all columns with PR tracking enabled
     const columns = await helpers.execute<any>(
       'SELECT * FROM columns WHERE board_id = ? AND requires_pr = 1',
@@ -30,7 +36,7 @@ export async function POST(request: NextRequest) {
     }
 
     const columnIds = columns.map((c: any) => c.id);
-    
+
     // Get all tasks in those columns that have PR URLs
     const tasks = columnIds.length > 0
       ? await helpers.execute<any>(
@@ -41,7 +47,6 @@ export async function POST(request: NextRequest) {
 
     const movedTasks: Array<{ taskId: string; fromColumn: string; toColumn: string; reason: string }> = [];
     const statusUpdates: Array<{ taskId: string; oldStatus: string; newStatus: string }> = [];
-    const githubToken = process.env.GITHUB_TOKEN;
 
     for (const task of tasks) {
       if (!task.pr_url) continue;
@@ -49,8 +54,8 @@ export async function POST(request: NextRequest) {
       const column = columns.find((c: any) => c.id === task.column_id);
       if (!column) continue;
 
-      // Check PR status comprehensively
-      const prStatus = await checkPRStatus(task.pr_url, githubToken);
+      // Check PR status comprehensively using context-aware token resolution
+      const prStatus = await checkPRStatus(task.pr_url, undefined, board.enterprise_id, board.project_id, helpers);
       
       if (prStatus.error) {
         console.log(`Skipping task ${task.id}: ${prStatus.error}`);

@@ -1,4 +1,5 @@
 // GitHub API utility functions
+import { decrypt } from './crypto';
 
 export interface ParsedPRUrl {
   owner: string;
@@ -245,6 +246,41 @@ export function getGitHubHeaders(token?: string): HeadersInit {
   return headers;
 }
 
+// Get the most appropriate GitHub token for the given context
+// Priority: Enterprise token > Project token > Global token
+export async function getGitHubTokenForContext(
+  enterpriseId?: string,
+  projectId?: string,
+  dbHelpers?: any
+): Promise<string | undefined> {
+  // Try enterprise token first
+  if (enterpriseId && dbHelpers) {
+    try {
+      const enterprise = await dbHelpers.findOne<any>('enterprises', { id: enterpriseId });
+      if (enterprise?.github_token_encrypted) {
+        return decrypt(enterprise.github_token_encrypted);
+      }
+    } catch (error) {
+      console.warn('Failed to retrieve enterprise GitHub token:', error);
+    }
+  }
+
+  // Try project token
+  if (projectId && dbHelpers) {
+    try {
+      const project = await dbHelpers.findOne<any>('projects', { id: projectId });
+      if (project?.repo_token_encrypted) {
+        return decrypt(project.repo_token_encrypted);
+      }
+    } catch (error) {
+      console.warn('Failed to retrieve project GitHub token:', error);
+    }
+  }
+
+  // Fall back to global token
+  return process.env.GITHUB_TOKEN;
+}
+
 export interface PRStatusResult {
   merged: boolean;
   closed: boolean;
@@ -254,17 +290,26 @@ export interface PRStatusResult {
   error?: string;
 }
 
-export async function checkPRStatus(prUrl: string, githubToken?: string): Promise<PRStatusResult> {
+export async function checkPRStatus(
+  prUrl: string,
+  githubToken?: string,
+  enterpriseId?: string,
+  projectId?: string,
+  dbHelpers?: any
+): Promise<PRStatusResult> {
   const parsed = parsePRUrl(prUrl);
   if (!parsed) {
     return { merged: false, closed: false, approved: false, changesRequested: false, state: 'open', error: 'Invalid PR URL' };
   }
 
   try {
+    // Use context-aware token resolution if no token provided
+    const tokenToUse = githubToken || (dbHelpers ? await getGitHubTokenForContext(enterpriseId, projectId, dbHelpers) : undefined);
+
     // Fetch PR details
     const prApiUrl = `https://api.github.com/repos/${parsed.owner}/${parsed.repo}/pulls/${parsed.number}`;
     const prResponse = await fetch(prApiUrl, {
-      headers: getGitHubHeaders(githubToken),
+      headers: getGitHubHeaders(tokenToUse),
     });
 
     if (!prResponse.ok) {
@@ -277,7 +322,7 @@ export async function checkPRStatus(prUrl: string, githubToken?: string): Promis
     // Fetch PR reviews
     const reviewsApiUrl = `https://api.github.com/repos/${parsed.owner}/${parsed.repo}/pulls/${parsed.number}/reviews`;
     const reviewsResponse = await fetch(reviewsApiUrl, {
-      headers: getGitHubHeaders(githubToken),
+      headers: getGitHubHeaders(tokenToUse),
     });
 
     let approved = false;
@@ -312,8 +357,14 @@ export async function checkPRStatus(prUrl: string, githubToken?: string): Promis
 }
 
 // Keep old function for backward compatibility
-export async function checkPRMergeStatus(prUrl: string, githubToken?: string): Promise<{ merged: boolean; error?: string }> {
-  const result = await checkPRStatus(prUrl, githubToken);
+export async function checkPRMergeStatus(
+  prUrl: string,
+  githubToken?: string,
+  enterpriseId?: string,
+  projectId?: string,
+  dbHelpers?: any
+): Promise<{ merged: boolean; error?: string }> {
+  const result = await checkPRStatus(prUrl, githubToken, enterpriseId, projectId, dbHelpers);
   return { merged: result.merged, error: result.error };
 }
 

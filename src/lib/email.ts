@@ -9,28 +9,41 @@ interface SendEmailOptions {
 
 // Get environment variable from Cloudflare context or process.env
 function getEnvVar(key: string): string | undefined {
+  console.log(`[EMAIL] Getting env var: ${key}`);
+
   // Try Cloudflare context first (for Pages/Workers)
   try {
     const globalAny = globalThis as any;
-    
+
     // Check OpenNext context
     const symbol = Symbol.for('__cloudflare-request-context__');
     if (globalAny[symbol]?.env?.[key]) {
+      console.log(`[EMAIL] Found ${key} in OpenNext context`);
       return globalAny[symbol].env[key];
     }
-    
+
     // Check global env
     if (globalAny.__env?.[key]) {
+      console.log(`[EMAIL] Found ${key} in global __env`);
       return globalAny.__env[key];
     }
-    
+
     if (globalAny.env?.[key]) {
+      console.log(`[EMAIL] Found ${key} in global env`);
       return globalAny.env[key];
     }
-  } catch {}
-  
+  } catch (e) {
+    console.log(`[EMAIL] Error accessing Cloudflare context for ${key}:`, e);
+  }
+
   // Fallback to process.env (for local development)
-  return process.env[key];
+  const processEnvValue = process.env[key];
+  if (processEnvValue) {
+    console.log(`[EMAIL] Found ${key} in process.env`);
+  } else {
+    console.log(`[EMAIL] ${key} NOT FOUND in any location`);
+  }
+  return processEnvValue;
 }
 
 // Initialize Resend client

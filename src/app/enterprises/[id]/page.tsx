@@ -42,6 +42,12 @@ export default function EnterpriseDetailPage() {
   const [uploadResult, setUploadResult] = useState<{sent: number, failed: number, errors?: string[]} | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // GitHub token management state
+  const [githubToken, setGithubToken] = useState('');
+  const [savingToken, setSavingToken] = useState(false);
+  const [hasGithubToken, setHasGithubToken] = useState(false);
+  const [showTokenForm, setShowTokenForm] = useState(false);
+
   const isOwner = enterprise && session && (session as any).userId === enterprise.ownerUserId;
 
   useEffect(() => {
@@ -55,6 +61,12 @@ export default function EnterpriseDetailPage() {
     }
   }, [status, enterpriseId]);
 
+  useEffect(() => {
+    if (enterprise && isOwner) {
+      loadGithubTokenStatus();
+    }
+  }, [enterprise, isOwner]);
+
   const loadEnterpriseData = async () => {
     try {
       const [enterpriseRes, companiesRes, membersRes] = await Promise.all([
@@ -67,11 +79,11 @@ export default function EnterpriseDetailPage() {
 
       const enterprisesData = await enterpriseRes.json();
       const foundEnterprise = enterprisesData.enterprises?.find((e: Enterprise) => e.id === enterpriseId);
-      
+
       if (!foundEnterprise) {
         throw new Error('Enterprise not found');
       }
-      
+
       setEnterprise(foundEnterprise);
 
       if (companiesRes.ok) {
@@ -88,6 +100,75 @@ export default function EnterpriseDetailPage() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadGithubTokenStatus = async () => {
+    if (!isOwner) return;
+
+    try {
+      const response = await fetch(`/api/enterprises/${enterpriseId}/github-token`);
+      if (response.ok) {
+        const data = await response.json();
+        setHasGithubToken(data.hasToken);
+      }
+    } catch (err) {
+      console.error('Failed to load GitHub token status:', err);
+    }
+  };
+
+  const saveGithubToken = async () => {
+    if (!githubToken.trim()) return;
+
+    setSavingToken(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/enterprises/${enterpriseId}/github-token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ githubToken: githubToken.trim() }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to save GitHub token');
+      }
+
+      setHasGithubToken(true);
+      setGithubToken('');
+      setShowTokenForm(false);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSavingToken(false);
+    }
+  };
+
+  const removeGithubToken = async () => {
+    if (!confirm('Are you sure you want to remove your GitHub token? This will disable GitHub integration for projects in this enterprise.')) {
+      return;
+    }
+
+    setSavingToken(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/enterprises/${enterpriseId}/github-token`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to remove GitHub token');
+      }
+
+      setHasGithubToken(false);
+      setShowTokenForm(false);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSavingToken(false);
     }
   };
 
@@ -193,12 +274,13 @@ export default function EnterpriseDetailPage() {
         </div>
 
         {isOwner && (
-          <div className="bg-white border border-slate-200 rounded-lg p-6">
-            <h2 className="font-semibold text-lg mb-2">Send Invitations</h2>
-            <p className="text-sm text-slate-600 mb-4">
-              Upload a CSV file containing email addresses to invite users to join this enterprise.
-              The CSV should have an &quot;email&quot; column and optionally a &quot;name&quot; or &quot;first name&quot; column.
-            </p>
+          <>
+            <div className="bg-white border border-slate-200 rounded-lg p-6">
+              <h2 className="font-semibold text-lg mb-2">Send Invitations</h2>
+              <p className="text-sm text-slate-600 mb-4">
+                Upload a CSV file containing email addresses to invite users to join this enterprise.
+                The CSV should have an &quot;email&quot; column and optionally a &quot;name&quot; or &quot;first name&quot; column.
+              </p>
             
             <div className="mb-4">
               <label className="block">
@@ -274,11 +356,121 @@ john@example.com,John Smith
 jane@example.com,Jane Doe`}
               </pre>
               <p className="text-xs text-slate-500 mt-2">
-                The CSV can have any columns. The system will automatically detect &quot;email&quot;, &quot;e-mail&quot;, 
+                The CSV can have any columns. The system will automatically detect &quot;email&quot;, &quot;e-mail&quot;,
                 or &quot;email address&quot; columns, and &quot;name&quot;, &quot;first name&quot;, or &quot;firstname&quot; columns.
               </p>
             </div>
           </div>
+
+          <div className="bg-white border border-slate-200 rounded-lg p-6">
+            <h2 className="font-semibold text-lg mb-2">GitHub Integration</h2>
+            <p className="text-sm text-slate-600 mb-4">
+              Configure your personal GitHub access token to enable GitHub integration for projects in this enterprise.
+              This token will be used to fetch pull request information, check merge status, and update task statuses automatically.
+            </p>
+
+            {hasGithubToken ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
+                    <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-green-800">GitHub token configured</p>
+                    <p className="text-xs text-green-600">Your personal GitHub token is active for this enterprise.</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowTokenForm(true)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                  >
+                    Update Token
+                  </button>
+                  <button
+                    onClick={removeGithubToken}
+                    disabled={savingToken}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {savingToken ? 'Removing...' : 'Remove Token'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className="w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center">
+                    <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-amber-800">No GitHub token configured</p>
+                    <p className="text-xs text-amber-600">GitHub integration is disabled for projects in this enterprise.</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowTokenForm(true)}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+                >
+                  Add GitHub Token
+                </button>
+              </div>
+            )}
+
+            {showTokenForm && (
+              <div className="mt-6 border-t pt-6">
+                <h3 className="font-medium text-base mb-3">
+                  {hasGithubToken ? 'Update GitHub Token' : 'Add GitHub Token'}
+                </h3>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Personal Access Token
+                    </label>
+                    <input
+                      type="password"
+                      value={githubToken}
+                      onChange={(e) => setGithubToken(e.target.value)}
+                      placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                    />
+                    <p className="text-xs text-slate-500 mt-2">
+                      Enter your GitHub personal access token. The token needs &quot;repo&quot; scope for private repositories.
+                      <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 ml-1">
+                        Create token →
+                      </a>
+                    </p>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={saveGithubToken}
+                      disabled={savingToken || !githubToken.trim()}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {savingToken ? 'Saving...' : (hasGithubToken ? 'Update Token' : 'Save Token')}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowTokenForm(false);
+                        setGithubToken('');
+                      }}
+                      className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors text-sm"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          </>
         )}
 
         <div className="bg-white border border-slate-200 rounded-lg p-6">
