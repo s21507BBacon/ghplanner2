@@ -1,9 +1,26 @@
 "use client";
 import { useSession, signOut } from 'next-auth/react';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function Home() {
   const { data: session } = useSession();
+  const router = useRouter();
   const isAuthed = !!session;
+
+  useEffect(() => {
+    if (isAuthed) {
+      (async () => {
+        const res = await fetch('/api/user/assignments');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.hasCreatedEnterprise) {
+            router.push('/dashboard');
+          }
+        }
+      })();
+    }
+  }, [isAuthed, router]);
 
   return (
     <main className="container mx-auto px-4 py-8">

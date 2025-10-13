@@ -15,7 +15,7 @@ export function DatabaseAdapter(db: Database): Adapter {
         id,
         email: user.email,
         name: user.name || null,
-        email_verified: user.emailVerified ? dateToTimestamp(user.emailVerified) : null,
+        email_verified: user.emailVerified ? true : false,
         created_at: now,
         updated_at: now
       });
@@ -35,7 +35,7 @@ export function DatabaseAdapter(db: Database): Adapter {
       return {
         id: user.id,
         email: user.email,
-        emailVerified: timestampToDate(user.email_verified) || null,
+        emailVerified: user.email_verified ? new Date() : null,
         name: user.name
       };
     },
@@ -47,7 +47,7 @@ export function DatabaseAdapter(db: Database): Adapter {
       return {
         id: user.id,
         email: user.email,
-        emailVerified: timestampToDate(user.email_verified) || null,
+        emailVerified: user.email_verified ? new Date() : null,
         name: user.name
       };
     },
@@ -66,7 +66,7 @@ export function DatabaseAdapter(db: Database): Adapter {
       return {
         id: user.id,
         email: user.email,
-        emailVerified: timestampToDate(user.email_verified) || null,
+        emailVerified: user.email_verified ? new Date() : null,
         name: user.name
       };
     },
@@ -79,7 +79,7 @@ export function DatabaseAdapter(db: Database): Adapter {
       if (user.email !== undefined) data.email = user.email;
       if (user.name !== undefined) data.name = user.name;
       if (user.emailVerified !== undefined) {
-        data.email_verified = user.emailVerified ? dateToTimestamp(user.emailVerified) : null;
+        data.email_verified = user.emailVerified ? true : false;
       }
 
       await helpers.update('users', { id: user.id }, data);
@@ -90,7 +90,7 @@ export function DatabaseAdapter(db: Database): Adapter {
       return {
         id: updated.id,
         email: updated.email,
-        emailVerified: timestampToDate(updated.email_verified) || null,
+        emailVerified: updated.email_verified ? new Date() : null,
         name: updated.name
       };
     },
@@ -160,7 +160,7 @@ export function DatabaseAdapter(db: Database): Adapter {
         user: {
           id: user.id,
           email: user.email,
-          emailVerified: timestampToDate(user.email_verified) || null,
+          emailVerified: user.email_verified ? new Date() : null,
           name: user.name
         }
       };

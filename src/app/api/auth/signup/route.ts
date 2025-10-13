@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
         id: userId,
         email,
         name: name || '',
-        email_verified: 0,
+        email_verified: false,
         otp_code: otpCode,
         otp_expires: expiresTimestamp,
         otp_attempts: 0,

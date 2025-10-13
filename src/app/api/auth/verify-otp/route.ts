@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
       'users',
       { email },
       { 
-        email_verified: 1,
+        email_verified: true,
         otp_code: null,
         otp_expires: null,
         otp_attempts: 0

@@ -17,14 +17,14 @@ export async function GET(request: NextRequest) {
   if (!companyId) return NextResponse.json({ error: 'companyId required' }, { status: 400 });
 
   const db = getDatabase();
-    const helpers = new DbHelpers(db);
-  const member = await db.collection<Membership>('memberships').findOne({ userId, companyId } as any);
+  const helpers = new DbHelpers(db);
+  const member = await helpers.findOne<Membership>('memberships', { user_id: userId, company_id: companyId });
   if (!member) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  const projects = await db.collection<Project>('projects').find({ companyId } as any).toArray();
+  const projects = await helpers.findMany<Project>('projects', { company_id: companyId });
   return NextResponse.json({ projects: projects.map(p => ({
-    id: p.id, name: p.name, maxSeats: p.maxSeats, isActive: p.isActive,
-    inviteCode: p.inviteCode, repoOwner: p.repoOwner, repoName: p.repoName
+    id: p.id, name: p.name, maxSeats: p.max_seats, isActive: p.is_active,
+    inviteCode: p.invite_code, repoOwner: p.repo_owner, repoName: p.repo_name
   })) });
 }
 
@@ -41,8 +41,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'companyId, name, and maxSeats are required' }, { status: 400 });
   }
   const db = getDatabase();
-    const helpers = new DbHelpers(db);
-  const member = await db.collection<Membership>('memberships').findOne({ userId, companyId } as any);
+  const helpers = new DbHelpers(db);
+  const member = await helpers.findOne<Membership>('memberships', { user_id: userId, company_id: companyId });
   if (!member || (member.role !== 'owner' && member.role !== 'admin')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
@@ -53,21 +53,21 @@ export async function POST(request: NextRequest) {
     return s;
   }
   
-  const now = new Date();
-  const project: Project = {
-    id: crypto.randomUUID(),
-    companyId,
+  const projectId = crypto.randomUUID();
+  const now = Date.now();
+  await helpers.insert('projects', {
+    id: projectId,
+    company_id: companyId,
     name: name.trim(),
     description: description || '',
-    maxSeats: Math.max(1, maxSeats),
-    isActive: true,
-    inviteCode: randomCode(8),
-    inviteLinkSalt: crypto.randomUUID(),
+    max_seats: Math.max(1, maxSeats),
+    is_active: true,
+    invite_code: randomCode(8),
+    invite_link_salt: crypto.randomUUID(),
     created_at: now,
     updated_at: now,
-  };
-  await db.collection<Project>('projects').insertOne(project as any);
-  return NextResponse.json({ id: project.id, name: project.name, maxSeats: project.maxSeats, isActive: true, inviteCode: project.inviteCode });
+  });
+  return NextResponse.json({ id: projectId, name: name.trim(), maxSeats: Math.max(1, maxSeats), isActive: true, inviteCode: randomCode(8) });
 }
 
 export async function PUT(request: NextRequest) {
@@ -81,21 +81,33 @@ export async function PUT(request: NextRequest) {
   const { id, companyId, ...updates } = body as any;
   if (!id || !companyId) return NextResponse.json({ error: 'id and companyId required' }, { status: 400 });
   const db = getDatabase();
-    const helpers = new DbHelpers(db);
-  const member = await db.collection<Membership>('memberships').findOne({ userId, companyId } as any);
+  const helpers = new DbHelpers(db);
+  const member = await helpers.findOne<Membership>('memberships', { user_id: userId, company_id: companyId });
   if (!member || (member.role !== 'owner' && member.role !== 'admin')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
   // Handle repo token encryption if provided
-  if (typeof updates.repoToken === 'string' && updates.repoToken) {
-    (updates as any).repoTokenEncrypted = encrypt(updates.repoToken);
-    delete updates.repoToken;
+  const updateData: any = {};
+  for (const [key, value] of Object.entries(updates)) {
+    if (key === 'repoToken' && typeof value === 'string' && value) {
+      updateData.repo_token_encrypted = encrypt(value);
+    } else if (key === 'name' || key === 'description') {
+      updateData[key] = value;
+    } else if (key === 'maxSeats') {
+      updateData.max_seats = value;
+    } else if (key === 'isActive') {
+      updateData.is_active = value;
+    } else if (key === 'repoOwner') {
+      updateData.repo_owner = value;
+    } else if (key === 'repoName') {
+      updateData.repo_name = value;
+    }
   }
-  updates.updated_at = new Date();
-  const result = await db.collection<Project>('projects').findOneAndUpdate({ id, companyId } as any, { $set: updates }, { returnDocument: 'after' });
-  if (!result || !(result as any).value) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  const p = (result as any).value as Project;
-  return NextResponse.json({ id: p.id, name: p.name, maxSeats: p.maxSeats, isActive: p.isActive, repoOwner: p.repoOwner, repoName: p.repoName });
+  updateData.updated_at = Date.now();
+  await helpers.update('projects', { id, company_id: companyId }, updateData);
+  const p = await helpers.findOne<Project>('projects', { id, company_id: companyId });
+  if (!p) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  return NextResponse.json({ id: p.id, name: p.name, maxSeats: p.max_seats, isActive: p.is_active, repoOwner: p.repo_owner, repoName: p.repo_name });
 }
 
 export async function DELETE(request: NextRequest) {
@@ -109,12 +121,11 @@ export async function DELETE(request: NextRequest) {
   const companyId = request.nextUrl.searchParams.get('companyId');
   if (!id || !companyId) return NextResponse.json({ error: 'id and companyId required' }, { status: 400 });
   const db = getDatabase();
-    const helpers = new DbHelpers(db);
-  const member = await db.collection<Membership>('memberships').findOne({ userId, companyId } as any);
+  const helpers = new DbHelpers(db);
+  const member = await helpers.findOne<Membership>('memberships', { user_id: userId, company_id: companyId });
   if (!member || (member.role !== 'owner' && member.role !== 'admin')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
-  const result = await db.collection<Project>('projects').deleteOne({ id, companyId } as any);
-  if (result.deletedCount === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  await helpers.delete('projects', { id, company_id: companyId });
   return NextResponse.json({ ok: true });
 }

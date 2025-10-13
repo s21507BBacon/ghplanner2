@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
       otp_code: otpCode,
       otp_expires: expiresTimestamp,
       otp_attempts: 0,
-      email_verified: (user as any).email_verified ? 1 : 0,
+      email_verified: (user as any).email_verified ? true : false,
       updated_at: nowTimestamp
     });
 

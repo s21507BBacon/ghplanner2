@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     console.log('[VERIFY] Updating user to verified');
     const nowTimestamp = dateToTimestamp(now);
     await helpers.update('users', { email_verification_token: token }, {
-      email_verified: 1,
+      email_verified: true,
       email_verification_token: null,
       email_verification_expires: null,
       updated_at: nowTimestamp
