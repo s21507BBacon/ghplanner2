@@ -209,10 +209,10 @@ export default function EnterpriseDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 pt-16">
+      <div className="min-h-screen gh-hero-gradient flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-slate-600">Loading enterprise...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-400 mx-auto mb-4"></div>
+          <p className="text-slate-300">Loading enterprise...</p>
         </div>
       </div>
     );
@@ -220,13 +220,13 @@ export default function EnterpriseDetailPage() {
 
   if (error || !enterprise) {
     return (
-      <div className="min-h-screen bg-slate-50 pt-16">
+      <div className="min-h-screen gh-hero-gradient">
         <div className="max-w-6xl mx-auto p-6">
-          <div className="bg-white border border-red-200 rounded-lg p-6 text-center">
-            <p className="text-red-600 mb-4">{error || 'Enterprise not found'}</p>
+          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-6 text-center">
+            <p className="text-red-400 mb-4">{error || 'Enterprise not found'}</p>
             <Link 
               href="/enterprises"
-              className="inline-block bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+              className="gh-cta-button inline-block px-6 py-3 rounded-lg text-white font-semibold"
             >
               Back to Enterprises
             </Link>
@@ -237,37 +237,37 @@ export default function EnterpriseDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 pt-16">
+    <div className="min-h-screen gh-hero-gradient">
       <div className="max-w-6xl mx-auto p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <Link 
               href="/enterprises"
-              className="text-blue-600 hover:text-blue-700 text-sm mb-2 inline-block"
+              className="text-orange-400 hover:text-orange-300 text-sm mb-2 inline-block transition-colors"
             >
               ← Back to Enterprises
             </Link>
-            <h1 className="text-2xl font-bold text-slate-900">{enterprise.name}</h1>
+            <h1 className="text-3xl font-bold text-white">{enterprise.name}</h1>
           </div>
           <Link
             href="/dashboard"
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="gh-cta-button px-5 py-3 rounded-lg text-white font-semibold"
           >
             Go to Dashboard
           </Link>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-lg p-6">
-          <h2 className="font-semibold text-lg mb-4">Enterprise Details</h2>
+        <div className="gh-feature-card rounded-lg p-6">
+          <h2 className="font-semibold text-white text-xl mb-4">Enterprise Details</h2>
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-600">Invite Code:</span>
-              <span className="font-mono bg-slate-100 px-3 py-1 rounded text-sm">
+              <span className="text-sm text-slate-300">Invite Code:</span>
+              <span className="font-mono bg-white/10 px-3 py-1 rounded text-sm text-white">
                 {enterprise.inviteCode}
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-600">Your Role:</span>
+              <span className="text-sm text-slate-300">Your Role:</span>
               <span className="font-medium text-sm">{isOwner ? 'Owner' : 'Member'}</span>
             </div>
           </div>
@@ -275,8 +275,8 @@ export default function EnterpriseDetailPage() {
 
         {isOwner && (
           <>
-            <div className="bg-white border border-slate-200 rounded-lg p-6">
-              <h2 className="font-semibold text-lg mb-2">Send Invitations</h2>
+            <div className="gh-feature-card rounded-lg p-6">
+              <h2 className="font-semibold text-white text-xl mb-2">Send Invitations</h2>
               <p className="text-sm text-slate-600 mb-4">
                 Upload a CSV file containing email addresses to invite users to join this enterprise.
                 The CSV should have an &quot;email&quot; column and optionally a &quot;name&quot; or &quot;first name&quot; column.
@@ -349,21 +349,21 @@ export default function EnterpriseDetailPage() {
             )}
 
             <div className="mt-4 bg-slate-50 border border-slate-200 rounded-lg p-4">
-              <p className="text-xs text-slate-600 font-medium mb-2">Example CSV format:</p>
-              <pre className="text-xs text-slate-700 bg-white p-3 rounded border border-slate-200 overflow-x-auto">
+              <p className="text-xs text-slate-300 font-medium mb-2">Example CSV format:</p>
+              <pre className="text-xs text-slate-300 bg-black/30 p-3 rounded border border-white/10 overflow-x-auto">
 {`email,name
 john@example.com,John Smith
 jane@example.com,Jane Doe`}
               </pre>
-              <p className="text-xs text-slate-500 mt-2">
+              <p className="text-xs text-slate-400 mt-2">
                 The CSV can have any columns. The system will automatically detect &quot;email&quot;, &quot;e-mail&quot;,
                 or &quot;email address&quot; columns, and &quot;name&quot;, &quot;first name&quot;, or &quot;firstname&quot; columns.
               </p>
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-lg p-6">
-            <h2 className="font-semibold text-lg mb-2">GitHub Integration</h2>
+          <div className="gh-feature-card rounded-lg p-6">
+            <h2 className="font-semibold text-white text-xl mb-2">GitHub Integration</h2>
             <p className="text-sm text-slate-600 mb-4">
               Configure your personal GitHub access token to enable GitHub integration for projects in this enterprise.
               This token will be used to fetch pull request information, check merge status, and update task statuses automatically.
@@ -386,7 +386,7 @@ jane@example.com,Jane Doe`}
                 <div className="flex gap-3">
                   <button
                     onClick={() => setShowTokenForm(true)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                    className="gh-cta-button px-4 py-2 rounded-lg text-white font-semibold text-sm"
                   >
                     Update Token
                   </button>
@@ -415,7 +415,7 @@ jane@example.com,Jane Doe`}
 
                 <button
                   onClick={() => setShowTokenForm(true)}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+                  className="gh-cta-button-secondary px-4 py-2 rounded-lg font-semibold text-sm bg-transparent"
                 >
                   Add GitHub Token
                 </button>
@@ -438,9 +438,9 @@ jane@example.com,Jane Doe`}
                       value={githubToken}
                       onChange={(e) => setGithubToken(e.target.value)}
                       placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors font-mono text-sm"
                     />
-                    <p className="text-xs text-slate-500 mt-2">
+                    <p className="text-xs text-slate-400 mt-2">
                       Enter your GitHub personal access token. The token needs &quot;repo&quot; scope for private repositories.
                       <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 ml-1">
                         Create token →
@@ -461,7 +461,7 @@ jane@example.com,Jane Doe`}
                         setShowTokenForm(false);
                         setGithubToken('');
                       }}
-                      className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors text-sm"
+                      className="px-4 py-2 bg-white/5 text-slate-300 rounded-lg hover:bg-white/10 transition-colors text-sm"
                     >
                       Cancel
                     </button>
@@ -473,24 +473,24 @@ jane@example.com,Jane Doe`}
           </>
         )}
 
-        <div className="bg-white border border-slate-200 rounded-lg p-6">
-          <h2 className="font-semibold text-lg mb-4">Members ({members.length})</h2>
+        <div className="gh-feature-card rounded-lg p-6">
+          <h2 className="font-semibold text-white text-xl mb-4">Members ({members.length})</h2>
           {members.length === 0 ? (
-            <p className="text-sm text-slate-600">No members yet.</p>
+            <p className="text-sm text-slate-300">No members yet.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-200">
-                    <th className="text-left py-2 px-3 font-medium text-slate-700">Name</th>
-                    <th className="text-left py-2 px-3 font-medium text-slate-700">Email</th>
-                    <th className="text-left py-2 px-3 font-medium text-slate-700">Role</th>
-                    <th className="text-left py-2 px-3 font-medium text-slate-700">Status</th>
+                  <tr className="border-b border-white/10">
+                    <th className="text-left py-2 px-3 font-medium text-white">Name</th>
+                    <th className="text-left py-2 px-3 font-medium text-white">Email</th>
+                    <th className="text-left py-2 px-3 font-medium text-white">Role</th>
+                    <th className="text-left py-2 px-3 font-medium text-white">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {members.map(member => (
-                    <tr key={member.id} className="border-b border-slate-100 hover:bg-slate-50">
+                    <tr key={member.id} className="border-b border-white/10 hover:bg-white/5 text-slate-300">
                       <td className="py-2 px-3">{member.userName || '-'}</td>
                       <td className="py-2 px-3">{member.userEmail || '-'}</td>
                       <td className="py-2 px-3">
@@ -515,15 +515,15 @@ jane@example.com,Jane Doe`}
           )}
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-lg p-6">
-          <h2 className="font-semibold text-lg mb-4">Companies ({companies.length})</h2>
+        <div className="gh-feature-card rounded-lg p-6">
+          <h2 className="font-semibold text-white text-xl mb-4">Companies ({companies.length})</h2>
           {companies.length === 0 ? (
-            <p className="text-sm text-slate-600">No companies yet. Create one from the dashboard.</p>
+            <p className="text-sm text-slate-300">No companies yet. Create one from the dashboard.</p>
           ) : (
             <div className="grid md:grid-cols-2 gap-4">
               {companies.map(company => (
-                <div key={company.id} className="border border-slate-200 rounded-lg p-4 hover:bg-slate-50">
-                  <div className="font-medium">{company.name}</div>
+                <div key={company.id} className="bg-white/5 border border-white/10 rounded-lg p-4 hover:border-orange-500/50 transition-colors">
+                  <div className="font-medium text-white">{company.name}</div>
                 </div>
               ))}
             </div>

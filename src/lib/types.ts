@@ -73,74 +73,74 @@ export interface TaskUpdate {
 export const COLUMN_COLORS = [
   {
     name: 'Slate',
-    bg: 'bg-slate-100',
-    border: 'border-slate-200',
-    text: 'text-slate-700',
-    header: 'bg-slate-50',
+    bg: 'bg-slate-500/20',
+    border: 'border-slate-500',
+    text: 'text-white',
+    header: 'bg-slate-500/30',
     value: 'slate'
   },
   {
     name: 'Blue',
-    bg: 'bg-blue-50',
-    border: 'border-blue-200',
-    text: 'text-blue-700',
-    header: 'bg-blue-100',
+    bg: 'bg-blue-500/20',
+    border: 'border-blue-500',
+    text: 'text-white',
+    header: 'bg-blue-500/30',
     value: 'blue'
   },
   {
     name: 'Green',
-    bg: 'bg-green-50',
-    border: 'border-green-200',
-    text: 'text-green-700',
-    header: 'bg-green-100',
+    bg: 'bg-green-500/20',
+    border: 'border-green-500',
+    text: 'text-white',
+    header: 'bg-green-500/30',
     value: 'green'
   },
   {
     name: 'Amber',
-    bg: 'bg-amber-50',
-    border: 'border-amber-200',
-    text: 'text-amber-700',
-    header: 'bg-amber-100',
+    bg: 'bg-amber-500/20',
+    border: 'border-amber-500',
+    text: 'text-white',
+    header: 'bg-amber-500/30',
     value: 'amber'
   },
   {
     name: 'Red',
-    bg: 'bg-red-50',
-    border: 'border-red-200',
-    text: 'text-red-700',
-    header: 'bg-red-100',
+    bg: 'bg-red-500/20',
+    border: 'border-red-500',
+    text: 'text-white',
+    header: 'bg-red-500/30',
     value: 'red'
   },
   {
     name: 'Purple',
-    bg: 'bg-purple-50',
-    border: 'border-purple-200',
-    text: 'text-purple-700',
-    header: 'bg-purple-100',
+    bg: 'bg-purple-500/20',
+    border: 'border-purple-500',
+    text: 'text-white',
+    header: 'bg-purple-500/30',
     value: 'purple'
   },
   {
     name: 'Indigo',
-    bg: 'bg-indigo-50',
-    border: 'border-indigo-200',
-    text: 'text-indigo-700',
-    header: 'bg-indigo-100',
+    bg: 'bg-indigo-500/20',
+    border: 'border-indigo-500',
+    text: 'text-white',
+    header: 'bg-indigo-500/30',
     value: 'indigo'
   },
   {
     name: 'Pink',
-    bg: 'bg-pink-50',
-    border: 'border-pink-200',
-    text: 'text-pink-700',
-    header: 'bg-pink-100',
+    bg: 'bg-pink-500/20',
+    border: 'border-pink-500',
+    text: 'text-white',
+    header: 'bg-pink-500/30',
     value: 'pink'
   },
   {
     name: 'Zinc',
-    bg: 'bg-zinc-50',
-    border: 'border-zinc-200',
-    text: 'text-zinc-700',
-    header: 'bg-zinc-100',
+    bg: 'bg-zinc-500/20',
+    border: 'border-zinc-500',
+    text: 'text-white',
+    header: 'bg-zinc-500/30',
     value: 'zinc'
   }
 ] as const;

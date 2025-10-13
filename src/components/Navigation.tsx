@@ -93,115 +93,140 @@ export default function Navigation() {
     await signOut({ callbackUrl: '/' });
   };
 
-  if (!session?.userId) return <div className="h-0" />;
+  const isHomePage = pathname === '/';
+
+  if (!session?.userId && !isHomePage) return <div className="h-0" />;
 
   return (
-    <nav className="fixed top-0 left-0 right-0 bg-white border-b border-slate-200 z-50 h-16">
+    <nav className="fixed top-0 left-0 right-0 bg-[#1a2332] border-b border-white/10 z-50 h-16 backdrop-blur-sm bg-opacity-95">
       <div className="w-full px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
-            <Briefcase className="w-8 h-8 text-blue-600 mr-3" />
-            <span className="text-xl font-bold text-slate-900">GH Planner</span>
+            <Briefcase className="w-8 h-8 text-orange-500 mr-3" />
+            <span className="text-xl font-bold text-white">GH Planner</span>
           </div>
 
           <div className="flex items-center space-x-4">
-            {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center space-x-8">
-              {isOwnerOrAdmin && (
+            {/* Home Page Authentication Buttons */}
+            {isHomePage && !session?.userId && (
+              <div className="hidden md:flex items-center space-x-4">
                 <a
-                  href="/dashboard"
-                  className={`flex items-center text-sm font-medium ${pathname === '/dashboard' ? 'text-blue-600' : 'text-slate-700 hover:text-slate-900'}`}
+                  href="/signin"
+                  className="text-slate-300 hover:text-white font-medium transition-colors"
                 >
-                  <LayoutDashboard className="w-4 h-4 mr-1" />
-                  Dashboard
+                  Sign In
                 </a>
-              )}
-              
-              <div className="relative">
-              <button
-                onClick={() => setShowCompanies(!showCompanies)}
-                className="flex items-center text-sm font-medium text-slate-700 hover:text-slate-900 focus:outline-none"
-              >
-                <Building2 className="w-4 h-4 mr-1" />
-                Companies
-                <ChevronDown className="ml-1 w-4 h-4" />
-              </button>
-
-              {showCompanies && (
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-md shadow-lg border border-slate-200 py-1 z-50 max-h-96 overflow-y-auto">
-                  {loading ? (
-                    <div className="px-4 py-2 text-sm text-slate-500">Loading...</div>
-                  ) : companies.length > 0 ? (
-                    companies.map((company) => (
-                      <div key={company.id} className="border-b border-slate-100 last:border-b-0">
-                        <button
-                          onClick={(e) => toggleCompany(company.id, e)}
-                          className="flex items-center justify-between w-full px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50"
-                        >
-                          <div className="flex items-center">
-                            <Building2 className="w-4 h-4 mr-2 text-slate-600" />
-                            {company.name}
-                          </div>
-                          <ChevronRight 
-                            className={`w-4 h-4 transition-transform ${expandedCompanyId === company.id ? 'rotate-90' : ''}`}
-                          />
-                        </button>
-                        
-                        {expandedCompanyId === company.id && (
-                          <div className="bg-slate-50">
-                            {company.projects.length > 0 ? (
-                              company.projects.map((project) => (
-                                <button
-                                  key={project.id}
-                                  onClick={() => handleProjectClick(company.id, project.id)}
-                                  className="block w-full text-left px-8 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                                >
-                                  {project.name}
-                                </button>
-                              ))
-                            ) : (
-                              <div className="px-8 py-2 text-sm text-slate-500">No projects</div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  ) : (
-                    <div className="px-4 py-2 text-sm text-slate-500">No companies found</div>
-                  )}
-                </div>
-              )}
-            </div>
-            </div>
-
-            {/* User Menu */}
-            <div className="relative">
-            <button
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center text-sm font-medium text-slate-700 hover:text-slate-900 focus:outline-none"
-            >
-              <User className="w-5 h-5 mr-2" />
-              {session.user?.name || session.user?.email || 'User'}
-              <ChevronDown className="ml-1 w-4 h-4" />
-            </button>
-
-            {showUserMenu && (
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-slate-200 py-1 z-50">
-                <button
-                  onClick={handleSignOut}
-                  className="flex items-center w-full px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                <a
+                  href="/signup"
+                  className="gh-cta-button px-4 py-2 rounded-lg text-white font-semibold text-sm"
                 >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Sign Out
-                </button>
+                  Sign Up
+                </a>
               </div>
             )}
-            </div>
+
+            {/* Authenticated User Navigation */}
+            {session?.userId && (
+              <>
+                {/* Desktop Navigation */}
+                <div className="hidden md:flex items-center space-x-8">
+                  {isOwnerOrAdmin && (
+                    <a
+                      href="/dashboard"
+                      className={`flex items-center text-sm font-medium ${pathname === '/dashboard' ? 'text-orange-400' : 'text-slate-300 hover:text-white'}`}
+                    >
+                      <LayoutDashboard className="w-4 h-4 mr-1" />
+                      Dashboard
+                    </a>
+                  )}
+
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowCompanies(!showCompanies)}
+                      className="flex items-center text-sm font-medium text-slate-300 hover:text-white focus:outline-none"
+                    >
+                      <Building2 className="w-4 h-4 mr-1" />
+                      Companies
+                      <ChevronDown className="ml-1 w-4 h-4" />
+                    </button>
+
+                    {showCompanies && (
+                      <div className="absolute right-0 mt-2 w-80 bg-[#1a2332] rounded-md shadow-lg border border-white/10 py-1 z-50 max-h-96 overflow-y-auto">
+                        {loading ? (
+                          <div className="px-4 py-2 text-sm text-slate-400">Loading...</div>
+                        ) : companies.length > 0 ? (
+                          companies.map((company) => (
+                            <div key={company.id} className="border-b border-white/10 last:border-b-0">
+                              <button
+                                onClick={(e) => toggleCompany(company.id, e)}
+                                className="flex items-center justify-between w-full px-4 py-2 text-sm font-medium text-white hover:bg-white/5"
+                              >
+                                <div className="flex items-center">
+                                  <Building2 className="w-4 h-4 mr-2 text-green-400" />
+                                  {company.name}
+                                </div>
+                                <ChevronRight
+                                  className={`w-4 h-4 transition-transform ${expandedCompanyId === company.id ? 'rotate-90' : ''}`}
+                                />
+                              </button>
+
+                              {expandedCompanyId === company.id && (
+                                <div className="bg-white/5">
+                                  {company.projects.length > 0 ? (
+                                    company.projects.map((project) => (
+                                      <button
+                                        key={project.id}
+                                        onClick={() => handleProjectClick(company.id, project.id)}
+                                        className="block w-full text-left px-8 py-2 text-sm text-slate-300 hover:bg-white/10 hover:text-white"
+                                      >
+                                        {project.name}
+                                      </button>
+                                    ))
+                                  ) : (
+                                    <div className="px-8 py-2 text-sm text-slate-400">No projects</div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="px-4 py-2 text-sm text-slate-400">No companies found</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* User Menu */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowUserMenu(!showUserMenu)}
+                    className="flex items-center text-sm font-medium text-slate-300 hover:text-white focus:outline-none"
+                  >
+                    <User className="w-5 h-5 mr-2" />
+                    {session.user?.name || session.user?.email || 'User'}
+                    <ChevronDown className="ml-1 w-4 h-4" />
+                  </button>
+
+                  {showUserMenu && (
+                    <div className="absolute right-0 mt-2 w-48 bg-[#1a2332] rounded-md shadow-lg border border-white/10 py-1 z-50">
+                      <button
+                        onClick={handleSignOut}
+                        className="flex items-center w-full px-4 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white"
+                      >
+                        <LogOut className="w-4 h-4 mr-2" />
+                        Sign Out
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
 
             {/* Mobile Menu Button */}
             <button
               onClick={() => setShowMobileMenu(!showMobileMenu)}
-              className="md:hidden p-2 text-slate-700 hover:text-slate-900"
+              className="md:hidden p-2 text-slate-300 hover:text-white"
             >
               {showMobileMenu ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
@@ -210,63 +235,88 @@ export default function Navigation() {
 
         {/* Mobile Menu */}
         {showMobileMenu && (
-          <div className="md:hidden border-t border-slate-200 py-2">
-            {isOwnerOrAdmin && (
-              <a
-                href="/dashboard"
-                onClick={() => setShowMobileMenu(false)}
-                className={`flex items-center px-4 py-2 text-sm font-medium ${pathname === '/dashboard' ? 'text-blue-600 bg-blue-50' : 'text-slate-700 hover:bg-slate-50'}`}
-              >
-                <LayoutDashboard className="w-4 h-4 mr-2" />
-                Dashboard
-              </a>
+          <div className="md:hidden border-t border-white/10 py-2">
+            {/* Home Page Mobile Auth Buttons */}
+            {isHomePage && !session?.userId && (
+              <div className="px-4 py-2 space-y-2">
+                <a
+                  href="/signin"
+                  onClick={() => setShowMobileMenu(false)}
+                  className="block text-slate-300 hover:text-white font-medium transition-colors py-2"
+                >
+                  Sign In
+                </a>
+                <a
+                  href="/signup"
+                  onClick={() => setShowMobileMenu(false)}
+                  className="block gh-cta-button px-4 py-2 rounded-lg text-white font-semibold text-center text-sm"
+                >
+                  Sign Up
+                </a>
+              </div>
             )}
-            <div className="border-t border-slate-100 mt-2 pt-2">
-              <div className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase">Companies</div>
-              {loading ? (
-                <div className="px-4 py-2 text-sm text-slate-500">Loading...</div>
-              ) : companies.length > 0 ? (
-                companies.map((company) => (
-                  <div key={company.id} className="mb-2">
-                    <button
-                      onClick={(e) => toggleCompany(company.id, e)}
-                      className="flex items-center justify-between w-full px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50"
-                    >
-                      <div className="flex items-center">
-                        <Building2 className="w-4 h-4 mr-2 text-slate-600" />
-                        {company.name}
-                      </div>
-                      <ChevronRight 
-                        className={`w-4 h-4 transition-transform ${expandedCompanyId === company.id ? 'rotate-90' : ''}`}
-                      />
-                    </button>
-                    
-                    {expandedCompanyId === company.id && (
-                      <div className="bg-slate-50">
-                        {company.projects.length > 0 ? (
-                          company.projects.map((project) => (
-                            <button
-                              key={project.id}
-                              onClick={() => {
-                                handleProjectClick(company.id, project.id);
-                                setShowMobileMenu(false);
-                              }}
-                              className="block w-full text-left px-8 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                            >
-                              {project.name}
-                            </button>
-                          ))
-                        ) : (
-                          <div className="px-8 py-2 text-sm text-slate-500">No projects</div>
+
+            {/* Authenticated User Mobile Menu */}
+            {session?.userId && (
+              <>
+                {isOwnerOrAdmin && (
+                  <a
+                    href="/dashboard"
+                    onClick={() => setShowMobileMenu(false)}
+                    className={`flex items-center px-4 py-2 text-sm font-medium ${pathname === '/dashboard' ? 'text-orange-400 bg-white/5' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}
+                  >
+                    <LayoutDashboard className="w-4 h-4 mr-2" />
+                    Dashboard
+                  </a>
+                )}
+                <div className="border-t border-white/10 mt-2 pt-2">
+                  <div className="px-4 py-2 text-xs font-semibold text-slate-400 uppercase">Companies</div>
+                  {loading ? (
+                    <div className="px-4 py-2 text-sm text-slate-400">Loading...</div>
+                  ) : companies.length > 0 ? (
+                    companies.map((company) => (
+                      <div key={company.id} className="mb-2">
+                        <button
+                          onClick={(e) => toggleCompany(company.id, e)}
+                          className="flex items-center justify-between w-full px-4 py-2 text-sm font-medium text-white hover:bg-white/5"
+                        >
+                          <div className="flex items-center">
+                            <Building2 className="w-4 h-4 mr-2 text-green-400" />
+                            {company.name}
+                          </div>
+                          <ChevronRight
+                            className={`w-4 h-4 transition-transform ${expandedCompanyId === company.id ? 'rotate-90' : ''}`}
+                          />
+                        </button>
+
+                        {expandedCompanyId === company.id && (
+                          <div className="bg-white/5">
+                            {company.projects.length > 0 ? (
+                              company.projects.map((project) => (
+                                <button
+                                  key={project.id}
+                                  onClick={() => {
+                                    handleProjectClick(company.id, project.id);
+                                    setShowMobileMenu(false);
+                                  }}
+                                  className="block w-full text-left px-8 py-2 text-sm text-slate-300 hover:bg-white/10 hover:text-white"
+                                >
+                                  {project.name}
+                                </button>
+                              ))
+                            ) : (
+                              <div className="px-8 py-2 text-sm text-slate-400">No projects</div>
+                            )}
+                          </div>
                         )}
                       </div>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <div className="px-4 py-2 text-sm text-slate-500">No companies found</div>
-              )}
-            </div>
+                    ))
+                  ) : (
+                    <div className="px-4 py-2 text-sm text-slate-400">No companies found</div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>

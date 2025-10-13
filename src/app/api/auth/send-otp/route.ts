@@ -158,6 +158,23 @@ This code will expire in 10 minutes.
 If you didn't request this code, you can safely ignore this email.
     `.trim();
 
+    // Dev mode: skip email, auto-login
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    
+    if (isDevelopment) {
+      console.log('[SEND-OTP] DEV MODE: Bypassing email, auto-logging in');
+      console.log('[SEND-OTP] DEV MODE: OTP Code:', otpCode);
+      
+      return NextResponse.json({ 
+        ok: true, 
+        message: 'Development mode: auto-logging in',
+        devMode: true,
+        devOtpCode: otpCode,
+        userId: user.id
+      });
+    }
+    
+    // Production: send email as normal
     try {
       console.log('[SEND-OTP] Sending OTP code to:', email);
       await sendEmail({

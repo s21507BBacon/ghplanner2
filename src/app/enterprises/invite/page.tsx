@@ -80,10 +80,10 @@ function EnterpriseInviteContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen gh-hero-gradient flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading invitation...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-400 mx-auto mb-4"></div>
+          <p className="text-slate-300">Loading invitation...</p>
         </div>
       </div>
     );
@@ -91,18 +91,18 @@ function EnterpriseInviteContent() {
 
   if (error || !inviteDetails) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
+      <div className="min-h-screen gh-hero-gradient flex items-center justify-center px-4">
+        <div className="max-w-md w-full bg-[#1a2332] border border-white/10 rounded-lg shadow-2xl p-8 text-center">
           <div className="mb-4">
             <svg className="mx-auto h-12 w-12 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Invalid Invitation</h1>
-          <p className="text-gray-600 mb-6">{error || 'This invitation link is invalid or has expired.'}</p>
+          <h1 className="text-2xl font-bold text-white mb-2">Invalid Invitation</h1>
+          <p className="text-slate-300 mb-6">{error || 'This invitation link is invalid or has expired.'}</p>
           <Link 
             href="/dashboard"
-            className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+            className="gh-cta-button inline-block px-6 py-3 rounded-lg text-white font-semibold"
           >
             Go to Dashboard
           </Link>
@@ -113,21 +113,21 @@ function EnterpriseInviteContent() {
 
   if (inviteDetails.expired) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
+      <div className="min-h-screen gh-hero-gradient flex items-center justify-center px-4">
+        <div className="max-w-md w-full bg-[#1a2332] border border-white/10 rounded-lg shadow-2xl p-8 text-center">
           <div className="mb-4">
             <svg className="mx-auto h-12 w-12 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Invitation Expired</h1>
-          <p className="text-gray-600 mb-6">
+          <h1 className="text-2xl font-bold text-white mb-2">Invitation Expired</h1>
+          <p className="text-slate-300 mb-6">
             This invitation to join <strong>{inviteDetails.enterpriseName}</strong> has expired.
             Please contact {inviteDetails.inviterName} for a new invitation.
           </p>
           <Link 
             href="/dashboard"
-            className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+            className="gh-cta-button inline-block px-6 py-3 rounded-lg text-white font-semibold"
           >
             Go to Dashboard
           </Link>
@@ -138,10 +138,10 @@ function EnterpriseInviteContent() {
 
   if (status === 'loading' || accepting) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen gh-hero-gradient flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-400 mx-auto mb-4"></div>
+          <p className="text-slate-300">
             {accepting ? 'Joining enterprise...' : 'Checking authentication...'}
           </p>
         </div>
@@ -151,29 +151,29 @@ function EnterpriseInviteContent() {
 
   if (status === 'unauthenticated') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8">
+      <div className="min-h-screen gh-hero-gradient flex items-center justify-center px-4">
+        <div className="max-w-md w-full bg-[#1a2332] border border-white/10 rounded-lg shadow-2xl p-8">
           <div className="text-center mb-6">
             <svg className="mx-auto h-12 w-12 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 19v-8.93a2 2 0 01.89-1.664l7-4.666a2 2 0 012.22 0l7 4.666A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-1.14.76a2 2 0 01-2.22 0l-1.14-.76" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2 text-center">
+          <h1 className="text-2xl font-bold text-white mb-2 text-center">
             You've Been Invited!
           </h1>
-          <p className="text-gray-600 mb-6 text-center">
+          <p className="text-slate-300 mb-6 text-center">
             {inviteDetails.inviterName} has invited you to join <strong>{inviteDetails.enterpriseName}</strong> on GitHub Planner.
           </p>
           <div className="space-y-3">
             <Link 
               href={`/signin?callbackUrl=${encodeURIComponent(`/enterprises/invite?token=${token}`)}`}
-              className="block w-full bg-blue-600 text-white text-center px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              className="gh-cta-button block w-full text-white text-center px-6 py-3 rounded-lg font-semibold"
             >
               Sign In to Accept
             </Link>
             <Link 
               href={`/signup?callbackUrl=${encodeURIComponent(`/enterprises/invite?token=${token}`)}`}
-              className="block w-full bg-white text-blue-600 text-center px-6 py-3 rounded-lg border-2 border-blue-600 hover:bg-blue-50 transition-colors font-medium"
+              className="gh-cta-button-secondary block w-full text-center px-6 py-3 rounded-lg font-semibold bg-transparent"
             >
               Create Account
             </Link>
@@ -189,10 +189,10 @@ function EnterpriseInviteContent() {
 export default function EnterpriseInvitePage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen gh-hero-gradient flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-400 mx-auto mb-4"></div>
+          <p className="text-slate-300">Loading...</p>
         </div>
       </div>
     }>

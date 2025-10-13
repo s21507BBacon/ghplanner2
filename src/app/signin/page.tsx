@@ -146,86 +146,95 @@ export default function SignInPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-      <div className="bg-white border border-slate-200 rounded-lg p-6 w-full max-w-sm space-y-4">
-        <h1 className="text-xl font-semibold text-slate-900">Sign in</h1>
+    <div className="min-h-screen flex items-center justify-center gh-hero-gradient p-4">
+      <div className="bg-[#1a2332] border border-white/10 rounded-lg p-8 w-full max-w-md space-y-6 shadow-2xl">
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 gh-icon-wrapper rounded-full mb-4">
+            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+            </svg>
+          </div>
+          <h1 className="text-3xl font-bold text-white">Welcome Back</h1>
+          <p className="text-slate-400 mt-2">Sign in to your account</p>
+        </div>
 
         {error && (
-          <div className="text-red-600 text-sm bg-red-50 border border-red-200 rounded p-3">
+          <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/30 rounded-lg p-4">
             {error}
           </div>
         )}
 
         {successMessage && (
-          <div className="text-green-600 text-sm bg-green-50 border border-green-200 rounded p-3">
+          <div className="text-green-400 text-sm bg-green-500/10 border border-green-500/30 rounded-lg p-4">
             {successMessage}
           </div>
         )}
         
         <div className="space-y-4">
             {!otpSent ? (
-              <form onSubmit={onSendOtp} className="space-y-4">
+              <form onSubmit={onSendOtp} className="space-y-5">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Email Address</label>
                   <input 
                     type="email" 
                     value={email} 
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg" 
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors" 
+                    placeholder="you@example.com"
                     required 
                   />
-                  <p className="text-xs text-slate-500 mt-1">We'll send a sign-in code to your email</p>
+                  <p className="text-xs text-slate-400 mt-2">We'll send a sign-in code to your email</p>
                 </div>
                 <button 
                   type="submit" 
-                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  className="w-full gh-cta-button px-4 py-3 rounded-lg text-white font-semibold disabled:opacity-50"
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? 'Sending code...' : 'Send code'}
+                  {isSubmitting ? 'Sending code...' : 'Send Sign-In Code'}
                 </button>
               </form>
             ) : (
-              <form onSubmit={onVerifyOtp} className="space-y-4">
-                <div className="text-green-700 text-sm bg-green-50 border border-green-200 rounded p-3 mb-3">
-                  <p className="font-medium mb-1">✓ Code sent!</p>
-                  <p className="text-xs">Check your email and enter the code below.</p>
+              <form onSubmit={onVerifyOtp} className="space-y-5">
+                <div className="text-green-400 text-sm bg-green-500/10 border border-green-500/30 rounded-lg p-4">
+                  <p className="font-medium mb-1 flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    Code sent!
+                  </p>
+                  <p className="text-xs text-green-300">Check your email and enter the code below.</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Enter code</label>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Verification Code</label>
                   <input 
                     type="text" 
                     value={otpCode} 
                     onChange={(e) => {
-                      // Clear any errors when user starts typing
                       if (error) setError(null);
-                      // Allow alphanumeric and dash, convert to uppercase
                       let value = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
-                      // Auto-insert dash after 4 characters
                       if (value.length === 4 && !value.includes('-')) {
                         value = value + '-';
                       }
-                      // Remove extra dashes
                       value = value.replace(/--+/g, '-');
-                      // Limit to format: XXXX-XXXX
                       if (value.length > 9) {
                         value = value.slice(0, 9);
                       }
                       setOtpCode(value);
                     }}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-center text-xl font-mono tracking-wider" 
-                    placeholder="1A2B-3C4D"
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white text-center text-2xl font-mono tracking-widest focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors" 
+                    placeholder="XXXX-XXXX"
                     required 
                     maxLength={9}
                     autoFocus
                   />
-                  <p className="text-xs text-slate-500 mt-1">Code sent to {email}</p>
+                  <p className="text-xs text-slate-400 mt-2">Code sent to {email}</p>
                 </div>
                 <button 
                   type="submit" 
-                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  className="w-full gh-cta-button px-4 py-3 rounded-lg text-white font-semibold disabled:opacity-50"
                   disabled={isSubmitting || otpCode.length !== 9 || !otpCode.includes('-')}
                 >
-                  {isSubmitting ? 'Verifying...' : 'Verify and sign in'}
+                  {isSubmitting ? 'Verifying...' : 'Verify and Sign In'}
                 </button>
                 <button
                   type="button"
@@ -234,7 +243,7 @@ export default function SignInPage() {
                     setOtpCode('');
                     setError(null);
                   }}
-                  className="w-full px-4 py-2 text-slate-600 hover:text-slate-900 text-sm"
+                  className="w-full px-4 py-2 text-slate-400 hover:text-white text-sm transition-colors"
                 >
                   ← Use different email
                 </button>
@@ -242,8 +251,11 @@ export default function SignInPage() {
             )}
           </div>
         
-        <div className="text-sm text-slate-600 text-center">
-          No account? <a className="text-blue-600 hover:text-blue-700" href="/signup">Sign up</a>
+        <div className="text-sm text-slate-400 text-center pt-4 border-t border-white/10">
+          Don't have an account?{' '}
+          <a className="text-orange-400 hover:text-orange-300 font-medium transition-colors" href="/signup">
+            Sign up
+          </a>
         </div>
       </div>
     </div>

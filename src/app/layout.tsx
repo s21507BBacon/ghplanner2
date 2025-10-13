@@ -29,7 +29,7 @@ export default async function RootLayout({
       <body className={inter.className}>
         <Providers>
           <Navigation />
-          <main>
+          <main className="pt-16">
             {children}
           </main>
         </Providers>

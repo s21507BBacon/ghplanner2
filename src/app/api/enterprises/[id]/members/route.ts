@@ -52,8 +52,10 @@ export async function GET(
   // Get all assignments for users in this enterprise for companies in this enterprise
   let assignments: any[] = [];
   if (userIds.length > 0 && companyIds.length > 0) {
+    const userPlaceholders = userIds.map((_, i) => `$${i + 1}`).join(',');
+    const companyPlaceholders = companyIds.map((_, i) => `$${userIds.length + i + 1}`).join(',');
     assignments = await helpers.execute<any>(
-      `SELECT * FROM assignments WHERE user_id IN (${userIds.map(() => '?').join(',')}) AND company_id IN (${companyIds.map(() => '?').join(',')})`,
+      `SELECT * FROM assignments WHERE user_id IN (${userPlaceholders}) AND company_id IN (${companyPlaceholders})`,
       ...userIds, ...companyIds
     );
   }

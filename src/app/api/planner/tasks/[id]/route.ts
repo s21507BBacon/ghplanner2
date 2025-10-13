@@ -36,20 +36,37 @@ export async function GET(
       enterpriseId = company?.enterprise_id;
     }
 
+    const safeJsonParse = (value: any, fallback: any = []) => {
+      // If already an object/array (PostgreSQL JSONB), return as-is
+      if (value && typeof value === 'object') return value;
+      // If null/undefined/empty string, return fallback
+      if (!value || (typeof value === 'string' && value.trim() === '')) return fallback;
+      // If string, try to parse
+      if (typeof value === 'string') {
+        try {
+          return JSON.parse(value);
+        } catch (e) {
+          console.warn('Failed to parse JSON:', value, e);
+          return fallback;
+        }
+      }
+      return fallback;
+    };
+
     return NextResponse.json({
       id: task.id,
       title: task.title,
       description: task.description,
       columnId: task.column_id,
       status: task.status,
-      labels: task.labels ? JSON.parse(task.labels) : [],
+      labels: safeJsonParse(task.labels, []),
       prUrl: task.pr_url || undefined,
       assignee: task.assignee || undefined,
-      assignees: task.assignees ? JSON.parse(task.assignees) : (task.assignee ? [task.assignee] : []),
+      assignees: safeJsonParse(task.assignees, task.assignee ? [task.assignee] : []),
       isLocked: !!task.is_locked,
-      created_at: new Date(task.created_at * 1000).toISOString(),
-      updated_at: new Date(task.updated_at * 1000).toISOString(),
-      checklist: task.checklist ? JSON.parse(task.checklist) : [],
+      createdAt: new Date(task.created_at * 1000).toISOString(),
+      updatedAt: new Date(task.updated_at * 1000).toISOString(),
+      checklist: safeJsonParse(task.checklist, []),
       boardId: task.board_id,
       order: task.order_num || 0,
       companyId: task.company_id || undefined,

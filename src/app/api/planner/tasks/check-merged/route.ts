@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     // Get all columns with PR tracking enabled
     const columns = await helpers.execute<any>(
-      'SELECT * FROM columns WHERE board_id = ? AND requires_pr = 1',
+      'SELECT * FROM columns WHERE board_id = $1 AND requires_pr = TRUE',
       boardId
     );
 
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     // Get all tasks in those columns that have PR URLs
     const tasks = columnIds.length > 0
       ? await helpers.execute<any>(
-          `SELECT * FROM tasks WHERE board_id = ? AND column_id IN (${columnIds.map(() => '?').join(',')}) AND pr_url IS NOT NULL`,
+          `SELECT * FROM tasks WHERE board_id = $1 AND column_id IN (${columnIds.map((_, i) => `$${i + 2}`).join(',')}) AND pr_url IS NOT NULL`,
           boardId, ...columnIds
         )
       : [];

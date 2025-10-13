@@ -51,53 +51,53 @@ export default function EnterprisesPage() {
   const selectedEnterprise = enterprises.find(e => e.id === selectedEnterpriseId);
 
   return (
-    <div className="min-h-screen bg-slate-50 pt-16">
+    <div className="min-h-screen gh-hero-gradient">
       <div className="max-w-6xl mx-auto p-6 space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-slate-900">Enterprises</h1>
+          <h1 className="text-3xl font-bold text-white">Enterprises</h1>
           <button 
             onClick={() => router.push('/dashboard')}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg"
+            className="gh-cta-button px-5 py-3 rounded-lg text-white font-semibold"
           >
             Go to Dashboard
           </button>
         </div>
 
         {enterprises.length === 0 ? (
-          <div className="bg-white border border-slate-200 rounded-lg p-6">
-            <p className="text-slate-600">You are not a member of any enterprises yet.</p>
+          <div className="gh-feature-card rounded-lg p-6">
+            <p className="text-slate-300">You are not a member of any enterprises yet.</p>
           </div>
         ) : (
           <>
-            <div className="bg-white border border-slate-200 rounded-lg p-4">
-              <div className="flex gap-3 items-center flex-wrap">
-                <label className="text-sm font-medium text-slate-700">Select Enterprise:</label>
+            <div className="gh-feature-card rounded-lg p-6">
+              <div className="flex gap-4 items-center flex-wrap">
+                <label className="text-sm font-medium text-slate-300">Select Enterprise:</label>
                 <select 
                   value={selectedEnterpriseId} 
                   onChange={(e) => setSelectedEnterpriseId(e.target.value)} 
-                  className="px-3 py-2 border rounded-lg"
+                  className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
                 >
                   {enterprises.map(e => (
-                    <option key={e.id} value={e.id}>{e.name}</option>
+                    <option key={e.id} value={e.id} className="bg-[#1a2332]">{e.name}</option>
                   ))}
                 </select>
                 {selectedEnterprise && (
-                  <div className="text-sm text-slate-600">
-                    Invite Code: <span className="font-mono bg-slate-100 px-2 py-1 rounded">{selectedEnterprise.inviteCode}</span>
+                  <div className="text-sm text-slate-300">
+                    Invite Code: <span className="font-mono bg-white/10 px-3 py-1 rounded">{selectedEnterprise.inviteCode}</span>
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-lg p-6">
-              <h2 className="font-semibold mb-3">Companies in this Enterprise</h2>
+            <div className="gh-feature-card rounded-lg p-6">
+              <h2 className="font-semibold text-white mb-3 text-xl">Companies in this Enterprise</h2>
               {companies.length === 0 ? (
-                <p className="text-sm text-slate-600">No companies yet. Create one from the dashboard.</p>
+                <p className="text-sm text-slate-300">No companies yet. Create one from the dashboard.</p>
               ) : (
                 <div className="grid md:grid-cols-2 gap-4">
                   {companies.map(c => (
-                    <div key={c.id} className="border border-slate-200 rounded p-4 hover:bg-slate-50">
-                      <div className="font-medium">{c.name}</div>
+                    <div key={c.id} className="bg-white/5 border border-white/10 rounded p-4 hover:border-orange-500/50 transition-colors">
+                      <div className="font-medium text-white">{c.name}</div>
                     </div>
                   ))}
                 </div>

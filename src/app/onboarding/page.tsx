@@ -194,25 +194,25 @@ export default function OnboardingPage() {
 
   if (showPreferences) {
     return (
-      <div className="min-h-screen bg-slate-50 pt-16">
+      <div className="min-h-screen gh-hero-gradient">
         <div className="max-w-2xl mx-auto p-6">
           <div className="flex items-center justify-between mb-6">
-            <h1 className="text-2xl font-bold text-slate-900">Select Your Preferences</h1>
-            <button onClick={() => signOut()} className="px-3 py-2 text-sm bg-slate-200 rounded">Sign out</button>
+            <h1 className="text-3xl font-bold text-white">Select Your Preferences</h1>
+            <button onClick={() => signOut()} className="px-4 py-2 text-sm bg-white/5 text-slate-300 rounded-lg hover:bg-white/10 transition-colors">Sign out</button>
           </div>
-          {error && <div className="mb-4 text-red-600">{error}</div>}
-          {joinError && <div className="mb-4 text-orange-600 bg-orange-50 border border-orange-200 p-3 rounded-lg">{joinError}</div>}
-          <div className="bg-white border border-slate-200 rounded-lg p-6 space-y-4">
+          {error && <div className="mb-4 text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg p-4">{error}</div>}
+          {joinError && <div className="mb-4 text-orange-400 bg-orange-500/10 border border-orange-500/30 p-4 rounded-lg">{joinError}</div>}
+          <div className="gh-feature-card rounded-lg p-6 space-y-4">
             {companies.length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-slate-600 mb-4">No companies available in this enterprise yet.</p>
-                <p className="text-sm text-slate-500">Please contact the enterprise administrator to create companies first.</p>
+                <p className="text-slate-300 mb-4">No companies available in this enterprise yet.</p>
+                <p className="text-sm text-slate-400">Please contact the enterprise administrator to create companies first.</p>
                 <button
                   onClick={() => {
                     setShowPreferences(false);
                     setError(null);
                   }}
-                  className="mt-4 px-4 py-2 bg-slate-200 text-slate-700 rounded-lg"
+                  className="mt-4 px-4 py-2 bg-white/5 text-slate-300 rounded-lg hover:bg-white/10 transition-colors"
                 >
                   Go Back
                 </button>
@@ -220,42 +220,42 @@ export default function OnboardingPage() {
             ) : (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Select Company</label>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Select Company</label>
                   <select
                     value={selectedCompanyId}
                     onChange={(e) => setSelectedCompanyId(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
                   >
-                    <option value="">Select a company</option>
+                    <option value="" className="bg-[#1a2332]">Select a company</option>
                     {companies.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
+                      <option key={c.id} value={c.id} className="bg-[#1a2332]">{c.name}</option>
                     ))}
                   </select>
                 </div>
                 {selectedCompanyId && (
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Select Project</label>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">Select Project</label>
                     <select
                       value={selectedProjectId}
                       onChange={(e) => setSelectedProjectId(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
                     >
-                      <option value="">Select a project</option>
+                      <option value="" className="bg-[#1a2332]">Select a project</option>
                       {projects.map(p => (
-                        <option key={p.id} value={p.id} disabled={p.isFull}>
+                        <option key={p.id} value={p.id} disabled={p.isFull} className="bg-[#1a2332]">
                           {p.name} {p.isFull ? '(Full)' : `(${p.currentSeats}/${p.maxSeats})`}
                         </option>
                       ))}
                     </select>
                     {projects.length === 0 && (
-                      <p className="mt-2 text-sm text-slate-500">No projects available in this company.</p>
+                      <p className="mt-2 text-sm text-slate-400">No projects available in this company.</p>
                     )}
                   </div>
                 )}
                 <button
                   onClick={submitPreferences}
                   disabled={!selectedCompanyId || !selectedProjectId || loading || projects.find(p => p.id === selectedProjectId)?.isFull}
-                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50"
+                  className="w-full gh-cta-button px-5 py-3 rounded-lg text-white font-semibold disabled:opacity-50"
                 >
                   {loading ? 'Working…' : 'Join Company and Project'}
                 </button>
@@ -268,64 +268,64 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 pt-16">
+    <div className="min-h-screen gh-hero-gradient">
       <div className="max-w-4xl mx-auto p-6">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">Welcome</h1>
-          <button onClick={() => signOut()} className="px-3 py-2 text-sm bg-slate-200 rounded">Sign out</button>
+          <h1 className="text-3xl font-bold text-white">Welcome</h1>
+          <button onClick={() => signOut()} className="px-4 py-2 text-sm bg-white/5 text-slate-300 rounded-lg hover:bg-white/10 transition-colors">Sign out</button>
         </div>
-        {error && <div className="mb-4 text-red-600">{error}</div>}
+        {error && <div className="mb-4 text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg p-4">{error}</div>}
         <div className="grid md:grid-cols-3 gap-6">
-          <div className="bg-white border border-slate-200 rounded-lg p-6">
-            <h2 className="font-semibold mb-3">Create an Enterprise</h2>
-            <p className="text-sm text-slate-600 mb-4">Create an organisation with multiple companies and projects</p>
+          <div className="gh-feature-card rounded-lg p-6">
+            <h2 className="font-semibold text-white mb-3 text-xl">Create an Enterprise</h2>
+            <p className="text-sm text-slate-300 mb-4">Create an organisation with multiple companies and projects</p>
             <input
               type="text"
               placeholder="Enterprise name"
               value={enterpriseName}
               onChange={(e) => setEnterpriseName(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg mb-3"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 mb-3 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
             />
             <button
               onClick={createEnterprise}
               disabled={!enterpriseName || loading}
-              className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg disabled:opacity-50"
+              className="w-full gh-cta-button px-4 py-2 rounded-lg text-white font-semibold disabled:opacity-50"
             >
               {loading ? 'Working…' : 'Create Enterprise'}
             </button>
           </div>
-          <div className="bg-white border border-slate-200 rounded-lg p-6">
-            <h2 className="font-semibold mb-3">Create a Company</h2>
-            <p className="text-sm text-slate-600 mb-4">Create a standalone company with projects</p>
+          <div className="gh-feature-card rounded-lg p-6">
+            <h2 className="font-semibold text-white mb-3 text-xl">Create a Company</h2>
+            <p className="text-sm text-slate-300 mb-4">Create a standalone company with projects</p>
             <input
               type="text"
               placeholder="Company name"
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg mb-3"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 mb-3 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
             />
             <button
               onClick={createCompany}
               disabled={!companyName || loading}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50"
+              className="w-full gh-cta-button px-4 py-2 rounded-lg text-white font-semibold disabled:opacity-50"
             >
               {loading ? 'Working…' : 'Create Company'}
             </button>
           </div>
-          <div className="bg-white border border-slate-200 rounded-lg p-6">
-            <h2 className="font-semibold mb-3">Join with Code</h2>
-            <p className="text-sm text-slate-600 mb-4">Join an enterprise, company, or project</p>
+          <div className="gh-feature-card rounded-lg p-6">
+            <h2 className="font-semibold text-white mb-3 text-xl">Join with Code</h2>
+            <p className="text-sm text-slate-300 mb-4">Join an enterprise, company, or project</p>
             <input
               type="text"
               placeholder="Join code"
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg mb-3"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 mb-3 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors"
             />
             <button
               onClick={handleJoinCode}
               disabled={!joinCode || loading}
-              className="w-full px-4 py-2 bg-green-600 text-white rounded-lg disabled:opacity-50"
+              className="w-full gh-cta-button-secondary px-4 py-2 rounded-lg font-semibold bg-transparent disabled:opacity-50"
             >
               {loading ? 'Working…' : 'Join'}
             </button>

@@ -58,18 +58,18 @@ function TaskCard({
 
   return (
     <div
-      className={`bg-white rounded-lg border border-slate-200 p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer ${
+      className={`bg-[#1a2332] rounded-lg border border-white/10 p-4 hover:border-orange-500/50 transition-all cursor-pointer shadow-lg ${
         isDragging ? 'opacity-50' : ''
       }`}
       onClick={handleCardClick}
     >
       <div className="space-y-3">
         <div className="flex items-start justify-between">
-          <h4 className="font-medium text-slate-900 flex-1 text-sm leading-tight">
+          <h4 className="font-medium text-white flex-1 text-sm leading-tight">
             {task.title}
           </h4>
           <button
-            className="text-slate-400 hover:text-slate-600 ml-2"
+            className="text-slate-400 hover:text-orange-400 ml-2 transition-colors"
             onClick={(e) => {
               e.stopPropagation();
               onEdit(task);
@@ -81,7 +81,7 @@ function TaskCard({
         </div>
 
         {task.description && (
-          <p className="text-xs text-slate-600 line-clamp-2">
+          <p className="text-xs text-slate-300 line-clamp-2">
             {task.description}
           </p>
         )}
@@ -91,7 +91,7 @@ function TaskCard({
           {task.labels?.map((label, index) => (
             <span
               key={index}
-              className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200"
+              className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30"
             >
               {label}
             </span>
@@ -100,20 +100,20 @@ function TaskCard({
 
         {totalItems > 0 && (
           <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs text-slate-600">
+            <div className="flex items-center justify-between text-xs text-slate-400">
               <span>Progress</span>
               <span>{completedItems}/{totalItems}</span>
             </div>
-            <div className="w-full bg-slate-200 rounded-full h-1.5">
+            <div className="w-full bg-white/10 rounded-full h-1.5">
               <div
-                className="bg-green-600 h-1.5 rounded-full transition-all duration-300"
+                className="bg-green-500 h-1.5 rounded-full transition-all duration-300"
                 style={{ width: `${progressPercentage}%` }}
               />
             </div>
           </div>
         )}
 
-        <div className="flex items-center justify-between text-xs text-slate-500">
+        <div className="flex items-center justify-between text-xs text-slate-400">
           <div className="flex items-center gap-3">
             {((task as any).assignees?.length > 0) && (
               <div className="flex items-center gap-1">
@@ -128,7 +128,7 @@ function TaskCard({
                 href={task.prUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
+                className="flex items-center gap-1 text-orange-400 hover:text-orange-300 transition-colors"
                 onClick={(e) => e.stopPropagation()}
               >
                 <ExternalLink className="w-3 h-3" />
@@ -153,6 +153,7 @@ function Column({
   onEditColumn,
   onDeleteColumn,
   onEditTask,
+  isDragging = false,
 }: {
   column: Column;
   tasks: Task[];
@@ -160,12 +161,15 @@ function Column({
   onEditColumn: (column: Column) => void;
   onDeleteColumn: (columnId: string) => void;
   onEditTask: (task: Task) => void;
+  isDragging?: boolean;
 }) {
   const colors = getColumnColorClasses(column.color);
 
   return (
-    <div className={`flex flex-col h-full min-w-80 ${colors.bg} ${colors.border} border rounded-lg`}>
-      <div className={`${colors.header} ${colors.text} p-4 rounded-t-lg border-b ${colors.border} sticky top-0 z-10`}>
+    <div className={`flex flex-col h-full min-w-80 ${colors.bg} ${colors.border} border rounded-lg ${
+      isDragging ? 'opacity-50 shadow-2xl' : ''
+    }`}>
+      <div className={`${colors.header} ${colors.text} p-4 rounded-t-lg border-b ${colors.border} sticky top-0 z-10 cursor-move`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h3 className="font-semibold text-sm">{column.name}</h3>
@@ -174,7 +178,7 @@ function Column({
             </span>
             {(column as any).moveToColumnOnMerge && (
               <span 
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30"
                 title="Auto-moves to another column when PR is merged"
               >
                 <GitMerge className="w-3 h-3" />
@@ -183,7 +187,7 @@ function Column({
             )}
             {(column as any).moveToColumnOnClosed && (
               <span 
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30"
                 title="Auto-moves to another column when PR is closed without merging"
               >
                 <X className="w-3 h-3" />
@@ -192,7 +196,7 @@ function Column({
             )}
             {(column as any).moveToColumnOnRequestChanges && (
               <span 
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-200"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-500/20 text-orange-400 border border-orange-500/30"
                 title="Auto-moves to another column when changes are requested"
               >
                 <AlertCircle className="w-3 h-3" />
@@ -227,7 +231,7 @@ function Column({
       </div>
 
       <div className="flex-1 p-3 space-y-3 overflow-y-auto max-h-96">
-        <Droppable droppableId={column.id}>
+        <Droppable droppableId={column.id} type="task">
           {(provided, snapshot) => (
             <div
               ref={provided.innerRef}
@@ -238,7 +242,7 @@ function Column({
             >
               {tasks.length === 0 ? (
                 <div className="text-center py-8 text-slate-400">
-                  <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-slate-100 flex items-center justify-center">
+                  <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-white/10 flex items-center justify-center">
                     <Plus className="w-6 h-6" />
                   </div>
                   <p className="text-sm">No tasks yet</p>
@@ -344,90 +348,90 @@ function NewTaskModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-md w-full max-h-96 overflow-y-auto">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-[#1a2332] border border-white/10 rounded-lg max-w-md w-full max-h-96 overflow-y-auto shadow-2xl">
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <h3 className="text-lg font-semibold text-slate-900">
+          <h3 className="text-xl font-semibold text-white">
             Add Task to {columnName}
           </h3>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-medium text-slate-300 mb-2">
               Title *
             </label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
               placeholder="Enter task title..."
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-medium text-slate-300 mb-2">
               Description
             </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
               placeholder="Enter task description..."
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-medium text-slate-300 mb-2">
               Labels (comma-separated)
             </label>
             <input
               type="text"
               value={labels}
               onChange={(e) => setLabels(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
               placeholder="bug, feature, urgent..."
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-medium text-slate-300 mb-2">
               PR URL
             </label>
             <input
               type="text"
               value={prUrl}
               onChange={(e) => setPrUrl(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
               placeholder="https://github.com/owner/repo/pull/123"
             />
           </div>
 
           <div className="relative">
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-medium text-slate-300 mb-2">
               Assignees
             </label>
             <button
               type="button"
               onClick={() => setShowAssigneeDropdown(!showAssigneeDropdown)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-left focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
             >
               {assignees.length === 0 ? (
                 <span className="text-slate-400">Select assignees...</span>
               ) : (
-                <span className="text-slate-900">
+                <span className="text-white">
                   {assignees.length} user{assignees.length > 1 ? 's' : ''} selected
                 </span>
               )}
             </button>
             {showAssigneeDropdown && (
-              <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+              <div className="absolute z-10 w-full mt-1 bg-[#1a2332] border border-white/10 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                 {projectUsers.length === 0 ? (
-                  <div className="px-3 py-2 text-sm text-slate-500">No users in this project</div>
+                  <div className="px-3 py-2 text-sm text-slate-400">No users in this project</div>
                 ) : (
                   projectUsers.map(user => (
-                    <label key={user.id} className="flex items-center px-3 py-2 hover:bg-slate-50 cursor-pointer">
+                    <label key={user.id} className="flex items-center px-3 py-2 hover:bg-white/5 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={assignees.includes(user.id)}
@@ -435,8 +439,8 @@ function NewTaskModal({
                         className="mr-2"
                       />
                       <div className="flex-1">
-                        <div className="text-sm font-medium text-slate-900">{user.name}</div>
-                        <div className="text-xs text-slate-500">{user.email}</div>
+                        <div className="text-sm font-medium text-white">{user.name}</div>
+                        <div className="text-xs text-slate-400">{user.email}</div>
                       </div>
                     </label>
                   ))
@@ -446,7 +450,7 @@ function NewTaskModal({
           </div>
 
           <div>
-            <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+            <label className="inline-flex items-center gap-2 text-sm text-slate-300">
               <input type="checkbox" checked={isLocked} onChange={(e) => setIsLocked(e.target.checked)} />
               Lock this task (only assignees can edit)
             </label>
@@ -456,13 +460,13 @@ function NewTaskModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+              className="flex-1 px-4 py-2 text-slate-300 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="flex-1 gh-cta-button px-4 py-2 rounded-lg text-white font-semibold"
             >
               Add Task
             </button>
@@ -921,6 +925,31 @@ function PlannerBoard() {
     }
   };
 
+  const handleColumnReorder = async (sourceIndex: number, destinationIndex: number) => {
+    const reorderedColumns = Array.from(columns);
+    const [movedColumn] = reorderedColumns.splice(sourceIndex, 1);
+    reorderedColumns.splice(destinationIndex, 0, movedColumn);
+
+    // Update local state optimistically
+    setColumns(reorderedColumns);
+
+    // Persist the new order to the database
+    try {
+      const updatePromises = reorderedColumns.map((col, index) =>
+        fetch('/api/planner/columns', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: col.id, order: index }),
+        })
+      );
+      await Promise.all(updatePromises);
+    } catch (error) {
+      console.error('Failed to persist column order:', error);
+      // Revert on error
+      fetchColumns();
+    }
+  };
+
   // Patch on server without touching local state (used for DnD persistence)
   const patchTaskSilently = async (taskId: string, updates: Partial<Task>) => {
     try {
@@ -1016,13 +1045,20 @@ function PlannerBoard() {
   const onDragEnd = async (result: DropResult) => {
     try {
       console.log('onDragEnd called:', result);
-      const { destination, source, draggableId } = result;
+      const { destination, source, draggableId, type } = result;
       if (!destination) {
         console.log('No destination, drag cancelled');
         return;
       }
       if (destination.droppableId === source.droppableId && destination.index === source.index) {
         console.log('Same position, no change needed');
+        return;
+      }
+
+      // Check if dragging a column
+      if (type === 'column' || draggableId.startsWith('column-')) {
+        console.log('Column drag detected');
+        await handleColumnReorder(source.index, destination.index);
         return;
       }
 
@@ -1069,16 +1105,16 @@ function PlannerBoard() {
   }, [columns, tasks]);
 
   return (
-    <div className="min-h-screen bg-slate-50 pt-16">
-      <div className="sticky top-16 bg-white border-b border-slate-200 z-10">
+    <div className="min-h-screen gh-hero-gradient">
+      <div className="sticky top-16 bg-[#1a2332]/95 backdrop-blur-sm border-b border-white/10 z-10">
         <div className="w-full px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">
+              <h1 className="text-3xl font-bold text-white">
                 {project ? project.name : 'Project Planner'}
               </h1>
               {selectedBoard && (
-                <p className="text-slate-600 mt-1">
+                <p className="text-slate-300 mt-1">
                   Board: {boards.find(b => b.id === selectedBoard)?.name}
                 </p>
               )}
@@ -1088,10 +1124,10 @@ function PlannerBoard() {
                 <select
                   value={selectedBoard}
                   onChange={(e) => setSelectedBoard(e.target.value)}
-                  className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
                 >
                   {boards.map(board => (
-                    <option key={board.id} value={board.id}>
+                    <option key={board.id} value={board.id} className="bg-[#1a2332]">
                       {board.name}
                     </option>
                   ))}
@@ -1104,7 +1140,7 @@ function PlannerBoard() {
                         deleteBoard(selectedBoard);
                       }
                     }}
-                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    className="p-2 text-red-400 hover:bg-white/10 rounded-lg transition-colors"
                     title="Delete board"
                   >
                     <Trash className="w-5 h-5" />
@@ -1113,7 +1149,7 @@ function PlannerBoard() {
               </div>
               <button
                 onClick={() => setIsNewColumnModalOpen(true)}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                className="gh-cta-button-secondary px-5 py-2 rounded-lg font-semibold bg-transparent"
               >
                 New Column
               </button>
@@ -1124,7 +1160,7 @@ function PlannerBoard() {
                     createBoard(boardName.trim());
                   }
                 }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="gh-cta-button px-5 py-2 rounded-lg text-white font-semibold"
               >
                 New Board
               </button>
@@ -1136,28 +1172,47 @@ function PlannerBoard() {
       <div className="w-full px-4 py-4">
         {loading || projectLoading ? (
           <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
-            <p className="text-slate-600">Loading tasks...</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4" />
+            <p className="text-slate-300">Loading tasks...</p>
           </div>
         ) : !isMounted ? (
           <div className="text-center py-12">
-            <p className="text-slate-600">Initialising board...</p>
+            <p className="text-slate-300">Initialising board...</p>
           </div>
         ) : (
           <DragDropContext onDragEnd={onDragEnd}>
-            <div className="flex gap-4 overflow-x-auto pb-6">
-              {columns.map((column) => (
-                <Column
-                  key={column.id}
-                  column={column}
-                  tasks={tasksByColumn[column.id] || []}
-                  onAddTask={handleAddTask}
-                  onEditColumn={handleEditColumn}
-                  onDeleteColumn={handleDeleteColumn}
-                  onEditTask={handleEditTask}
-                />
-              ))}
-            </div>
+            <Droppable droppableId="all-columns" direction="horizontal" type="column">
+              {(provided) => (
+                <div 
+                  className="flex gap-4 overflow-x-auto pb-6"
+                  ref={provided.innerRef}
+                  {...provided.droppableProps}
+                >
+                  {columns.map((column, index) => (
+                    <Draggable key={column.id} draggableId={`column-${column.id}`} index={index}>
+                      {(provided, snapshot) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          {...provided.dragHandleProps}
+                        >
+                          <Column
+                            column={column}
+                            tasks={tasksByColumn[column.id] || []}
+                            onAddTask={handleAddTask}
+                            onEditColumn={handleEditColumn}
+                            onDeleteColumn={handleDeleteColumn}
+                            onEditTask={handleEditTask}
+                            isDragging={snapshot.isDragging}
+                          />
+                        </div>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
           </DragDropContext>
         )}
       </div>
@@ -1333,45 +1388,67 @@ function ColumnModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-md w-full">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-[#1a2332] border border-white/10 rounded-lg max-w-md w-full shadow-2xl">
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
+          <h3 className="text-xl font-semibold text-white">{title}</h3>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-medium text-slate-300 mb-2">
               Name *
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
               placeholder="Enter column name..."
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Color
+            <label className="block text-sm font-medium text-slate-300 mb-2">
+              Column Color
             </label>
-            <div className="grid grid-cols-3 gap-2">
-              {COLUMN_COLORS.map((colorOption) => (
-                <button
-                  key={colorOption.value}
-                  type="button"
-                  onClick={() => setColor(colorOption.value)}
-                  className={`p-3 rounded-lg border-2 transition-all ${
-                    color === colorOption.value
-                      ? 'border-blue-500 ring-2 ring-blue-200'
-                      : 'border-slate-200 hover:border-slate-300'
-                  } ${colorOption.bg}`}
-                >
-                  <div className="text-xs font-medium text-center">{colorOption.name}</div>
-                </button>
-              ))}
+            <div className="grid grid-cols-5 gap-3">
+              {COLUMN_COLORS.map((colorOption) => {
+                const colorMap: Record<string, string> = {
+                  slate: '#64748b',
+                  blue: '#3b82f6',
+                  green: '#10b981',
+                  amber: '#f59e0b',
+                  red: '#ef4444',
+                  purple: '#a855f7',
+                  indigo: '#6366f1',
+                  pink: '#ec4899',
+                  zinc: '#71717a',
+                };
+                
+                return (
+                  <button
+                    key={colorOption.value}
+                    type="button"
+                    onClick={() => setColor(colorOption.value)}
+                    className={`flex flex-col items-center gap-2 p-2 rounded-lg transition-all ${
+                      color === colorOption.value
+                        ? 'bg-white/10 border-2 border-orange-500 ring-2 ring-orange-500/30'
+                        : 'border-2 border-transparent hover:bg-white/5'
+                    }`}
+                    title={colorOption.name}
+                  >
+                    <div 
+                      className="w-8 h-8 rounded-full shadow-lg"
+                      style={{ backgroundColor: colorMap[colorOption.value] || '#64748b' }}
+                    />
+                    <span className="text-xs text-slate-300 font-medium">{colorOption.name}</span>
+                  </button>
+                );
+              })}
             </div>
+            <p className="text-xs text-slate-400 mt-2">
+              Selected: <span className="text-white font-medium">{COLUMN_COLORS.find(c => c.value === color)?.name || 'Slate'}</span>
+            </p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -1380,80 +1457,80 @@ function ColumnModal({
               type="checkbox"
               checked={requiresPr}
               onChange={(e) => setRequiresPr(e.target.checked)}
-              className="h-4 w-4 text-blue-600 border-slate-300 rounded"
+              className="h-4 w-4 text-orange-600 border-white/30 rounded"
             />
-            <label htmlFor="requiresPr" className="text-sm text-slate-700">
+            <label htmlFor="requiresPr" className="text-sm text-slate-300">
               This is a Pull Request column (require PR link on move)
             </label>
           </div>
 
           {requiresPr && (
-            <div className="space-y-4 border-t pt-4">
+            <div className="space-y-4 border-t border-white/10 pt-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-sm font-medium text-slate-300 mb-2">
                   Auto-move when PR merged
                 </label>
                 <select
                   value={moveToColumnOnMerge}
                   onChange={(e) => setMoveToColumnOnMerge(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
                 >
-                  <option value="">-- No auto-move --</option>
+                  <option value="" className="bg-[#1a2332]">-- No auto-move --</option>
                   {columns
                     .filter(col => col.id !== currentColumnId)
                     .map(col => (
-                      <option key={col.id} value={col.id}>
+                      <option key={col.id} value={col.id} className="bg-[#1a2332]">
                         {col.name}
                       </option>
                     ))}
                 </select>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-slate-400 mt-1">
                   Tasks will automatically move when PR is merged
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-sm font-medium text-slate-300 mb-2">
                   Auto-move when PR closed (not merged)
                 </label>
                 <select
                   value={moveToColumnOnClosed}
                   onChange={(e) => setMoveToColumnOnClosed(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
                 >
-                  <option value="">-- No auto-move --</option>
+                  <option value="" className="bg-[#1a2332]">-- No auto-move --</option>
                   {columns
                     .filter(col => col.id !== currentColumnId)
                     .map(col => (
-                      <option key={col.id} value={col.id}>
+                      <option key={col.id} value={col.id} className="bg-[#1a2332]">
                         {col.name}
                       </option>
                     ))}
                 </select>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-slate-400 mt-1">
                   Tasks will automatically move when PR is closed without merging
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-sm font-medium text-slate-300 mb-2">
                   Auto-move when changes requested
                 </label>
                 <select
                   value={moveToColumnOnRequestChanges}
                   onChange={(e) => setMoveToColumnOnRequestChanges(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
                 >
-                  <option value="">-- No auto-move --</option>
+                  <option value="" className="bg-[#1a2332]">-- No auto-move --</option>
                   {columns
                     .filter(col => col.id !== currentColumnId)
                     .map(col => (
-                      <option key={col.id} value={col.id}>
+                      <option key={col.id} value={col.id} className="bg-[#1a2332]">
                         {col.name}
                       </option>
                     ))}
                 </select>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-slate-400 mt-1">
                   Tasks will automatically move when PR has requested changes
                 </p>
               </div>
@@ -1464,13 +1541,13 @@ function ColumnModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+              className="flex-1 px-4 py-2 text-slate-300 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="flex-1 gh-cta-button px-4 py-2 rounded-lg text-white font-semibold"
             >
               {title.includes('Edit') ? 'Update' : 'Create'}
             </button>
@@ -1565,39 +1642,39 @@ function EditTaskModal({
   if (!isOpen || !task) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-md w-full max-h-96 overflow-y-auto">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-[#1a2332] border border-white/10 rounded-lg max-w-md w-full max-h-96 overflow-y-auto shadow-2xl">
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <h3 className="text-lg font-semibold text-slate-900">
+          <h3 className="text-xl font-semibold text-white">
             Edit Task
           </h3>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-medium text-slate-300 mb-2">
               Title *
             </label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
               placeholder="Enter task title..."
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-medium text-slate-300 mb-2">
               Column *
             </label>
             <select
               value={columnId}
               onChange={(e) => setColumnId(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
               required
             >
               {columns.map((column) => (
-                <option key={column.id} value={column.id}>
+                <option key={column.id} value={column.id} className="bg-[#1a2332]">
                   {column.name}
                 </option>
               ))}
@@ -1605,94 +1682,94 @@ function EditTaskModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-medium text-slate-300 mb-2">
               Status
             </label>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
             >
-              <option value="pending">Pending</option>
-              <option value="in_progress">In Progress</option>
-              <option value="completed">Completed</option>
-              <option value="blocked">Blocked</option>
-              <option value="approved">Approved</option>
-              <option value="merged">Merged</option>
-              <option value="changes_requested">Changes Requested</option>
+              <option value="pending" className="bg-[#1a2332]">Pending</option>
+              <option value="in_progress" className="bg-[#1a2332]">In Progress</option>
+              <option value="completed" className="bg-[#1a2332]">Completed</option>
+              <option value="blocked" className="bg-[#1a2332]">Blocked</option>
+              <option value="approved" className="bg-[#1a2332]">Approved</option>
+              <option value="merged" className="bg-[#1a2332]">Merged</option>
+              <option value="changes_requested" className="bg-[#1a2332]">Changes Requested</option>
             </select>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-medium text-slate-300 mb-2">
               Description
             </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
               placeholder="Enter task description..."
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-medium text-slate-300 mb-2">
               Labels (comma-separated)
             </label>
             <input
               type="text"
               value={labels}
               onChange={(e) => setLabels(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
               placeholder="bug, feature, urgent..."
             />
           </div>
 
           <div>
-            <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+            <label className="inline-flex items-center gap-2 text-sm text-slate-300">
               <input type="checkbox" checked={isLocked} onChange={(e) => setIsLocked(e.target.checked)} />
               Lock this task (only assignees can edit)
             </label>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-medium text-slate-300 mb-2">
               PR URL
             </label>
             <input
               type="text"
               value={prUrl}
               onChange={(e) => setPrUrl(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
               placeholder="https://github.com/owner/repo/pull/123"
             />
           </div>
 
           <div className="relative">
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-medium text-slate-300 mb-2">
               Assignees
             </label>
             <button
               type="button"
               onClick={() => setShowAssigneeDropdown(!showAssigneeDropdown)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-left focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
             >
               {assignees.length === 0 ? (
                 <span className="text-slate-400">Select assignees...</span>
               ) : (
-                <span className="text-slate-900">
+                <span className="text-white">
                   {assignees.length} user{assignees.length > 1 ? 's' : ''} selected
                 </span>
               )}
             </button>
             {showAssigneeDropdown && (
-              <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+              <div className="absolute z-10 w-full mt-1 bg-[#1a2332] border border-white/10 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                 {projectUsers.length === 0 ? (
-                  <div className="px-3 py-2 text-sm text-slate-500">No users in this project</div>
+                  <div className="px-3 py-2 text-sm text-slate-400">No users in this project</div>
                 ) : (
                   projectUsers.map(user => (
-                    <label key={user.id} className="flex items-center px-3 py-2 hover:bg-slate-50 cursor-pointer">
+                    <label key={user.id} className="flex items-center px-3 py-2 hover:bg-white/5 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={assignees.includes(user.id)}
@@ -1700,8 +1777,8 @@ function EditTaskModal({
                         className="mr-2"
                       />
                       <div className="flex-1">
-                        <div className="text-sm font-medium text-slate-900">{user.name}</div>
-                        <div className="text-xs text-slate-500">{user.email}</div>
+                        <div className="text-sm font-medium text-white">{user.name}</div>
+                        <div className="text-xs text-slate-400">{user.email}</div>
                       </div>
                     </label>
                   ))
@@ -1718,7 +1795,7 @@ function EditTaskModal({
                   onDelete(task.id);
                 }
               }}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 font-semibold"
               title="Delete task"
             >
               <Trash2 className="w-4 h-4" />
@@ -1728,13 +1805,13 @@ function EditTaskModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+              className="px-4 py-2 text-slate-300 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="gh-cta-button px-4 py-2 rounded-lg text-white font-semibold"
             >
               Update Task
             </button>
@@ -1754,16 +1831,16 @@ export default function PlannerPage() {
 
   if (!mounted) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      <div className="min-h-screen gh-hero-gradient flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500" />
       </div>
     );
   }
 
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      <div className="min-h-screen gh-hero-gradient flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500" />
       </div>
     }>
       <PlannerBoard />
@@ -1795,19 +1872,19 @@ function PrLinkModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-md w-full">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-[#1a2332] border border-white/10 rounded-lg max-w-md w-full shadow-2xl">
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <h3 className="text-lg font-semibold text-slate-900">Add Pull Request Link</h3>
-          <p className="text-sm text-slate-600">Moving "{taskTitle}" into "{columnName}" requires a PR URL.</p>
+          <h3 className="text-xl font-semibold text-white">Add Pull Request Link</h3>
+          <p className="text-sm text-slate-300">Moving "{taskTitle}" into "{columnName}" requires a PR URL.</p>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">PR URL</label>
+            <label className="block text-sm font-medium text-slate-300 mb-2">PR URL</label>
             <input
               type="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://github.com/owner/repo/pull/123"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
               required
             />
           </div>
@@ -1818,13 +1895,13 @@ function PrLinkModal({
                 setUrl('');
                 onClose();
               }}
-              className="flex-1 px-4 py-2 text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+              className="flex-1 px-4 py-2 text-slate-300 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="flex-1 gh-cta-button px-4 py-2 rounded-lg text-white font-semibold"
             >
               Add Link & Move
             </button>

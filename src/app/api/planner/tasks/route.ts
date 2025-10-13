@@ -23,27 +23,59 @@ export async function GET(request: NextRequest) {
     const helpers = new DbHelpers(db);
     const query: any = { board_id: boardId };
     if (projectId) query.project_id = projectId;
+    
+    console.log('[GET /api/planner/tasks] Fetching tasks with query:', query);
     const tasks = await helpers.findMany<any>('tasks', query, 'created_at DESC');
+    console.log('[GET /api/planner/tasks] Found', tasks.length, 'tasks');
+
+    const safeJsonParse = (value: any, fallback: any = []) => {
+      // If already an object/array (PostgreSQL JSONB), return as-is
+      if (value && typeof value === 'object') return value;
+      // If null/undefined/empty string, return fallback
+      if (!value || (typeof value === 'string' && value.trim() === '')) return fallback;
+      // If string, try to parse
+      if (typeof value === 'string') {
+        try {
+          return JSON.parse(value);
+        } catch (e) {
+          console.warn('Failed to parse JSON:', value, e);
+          return fallback;
+        }
+      }
+      return fallback;
+    };
+
+    const mappedTasks = tasks.map(task => {
+      try {
+        return {
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          columnId: task.column_id,
+          status: task.status,
+          labels: safeJsonParse(task.labels, []),
+          prUrl: task.pr_url || undefined,
+          assignee: task.assignee || undefined,
+          assignees: safeJsonParse(task.assignees, task.assignee ? [task.assignee] : []),
+          isLocked: !!task.is_locked,
+          createdAt: new Date(task.created_at * 1000).toISOString(),
+          updatedAt: new Date(task.updated_at * 1000).toISOString(),
+          checklist: safeJsonParse(task.checklist, []),
+          order: task.order_num || 0,
+          boardId: task.board_id,
+          companyId: task.company_id || undefined,
+          projectId: task.project_id || undefined,
+        };
+      } catch (e) {
+        console.error('[GET /api/planner/tasks] Error mapping task:', task.id, e);
+        return null;
+      }
+    }).filter(t => t !== null);
+
+    console.log('[GET /api/planner/tasks] Successfully mapped', mappedTasks.length, 'tasks');
 
     return NextResponse.json({
-      tasks: tasks.map(task => ({
-        id: task.id,
-        title: task.title,
-        description: task.description,
-        columnId: task.column_id,
-        status: task.status,
-        labels: task.labels ? JSON.parse(task.labels) : [],
-        prUrl: task.pr_url || undefined,
-        assignee: task.assignee || undefined,
-        assignees: task.assignees ? JSON.parse(task.assignees) : (task.assignee ? [task.assignee] : []),
-        isLocked: !!task.is_locked,
-        created_at: new Date(task.created_at * 1000).toISOString(),
-        updated_at: new Date(task.updated_at * 1000).toISOString(),
-        checklist: task.checklist ? JSON.parse(task.checklist) : [],
-        order: task.order_num || 0,
-        companyId: task.company_id || undefined,
-        projectId: task.project_id || undefined,
-      })),
+      tasks: mappedTasks,
     });
   } catch (error) {
     console.error('Database error:', error);
@@ -141,7 +173,16 @@ export async function POST(request: NextRequest) {
       checklist: JSON.stringify([]),
     };
 
+    console.log('[POST /api/planner/tasks] Creating task:', {
+      id: task.id,
+      title: task.title,
+      boardId: task.board_id,
+      columnId: task.column_id,
+    });
+
     await helpers.insert('tasks', task as any);
+
+    console.log('[POST /api/planner/tasks] Task created successfully:', task.id);
 
     return NextResponse.json({
       id: task.id,
@@ -156,10 +197,11 @@ export async function POST(request: NextRequest) {
       companyId: task.company_id || undefined,
       projectId: task.project_id || undefined,
       isLocked: !!task.is_locked,
-      created_at: new Date(task.created_at * 1000).toISOString(),
-      updated_at: new Date(task.updated_at * 1000).toISOString(),
+      createdAt: new Date(task.created_at * 1000).toISOString(),
+      updatedAt: new Date(task.updated_at * 1000).toISOString(),
       checklist: JSON.parse(task.checklist),
       order: task.order_num,
+      boardId: task.board_id,
     }, { status: 201 });
 
   } catch (error) {
@@ -305,21 +347,39 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    const safeJsonParse = (value: any, fallback: any = []) => {
+      // If already an object/array (PostgreSQL JSONB), return as-is
+      if (value && typeof value === 'object') return value;
+      // If null/undefined/empty string, return fallback
+      if (!value || (typeof value === 'string' && value.trim() === '')) return fallback;
+      // If string, try to parse
+      if (typeof value === 'string') {
+        try {
+          return JSON.parse(value);
+        } catch (e) {
+          console.warn('Failed to parse JSON:', value, e);
+          return fallback;
+        }
+      }
+      return fallback;
+    };
+
     return NextResponse.json({
       id: updated.id,
       title: updated.title,
       description: updated.description,
       columnId: updated.column_id,
       status: updated.status,
-      labels: updated.labels ? JSON.parse(updated.labels) : [],
+      labels: safeJsonParse(updated.labels, []),
       prUrl: updated.pr_url || undefined,
       assignee: updated.assignee,
-      assignees: updated.assignees ? JSON.parse(updated.assignees) : [],
+      assignees: safeJsonParse(updated.assignees, []),
       isLocked: !!updated.is_locked,
-      created_at: new Date(updated.created_at * 1000).toISOString(),
-      updated_at: new Date(updated.updated_at * 1000).toISOString(),
-      checklist: updated.checklist ? JSON.parse(updated.checklist) : [],
+      createdAt: new Date(updated.created_at * 1000).toISOString(),
+      updatedAt: new Date(updated.updated_at * 1000).toISOString(),
+      checklist: safeJsonParse(updated.checklist, []),
       order: updated.order_num || 0,
+      boardId: updated.board_id,
     });
 
   } catch (error) {

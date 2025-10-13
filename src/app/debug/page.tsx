@@ -100,33 +100,33 @@ export default function DebugPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 pt-16">
+    <div className="min-h-screen gh-hero-gradient">
       <div className="max-w-4xl mx-auto p-6 space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-slate-900">Debug Information</h1>
+          <h1 className="text-3xl font-bold text-white">Debug Information</h1>
           <button
             onClick={checkHealth}
             disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            className="gh-cta-button px-5 py-3 rounded-lg text-white font-semibold disabled:opacity-50"
           >
             {loading ? 'Loading...' : 'Refresh'}
           </button>
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <h3 className="text-red-800 font-semibold">Error</h3>
-            <p className="text-red-700 mt-1">{error}</p>
+          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+            <h3 className="text-red-400 font-semibold">Error</h3>
+            <p className="text-red-300 mt-1">{error}</p>
           </div>
         )}
 
-        <div className="bg-white border border-slate-200 rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-4">System Health</h2>
+        <div className="gh-feature-card rounded-lg p-6">
+          <h2 className="text-xl font-semibold text-white mb-4">System Health</h2>
 
           {loading ? (
             <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="text-slate-600 mt-2">Checking system health...</p>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-400 mx-auto"></div>
+              <p className="text-slate-300 mt-2">Checking system health...</p>
             </div>
           ) : healthData ? (
             <div className="space-y-4">
@@ -142,19 +142,19 @@ export default function DebugPage() {
               </div>
 
               {healthData.timestamp && (
-                <div className="text-sm text-slate-600">
+                <div className="text-sm text-slate-300">
                   Last checked: {new Date(healthData.timestamp).toLocaleString()}
                 </div>
               )}
 
               {healthData.environment && (
                 <div>
-                  <h3 className="font-medium mb-2">Environment Variables</h3>
+                  <h3 className="font-medium text-white mb-2">Environment Variables</h3>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     {Object.entries(healthData.environment).map(([key, value]) => (
                       <div key={key} className="flex justify-between">
-                        <span className="font-mono text-slate-600">{key}:</span>
-                        <span className={value === 'Set' ? 'text-green-600' : value === 'Not set' ? 'text-red-600' : 'text-slate-900'}>
+                        <span className="font-mono text-slate-400">{key}:</span>
+                        <span className={value === 'Set' ? 'text-green-400' : value === 'Not set' ? 'text-red-400' : 'text-white'}>
                           {value}
                         </span>
                       </div>
@@ -165,17 +165,17 @@ export default function DebugPage() {
 
               {healthData.cloudflare && (
                 <div>
-                  <h3 className="font-medium mb-2">Cloudflare Context</h3>
+                  <h3 className="font-medium text-white mb-2">Cloudflare Context</h3>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-slate-600">Context:</span>
-                      <span className={healthData.cloudflare.context === 'available' ? 'text-green-600' : 'text-red-600'}>
+                      <span className="text-slate-400">Context:</span>
+                      <span className={healthData.cloudflare.context === 'available' ? 'text-green-400' : 'text-red-400'}>
                         {healthData.cloudflare.context}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-600">Environment:</span>
-                      <span className={healthData.cloudflare.env === 'available' ? 'text-green-600' : 'text-red-600'}>
+                      <span className="text-slate-400">Environment:</span>
+                      <span className={healthData.cloudflare.env === 'available' ? 'text-green-400' : 'text-red-400'}>
                         {healthData.cloudflare.env}
                       </span>
                     </div>
@@ -185,15 +185,15 @@ export default function DebugPage() {
 
               {healthData.services && (
                 <div>
-                  <h3 className="font-medium mb-2">Services</h3>
+                  <h3 className="font-medium text-white mb-2">Services</h3>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     {Object.entries(healthData.services).map(([service, status]) => (
                       <div key={service} className="flex justify-between">
-                        <span className="text-slate-600 capitalize">{service}:</span>
+                        <span className="text-slate-400 capitalize">{service}:</span>
                         <span className={
-                          status === 'connected' || status === 'operational' ? 'text-green-600' :
-                          status === 'error' ? 'text-red-600' :
-                          'text-yellow-600'
+                          status === 'connected' || status === 'operational' ? 'text-green-400' :
+                          status === 'error' ? 'text-red-400' :
+                          'text-yellow-400'
                         }>
                           {status}
                         </span>
@@ -204,47 +204,47 @@ export default function DebugPage() {
               )}
 
               {healthData.error && (
-                <div className="bg-red-50 border border-red-200 rounded p-3">
-                  <h4 className="text-red-800 font-medium">Error Details</h4>
-                  <p className="text-red-700 text-sm mt-1">{healthData.error}</p>
+                <div className="bg-red-500/10 border border-red-500/30 rounded p-3">
+                  <h4 className="text-red-400 font-medium">Error Details</h4>
+                  <p className="text-red-300 text-sm mt-1">{healthData.error}</p>
                   {healthData.fullError && (
                     <details className="mt-2">
-                      <summary className="text-red-600 text-sm cursor-pointer">Full error details</summary>
-                      <pre className="text-xs text-red-800 mt-1 whitespace-pre-wrap">{healthData.fullError}</pre>
+                      <summary className="text-red-300 text-sm cursor-pointer">Full error details</summary>
+                      <pre className="text-xs text-red-400 mt-1 whitespace-pre-wrap">{healthData.fullError}</pre>
                     </details>
                   )}
                 </div>
               )}
             </div>
           ) : (
-            <p className="text-slate-600">No health data available</p>
+            <p className="text-slate-300">No health data available</p>
           )}
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-4">OTP Flow Testing</h2>
-          <p className="text-sm text-slate-600 mb-4">
+        <div className="gh-feature-card rounded-lg p-6">
+          <h2 className="text-xl font-semibold text-white mb-4">OTP Flow Testing</h2>
+          <p className="text-sm text-slate-300 mb-4">
             Use these buttons to test the OTP authentication flow. Check the browser console and Cloudflare logs for detailed debugging information.
           </p>
 
           <div className="flex gap-3">
             <button
               onClick={testOTPFlow}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className="gh-cta-button px-5 py-3 rounded-lg text-white font-semibold"
             >
               Test Send OTP
             </button>
             <button
               onClick={testVerifyOTP}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              className="gh-cta-button-secondary px-5 py-3 rounded-lg font-semibold bg-transparent"
             >
               Test Verify OTP
             </button>
           </div>
 
-          <div className="mt-4 p-3 bg-slate-50 rounded text-sm">
-            <p className="font-medium text-slate-700">Instructions:</p>
-            <ol className="list-decimal list-inside mt-2 text-slate-600 space-y-1">
+          <div className="mt-4 p-4 bg-white/5 border border-white/10 rounded text-sm">
+            <p className="font-medium text-white">Instructions:</p>
+            <ol className="list-decimal list-inside mt-2 text-slate-300 space-y-1">
               <li>Click "Test Send OTP" to trigger email sending</li>
               <li>Check Cloudflare Pages logs for debugging output</li>
               <li>Use "Test Verify OTP" to test code verification (will fail with dummy code)</li>
@@ -253,34 +253,34 @@ export default function DebugPage() {
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-4">Troubleshooting Guide</h2>
+        <div className="gh-feature-card rounded-lg p-6">
+          <h2 className="text-xl font-semibold text-white mb-4">Troubleshooting Guide</h2>
 
           <div className="space-y-4">
             <div>
-              <h3 className="font-medium text-slate-900">Common Issues & Solutions</h3>
+              <h3 className="font-medium text-white">Common Issues & Solutions</h3>
               <div className="mt-2 space-y-2 text-sm">
-                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded">
-                  <strong>Database Connection Failed:</strong> Check that DATABASE_URL is set in Cloudflare Pages environment variables.
+                <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded">
+                  <strong className="text-yellow-400">Database Connection Failed:</strong> <span className="text-slate-300">Check that DATABASE_URL is set in Cloudflare Pages environment variables.</span>
                 </div>
-                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded">
-                  <strong>Email Not Sending:</strong> Verify RESEND_API_KEY and EMAIL_FROM are configured in Cloudflare Pages.
+                <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded">
+                  <strong className="text-yellow-400">Email Not Sending:</strong> <span className="text-slate-300">Verify RESEND_API_KEY and EMAIL_FROM are configured in Cloudflare Pages.</span>
                 </div>
-                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded">
-                  <strong>Cloudflare Context Not Available:</strong> This is expected in some deployment scenarios - ensure environment variables are set directly.
+                <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded">
+                  <strong className="text-yellow-400">Cloudflare Context Not Available:</strong> <span className="text-slate-300">This is expected in some deployment scenarios - ensure environment variables are set directly.</span>
                 </div>
-                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded">
-                  <strong>Authentication Secret Missing:</strong> Set NEXTAUTH_SECRET or JWT_SECRET in Cloudflare Pages environment variables.
+                <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded">
+                  <strong className="text-yellow-400">Authentication Secret Missing:</strong> <span className="text-slate-300">Set NEXTAUTH_SECRET or JWT_SECRET in Cloudflare Pages environment variables.</span>
                 </div>
               </div>
             </div>
 
             <div>
-              <h3 className="font-medium text-slate-900">Cloudflare Pages Environment Variables</h3>
-              <p className="text-sm text-slate-600 mt-1">
+              <h3 className="font-medium text-white">Cloudflare Pages Environment Variables</h3>
+              <p className="text-sm text-slate-300 mt-1">
                 Go to your Cloudflare Pages dashboard → Your project → Settings → Environment variables
               </p>
-              <div className="mt-2 p-3 bg-slate-50 rounded font-mono text-sm">
+              <div className="mt-2 p-4 bg-black/30 rounded font-mono text-sm text-slate-300">
                 DATABASE_URL=postgresql://user:pass@host/db?sslmode=require<br/>
                 NEXTAUTH_SECRET=your-secure-secret-here<br/>
                 RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxx<br/>

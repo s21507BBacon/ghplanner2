@@ -72,15 +72,15 @@ function VerifyEmailContent() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-      <div className="bg-white border border-slate-200 rounded-lg p-8 w-full max-w-md text-center">
+    <div className="min-h-screen gh-hero-gradient flex items-center justify-center p-4">
+      <div className="bg-[#1a2332] border border-white/10 rounded-lg p-8 w-full max-w-md text-center shadow-2xl">
         {status === 'loading' && (
           <>
-            <Loader2 className="w-16 h-16 text-blue-600 mx-auto mb-4 animate-spin" />
-            <h1 className="text-2xl font-semibold text-slate-900 mb-2">
+            <Loader2 className="w-16 h-16 text-orange-400 mx-auto mb-4 animate-spin" />
+            <h1 className="text-3xl font-semibold text-white mb-2">
               Verifying Email
             </h1>
-            <p className="text-slate-600">
+            <p className="text-slate-300">
               Please wait while we verify your email address...
             </p>
           </>
@@ -88,12 +88,12 @@ function VerifyEmailContent() {
 
         {status === 'success' && (
           <>
-            <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
-            <h1 className="text-2xl font-semibold text-slate-900 mb-2">
+            <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4" />
+            <h1 className="text-3xl font-semibold text-white mb-2">
               Email Verified!
             </h1>
-            <p className="text-slate-600 mb-4">{message}</p>
-            <p className="text-sm text-slate-500">
+            <p className="text-slate-300 mb-4">{message}</p>
+            <p className="text-sm text-slate-400">
               Redirecting to sign in page...
             </p>
           </>
@@ -101,21 +101,21 @@ function VerifyEmailContent() {
 
         {status === 'error' && (
           <>
-            <XCircle className="w-16 h-16 text-red-600 mx-auto mb-4" />
-            <h1 className="text-2xl font-semibold text-slate-900 mb-2">
+            <XCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+            <h1 className="text-3xl font-semibold text-white mb-2">
               Verification Issue
             </h1>
-            <p className="text-slate-600 mb-6">{message}</p>
+            <p className="text-slate-300 mb-6">{message}</p>
             <div className="flex flex-col gap-3">
               <button
                 onClick={() => router.push('/signin')}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="gh-cta-button px-5 py-3 rounded-lg text-white font-semibold transition-colors"
               >
                 Try Signing In
               </button>
               <button
                 onClick={() => router.push('/signup')}
-                className="px-4 py-2 text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                className="px-5 py-3 bg-white/5 text-slate-300 hover:bg-white/10 rounded-lg transition-colors"
               >
                 Sign Up with Different Email
               </button>
@@ -130,10 +130,10 @@ function VerifyEmailContent() {
 export default function VerifyEmailPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-        <div className="bg-white border border-slate-200 rounded-lg p-8 w-full max-w-md text-center">
-          <Loader2 className="w-16 h-16 text-blue-600 mx-auto mb-4 animate-spin" />
-          <h1 className="text-2xl font-semibold text-slate-900 mb-2">Loading...</h1>
+      <div className="min-h-screen gh-hero-gradient flex items-center justify-center p-4">
+        <div className="bg-[#1a2332] border border-white/10 rounded-lg p-8 w-full max-w-md text-center shadow-2xl">
+          <Loader2 className="w-16 h-16 text-orange-400 mx-auto mb-4 animate-spin" />
+          <h1 className="text-2xl font-semibold text-white mb-2">Loading...</h1>
         </div>
       </div>
     }>
