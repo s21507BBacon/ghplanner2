@@ -8,6 +8,9 @@ import Navigation from '@/components/Navigation'
 
 const inter = Inter({ subsets: ['latin'] })
 
+// Force dynamic rendering to prevent build-time database access
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'GH Planner',
   description: 'A comprehensive GitHub PR inspector and project planner',

@@ -2,7 +2,23 @@ import { NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/database';
 import { DbHelpers } from '@/lib/db';
 
+// Force this route to be dynamic (not statically generated at build time)
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export async function GET() {
+  // Skip database checks during build time
+  if (process.env.BUILDING === 'true' || process.env.BUILDING_FOR_CLOUDFLARE === 'true') {
+    return NextResponse.json({
+      status: 'build-time',
+      timestamp: new Date().toISOString(),
+      services: {
+        database: 'skipped',
+        api: 'operational',
+      },
+    });
+  }
+
   try {
     console.log('Health check starting...');
 
