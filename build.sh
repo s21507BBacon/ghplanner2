@@ -21,6 +21,15 @@ else
   echo "Warning: worker.js not found"
 fi
 
+echo "Copying custom static assets..."
+if [ -d "public/custom_static" ]; then
+  mkdir -p .open-next/custom_static
+  cp -r public/custom_static/* .open-next/custom_static/
+  echo "Custom static assets copied successfully"
+else
+  echo "Warning: public/custom_static directory not found"
+fi
+
 echo "Creating routing configuration..."
 cat > .open-next/_routes.json << 'EOF'
 {
@@ -30,6 +39,7 @@ cat > .open-next/_routes.json << 'EOF'
     "/_next/static/*",
     "/_next/image*",
     "/assets/*",
+    "/custom_static/*",
     "/favicon.ico",
     "/robots.txt",
     "/sitemap.xml"
@@ -43,6 +53,9 @@ cat > .open-next/_headers << 'EOF'
   Cache-Control: public, max-age=31536000, immutable
 
 /assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/custom_static/*
   Cache-Control: public, max-age=31536000, immutable
 EOF
 
