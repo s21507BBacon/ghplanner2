@@ -21,6 +21,14 @@ else
   echo "Warning: worker.js not found"
 fi
 
+echo "Moving _next assets to root level..."
+if [ -d ".open-next/assets/_next" ]; then
+  mv .open-next/assets/_next .open-next/_next
+  echo "_next assets moved to root successfully"
+else
+  echo "Warning: .open-next/assets/_next directory not found"
+fi
+
 echo "Copying custom static assets..."
 if [ -d "public/custom_static" ]; then
   mkdir -p .open-next/custom_static
