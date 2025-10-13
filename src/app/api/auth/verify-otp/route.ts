@@ -34,9 +34,7 @@ export async function POST(request: NextRequest) {
     console.log('[VERIFY-OTP] OTP data:', {
       hasOtpCode: !!otpCode,
       otpExpires,
-      otpAttempts,
-      currentTime: now.getTime(),
-      expiresTime: otpExpires ? timestampToDate(otpExpires)?.getTime() : null
+      otpAttempts
     });
 
     // Check if OTP exists
