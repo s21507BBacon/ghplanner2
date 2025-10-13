@@ -31,6 +31,14 @@ export async function POST(request: NextRequest) {
     const otpExpires = user.otp_expires;
     const otpAttempts = user.otp_attempts || 0;
 
+    console.log('[VERIFY-OTP] OTP data:', {
+      hasOtpCode: !!otpCode,
+      otpExpires,
+      otpAttempts,
+      currentTime: now.getTime(),
+      expiresTime: otpExpires ? timestampToDate(otpExpires)?.getTime() : null
+    });
+
     // Check if OTP exists
     if (!otpCode) {
       return NextResponse.json({ error: 'No active code. Please request a new one.' }, { status: 401 });
@@ -70,21 +78,31 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify the code (case-insensitive comparison)
+    console.log('[VERIFY-OTP] Comparing codes:', {
+      stored: otpCode.toUpperCase(),
+      provided: normalizedCode,
+      match: otpCode.toUpperCase() === normalizedCode
+    });
+
     if (otpCode.toUpperCase() !== normalizedCode) {
+      console.log('[VERIFY-OTP] Code verification failed, incrementing attempts');
+
       // Increment attempts
       await helpers.update(
         'users',
         { email },
-        { 
+        {
           otp_attempts: otpAttempts + 1
         }
       );
-      
+
       const remainingAttempts = MAX_OTP_ATTEMPTS - (otpAttempts + 1);
-      return NextResponse.json({ 
-        error: `Invalid code. ${remainingAttempts} attempt${remainingAttempts !== 1 ? 's' : ''} remaining.` 
+      return NextResponse.json({
+        error: `Invalid code. ${remainingAttempts} attempt${remainingAttempts !== 1 ? 's' : ''} remaining.`
       }, { status: 401 });
     }
+
+    console.log('[VERIFY-OTP] Code verification successful');
 
     // Code is valid! Mark email as verified and clear the OTP
     await helpers.update(

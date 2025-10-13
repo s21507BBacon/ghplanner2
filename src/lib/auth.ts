@@ -20,28 +20,58 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+        try {
+          console.log('[AUTH] Authorize called with:', { email: credentials?.email, passwordType: credentials?.password?.substring(0, 20) });
 
-        const db = getDatabase();
-        const helpers = new DbHelpers(db);
-        const user = await helpers.findOne('users', { email: credentials.email });
-        if (!user) return null;
-
-        // Check for OTP verification (special password from OTP flow)
-        if (credentials.password.startsWith('__OTP_VERIFIED__')) {
-          const userId = credentials.password.replace('__OTP_VERIFIED__', '');
-          if (user.id === userId && user.email_verified) {
-            return {
-              id: user.id,
-              email: user.email,
-              name: user.name || undefined,
-            };
+          if (!credentials?.email || !credentials?.password) {
+            console.log('[AUTH] Missing credentials');
+            return null;
           }
+
+          console.log('[AUTH] Getting database connection...');
+          const db = getDatabase();
+          if (!db) {
+            console.error('[AUTH] Database connection failed');
+            return null;
+          }
+
+          console.log('[AUTH] Creating database helpers...');
+          const helpers = new DbHelpers(db);
+
+          console.log('[AUTH] Finding user by email:', credentials.email);
+          const user = await helpers.findOne('users', { email: credentials.email });
+
+          if (!user) {
+            console.log('[AUTH] User not found:', credentials.email);
+            return null;
+          }
+
+          console.log('[AUTH] User found:', { id: user.id, email: user.email, emailVerified: user.email_verified });
+
+          // Check for OTP verification (special password from OTP flow)
+          if (credentials.password.startsWith('__OTP_VERIFIED__')) {
+            const userId = credentials.password.replace('__OTP_VERIFIED__', '');
+            console.log('[AUTH] OTP verification attempt:', { expectedUserId: userId, actualUserId: user.id, emailVerified: user.email_verified });
+
+            if (user.id === userId && user.email_verified) {
+              console.log('[AUTH] OTP verification successful');
+              return {
+                id: user.id,
+                email: user.email,
+                name: user.name || undefined,
+              };
+            }
+            console.log('[AUTH] OTP verification failed');
+            return null;
+          }
+
+          console.log('[AUTH] No OTP verification, rejecting');
+          // No password-based login - only OTP
+          return null;
+        } catch (error) {
+          console.error('[AUTH] Authorize error:', error);
           return null;
         }
-
-        // No password-based login - only OTP
-        return null;
       }
     }),
   ],
