@@ -101,9 +101,16 @@ export default function SignInPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code: otpCode }),
       });
-      
-      const data = await res.json();
-      
+
+      let data;
+      try {
+        data = await res.json();
+      } catch (parseError) {
+        console.error('Failed to parse verify-otp response:', parseError);
+        setError('Server error occurred. Please try again.');
+        return;
+      }
+
       if (res.ok && data.user) {
         // Create session via otp-session endpoint
         const sessionRes = await fetch('/api/auth/otp-session', {

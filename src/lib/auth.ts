@@ -77,16 +77,30 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, user }) {
-      if (user) {
-        token.userId = (user as any).id || token.sub;
+      try {
+        console.log('[AUTH] JWT callback called:', { hasUser: !!user, hasToken: !!token });
+        if (user) {
+          token.userId = (user as any).id || token.sub;
+          console.log('[AUTH] JWT callback: set userId:', token.userId);
+        }
+        // activeCompanyId can be set via a separate endpoint later
+        return token;
+      } catch (error) {
+        console.error('[AUTH] JWT callback error:', error);
+        throw error;
       }
-      // activeCompanyId can be set via a separate endpoint later
-      return token;
     },
     async session({ session, token }) {
-      (session as any).userId = token.userId;
-      (session as any).activeCompanyId = (token as any).activeCompanyId || null;
-      return session;
+      try {
+        console.log('[AUTH] Session callback called:', { hasSession: !!session, hasToken: !!token });
+        (session as any).userId = token.userId;
+        (session as any).activeCompanyId = (token as any).activeCompanyId || null;
+        console.log('[AUTH] Session callback: set userId:', (session as any).userId);
+        return session;
+      } catch (error) {
+        console.error('[AUTH] Session callback error:', error);
+        throw error;
+      }
     }
   }
 };
