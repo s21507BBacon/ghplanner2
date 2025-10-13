@@ -7,7 +7,7 @@ BUILDING=true BUILDING_FOR_CLOUDFLARE=true npm run build
 
 echo "Converting build for Cloudflare Pages..."
 # Now run OpenNext build to convert for Cloudflare
-npm run pages:build
+npx open-next@latest build
 
 echo "Fixing worker structure for Cloudflare Pages..."
 chmod +x fix-worker.sh
