@@ -71,10 +71,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const isDev = process.env.NODE_ENV === 'development';
-
-    // Check if email is verified (skip in dev)
-    if (!isDev && !(user as any).email_verified) {
+    // Check if email is verified
+    if (!(user as any).email_verified) {
       return NextResponse.json({ 
         error: 'Please verify your email first. Check your inbox for the verification link.' 
       }, { status: 403 });
@@ -91,20 +89,9 @@ export async function POST(request: NextRequest) {
       otp_code: otpCode,
       otp_expires: expiresTimestamp,
       otp_attempts: 0,
-      email_verified: isDev ? 1 : ((user as any).email_verified ? 1 : 0),
+      email_verified: (user as any).email_verified ? 1 : 0,
       updated_at: nowTimestamp
     });
-
-    // In development, skip email sending
-    if (isDev) {
-      console.log('[SEND-OTP] DEV MODE - Skipping email');
-      return NextResponse.json({ 
-        ok: true,
-        devMode: true,
-        devOtpCode: otpCode,
-        userId: (user as any).id
-      });
-    }
 
     // Send OTP email
     const appUrl = process.env.APP_URL || 'http://localhost:3000';

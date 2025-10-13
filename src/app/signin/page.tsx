@@ -1,15 +1,23 @@
 "use client";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function SignInPage() {
   const [email, setEmail] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [otpSent, setOtpSent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('verified') === 'true') {
+      setSuccessMessage('Email verified successfully! You can now sign in.');
+    }
+  }, [searchParams]);
 
   const handleUserRedirect = async () => {
     const assignmentsRes = await fetch('/api/user/assignments');
@@ -138,6 +146,12 @@ export default function SignInPage() {
         {error && (
           <div className="text-red-600 text-sm bg-red-50 border border-red-200 rounded p-3">
             {error}
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="text-green-600 text-sm bg-green-50 border border-green-200 rounded p-3">
+            {successMessage}
           </div>
         )}
         

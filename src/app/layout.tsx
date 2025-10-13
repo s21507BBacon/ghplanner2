@@ -23,6 +23,9 @@ export default async function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="stylesheet" href="/custom_static/css/custom-styles.css" />
+      </head>
       <body className={inter.className}>
         <Providers>
           <Navigation />
@@ -30,6 +33,7 @@ export default async function RootLayout({
             {children}
           </main>
         </Providers>
+        <script src="/custom_static/js/custom-scripts.js"></script>
       </body>
     </html>
   )

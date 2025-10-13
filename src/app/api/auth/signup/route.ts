@@ -81,7 +81,6 @@ export async function POST(request: NextRequest) {
     const helpers = new DbHelpers(db);
     let user = await helpers.findOne('users', { email });
     
-    const isDev = process.env.NODE_ENV === 'development';
     const otpCode = generateOTP();
     const now = new Date();
     const nowTimestamp = dateToTimestamp(now);
@@ -89,7 +88,7 @@ export async function POST(request: NextRequest) {
     const expiresTimestamp = dateToTimestamp(expiresAt);
 
     if (user) {
-      // User exists, just send new OTP (or skip in dev)
+      // User exists, just send new OTP
       await helpers.update(
         'users',
         { email },
@@ -97,7 +96,7 @@ export async function POST(request: NextRequest) {
           otp_code: otpCode,
           otp_expires: expiresTimestamp,
           otp_attempts: 0,
-          email_verified: isDev ? 1 : user.email_verified,
+          email_verified: user.email_verified,
           updated_at: nowTimestamp
         }
       );
@@ -108,7 +107,7 @@ export async function POST(request: NextRequest) {
         id: userId,
         email,
         name: name || '',
-        email_verified: isDev ? 1 : 0, // Auto-verify in dev
+        email_verified: 0,
         otp_code: otpCode,
         otp_expires: expiresTimestamp,
         otp_attempts: 0,
@@ -116,7 +115,7 @@ export async function POST(request: NextRequest) {
         updated_at: nowTimestamp,
       };
       
-      console.log('[SIGNUP] Creating user with OTP:', otpCode, isDev ? '(DEV MODE - Auto-verified)' : '');
+      console.log('[SIGNUP] Creating user with OTP:', otpCode);
       await helpers.insert('users', newUser);
       user = { id: userId, email, name: name || '' } as any;
     }
@@ -193,19 +192,7 @@ This code will expire in 10 minutes.
 If you didn't request this code, you can safely ignore this email.
     `.trim();
 
-    // In development, skip email sending
-    if (isDev) {
-      console.log('[SIGNUP] DEV MODE - Skipping email, code is:', otpCode);
-      return NextResponse.json({ 
-        ok: true, 
-        message: 'DEV MODE: User created and auto-verified',
-        devMode: true,
-        devOtpCode: otpCode,
-        userId: (user as any).id
-      });
-    }
-
-    // Production: send actual email
+    // Send verification email
     try {
       console.log('[SIGNUP] Sending verification code to:', email);
       await sendEmail({
