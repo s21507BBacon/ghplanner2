@@ -57,3 +57,128 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Custom styles for GitHub Planner */
+
+:root {
+  --gh-dark-navy: #0f1729;
+  --gh-navy: #1a2332;
+  --gh-navy-light: #243447;
+  --gh-orange: #f97316;
+  --gh-orange-dark: #ea580c;
+  --gh-green: #10b981;
+  --gh-green-dark: #059669;
+  --gh-white: #ffffff;
+  --gh-gray-light: #94a3b8;
+}
+
+.gh-hero-gradient {
+  background: linear-gradient(135deg, var(--gh-dark-navy) 0%, var(--gh-navy) 50%, #1e293b 100%);
+}
+
+.gh-feature-card {
+  background: var(--gh-navy);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.gh-feature-card:hover {
+  border-color: var(--gh-orange);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(249, 115, 22, 0.2);
+}
+
+.gh-icon-wrapper {
+  background: linear-gradient(135deg, var(--gh-orange) 0%, var(--gh-orange-dark) 100%);
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+}
+
+.gh-icon-wrapper.green {
+  background: linear-gradient(135deg, var(--gh-green) 0%, var(--gh-green-dark) 100%);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.gh-step-number {
+  background: linear-gradient(135deg, var(--gh-orange) 0%, var(--gh-orange-dark) 100%);
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+}
+
+.gh-chart-line {
+  stroke: var(--gh-green);
+  stroke-width: 3;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.gh-chart-line-orange {
+  stroke: var(--gh-orange);
+  stroke-width: 3;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.gh-cta-button {
+  background: linear-gradient(135deg, var(--gh-orange) 0%, var(--gh-orange-dark) 100%);
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.4);
+  transition: all 0.3s ease;
+}
+
+.gh-cta-button:hover {
+  box-shadow: 0 8px 20px rgba(249, 115, 22, 0.5);
+  transform: translateY(-2px);
+}
+
+.gh-cta-button-secondary {
+  border: 2px solid var(--gh-green);
+  color: var(--gh-green);
+  transition: all 0.3s ease;
+}
+
+.gh-cta-button-secondary:hover {
+  background: var(--gh-green);
+  color: white;
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+}
+
+.gh-pulse-dot {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.gh-float-animation {
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.gh-code-block {
+  background: rgba(15, 23, 41, 0.6);
+  border: 1px solid rgba(249, 115, 22, 0.3);
+  border-left: 4px solid var(--gh-orange);
+}
+
+.bg-grid-white\/\[0\.02\] {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+}
+
+.bg-\[size\:60px_60px\] {
+  background-size: 60px 60px;
+}
