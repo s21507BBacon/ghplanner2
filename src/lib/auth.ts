@@ -1,7 +1,8 @@
 import type { NextAuthOptions } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
+import GitHubProvider from 'next-auth/providers/github';
 import { getDatabase } from './database';
-import { DbHelpers } from './db';
+import { DbHelpers, dateToTimestamp } from './db';
 import * as webCryptoJwt from './jwt-web-crypto';
 
 export const authOptions: NextAuthOptions = {
@@ -20,6 +21,15 @@ export const authOptions: NextAuthOptions = {
     decode: webCryptoJwt.decode,
   },
   providers: [
+    GitHubProvider({
+      clientId: process.env.GITHUB_CLIENT_ID || '',
+      clientSecret: process.env.GITHUB_CLIENT_SECRET || '',
+      authorization: {
+        params: {
+          scope: 'read:user user:email repo',
+        },
+      },
+    }),
     Credentials({
       id: 'credentials',
       name: 'Credentials',
@@ -111,12 +121,66 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async signIn({ user, account, profile }) {
       try {
-        console.log('[AUTH] JWT callback called:', { hasUser: !!user, hasToken: !!token });
+        console.log('[AUTH] SignIn callback:', { provider: account?.provider, userId: user.id });
+        
+        // Handle GitHub OAuth sign-in
+        if (account?.provider === 'github') {
+          const db = getDatabase();
+          const helpers = new DbHelpers(db);
+          
+          // Find or create user by email
+          let dbUser = await helpers.findOne('users', { email: user.email });
+          
+          if (!dbUser) {
+            // Create new user for GitHub OAuth
+            const now = Date.now();
+            dbUser = {
+              id: crypto.randomUUID(),
+              email: user.email!,
+              name: user.name || (profile as any)?.login || 'GitHub User',
+              email_verified: true,
+              github_access_token: account.access_token,
+              github_refresh_token: account.refresh_token,
+              github_username: (profile as any)?.login,
+              github_connected_at: dateToTimestamp(new Date()),
+              created_at: dateToTimestamp(new Date(now)),
+              updated_at: dateToTimestamp(new Date(now)),
+            };
+            await helpers.insert('users', dbUser);
+            console.log('[AUTH] Created new user via GitHub OAuth:', dbUser.id);
+          } else {
+            // Update existing user with GitHub tokens
+            await helpers.update('users', { id: dbUser.id }, {
+              github_access_token: account.access_token,
+              github_refresh_token: account.refresh_token,
+              github_username: (profile as any)?.login,
+              github_connected_at: dateToTimestamp(new Date()),
+              updated_at: dateToTimestamp(new Date()),
+            });
+            console.log('[AUTH] Updated existing user with GitHub OAuth:', dbUser.id);
+          }
+          
+          // Store user ID for JWT callback
+          (user as any).id = dbUser.id;
+        }
+        
+        return true;
+      } catch (error) {
+        console.error('[AUTH] SignIn callback error:', error);
+        return false;
+      }
+    },
+    async jwt({ token, user, account }) {
+      try {
+        console.log('[AUTH] JWT callback called:', { hasUser: !!user, hasToken: !!token, hasAccount: !!account });
         if (user) {
           token.userId = (user as any).id || token.sub;
           console.log('[AUTH] JWT callback: set userId:', token.userId);
+        }
+        if (account?.access_token) {
+          token.accessToken = account.access_token;
         }
         // activeCompanyId can be set via a separate endpoint later
         return token;
@@ -130,6 +194,7 @@ export const authOptions: NextAuthOptions = {
         console.log('[AUTH] Session callback called:', { hasSession: !!session, hasToken: !!token });
         (session as any).userId = token.userId;
         (session as any).activeCompanyId = (token as any).activeCompanyId || null;
+        (session as any).accessToken = token.accessToken;
         console.log('[AUTH] Session callback: set userId:', (session as any).userId);
         return session;
       } catch (error) {

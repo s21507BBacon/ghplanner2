@@ -402,3 +402,56 @@ export function getErrorMessage(status: number, message?: string): { error: stri
       };
   }
 }
+
+/**
+ * Post a comment to a GitHub PR
+ * @param prUrl - The PR URL
+ * @param comment - The comment text to post
+ * @param githubToken - GitHub access token (user's token preferred)
+ * @returns The created comment data or error
+ */
+export async function postPRComment(
+  prUrl: string,
+  comment: string,
+  githubToken?: string
+): Promise<{ success: boolean; error?: string; commentId?: number }> {
+  const parsed = parsePRUrl(prUrl);
+  if (!parsed) {
+    return { success: false, error: 'Invalid PR URL' };
+  }
+
+  if (!githubToken) {
+    return { success: false, error: 'GitHub token required' };
+  }
+
+  try {
+    const apiUrl = `https://api.github.com/repos/${parsed.owner}/${parsed.repo}/issues/${parsed.number}/comments`;
+    
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        ...getGitHubHeaders(githubToken),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ body: comment }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('Failed to post PR comment:', response.status, errorData);
+      return { 
+        success: false, 
+        error: errorData.message || `HTTP ${response.status}` 
+      };
+    }
+
+    const data = await response.json();
+    return { success: true, commentId: data.id };
+  } catch (error) {
+    console.error('Error posting PR comment:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    };
+  }
+}

@@ -151,13 +151,13 @@ export function getColumnColorClasses(color: string) {
 }
 
 export const STATUS_COLORS = {
-  pending: 'bg-gray-100 text-gray-800 border-gray-200',
-  in_progress: 'bg-blue-100 text-blue-800 border-blue-200',
-  completed: 'bg-green-100 text-green-800 border-green-200',
-  blocked: 'bg-red-100 text-red-800 border-red-200',
-  approved: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-  merged: 'bg-purple-100 text-purple-800 border-purple-200',
-  changes_requested: 'bg-orange-100 text-orange-800 border-orange-200',
+  pending: 'bg-slate-600 text-white border-slate-500 font-semibold',
+  in_progress: 'bg-blue-600 text-white border-blue-500 font-semibold',
+  completed: 'bg-green-500 text-white border-green-400 font-semibold',
+  blocked: 'bg-red-600 text-white border-red-500 font-semibold',
+  approved: 'bg-emerald-600 text-white border-emerald-500 font-semibold',
+  merged: 'bg-purple-600 text-white border-purple-500 font-semibold',
+  changes_requested: 'bg-orange-600 text-white border-orange-500 font-semibold',
 } as const;
 
 // New multi-tenant domain entities

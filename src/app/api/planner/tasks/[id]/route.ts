@@ -53,6 +53,23 @@ export async function GET(
       return fallback;
     };
 
+    // Fetch creator details
+    let createdBy = undefined;
+    if (task.created_by_user_id) {
+      try {
+        const creator = await helpers.findOne('users', { id: task.created_by_user_id });
+        if (creator) {
+          createdBy = {
+            id: (creator as any).id,
+            name: (creator as any).name || (creator as any).email,
+            email: (creator as any).email,
+          };
+        }
+      } catch (e) {
+        console.warn('Failed to fetch creator:', e);
+      }
+    }
+
     return NextResponse.json({
       id: task.id,
       title: task.title,
@@ -64,6 +81,8 @@ export async function GET(
       assignee: task.assignee || undefined,
       assignees: safeJsonParse(task.assignees, task.assignee ? [task.assignee] : []),
       isLocked: !!task.is_locked,
+      lockedBy: task.locked_by_user_id || undefined,
+      createdBy,
       createdAt: new Date(task.created_at * 1000).toISOString(),
       updatedAt: new Date(task.updated_at * 1000).toISOString(),
       checklist: safeJsonParse(task.checklist, []),

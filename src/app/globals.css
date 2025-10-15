@@ -56,6 +56,16 @@
   body {
     @apply bg-background text-foreground;
   }
+  
+  /* Scale down the entire UI to 70% (50% + 20% closer in) */
+  html {
+    font-size: 11.2px; /* Default is 16px, so 11.2px = 70% */
+  }
+  
+  /* Ensure all rem-based sizes scale proportionally */
+  body {
+    font-size: 1rem; /* This will now be 11.2px instead of 16px */
+  }
 }
 
 /* Custom styles for GitHub Planner */

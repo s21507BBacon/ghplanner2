@@ -1,9 +1,6 @@
 // Database connection - works with Neon PostgreSQL
-import { neon, neonConfig } from '@neondatabase/serverless';
+import { neon } from '@neondatabase/serverless';
 import type { Database, Statement, BatchStatement } from './db';
-
-// Enable connection pooling for better performance
-neonConfig.fetchConnectionCache = true;
 
 // Neon PostgreSQL implementation
 class NeonDatabase implements Database {

@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { getDatabase } from '@/lib/database';
-import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
+import { DbHelpers, dateToTimestamp } from '@/lib/db';
+import { postPRComment } from '@/lib/github';
 
 interface TaskComment {
-  _id?: string;
-  taskId: string;
-  author: string;
+  id: string;
+  task_id: string;
+  user_id: string;
   content: string;
-  created_at: Date;
-  updated_at: Date;
+  image_url?: string;
+  created_at: number;
 }
 
 export async function GET(request: NextRequest) {
@@ -27,14 +30,24 @@ export async function GET(request: NextRequest) {
     const helpers = new DbHelpers(db);
     const comments = await helpers.findMany<any>('task_comments', { task_id: taskId }, 'created_at ASC');
 
+    // Get user names for each comment
+    const commentsWithAuthors = await Promise.all(
+      comments.map(async (comment) => {
+        const user = await helpers.findOne<any>('users', { id: comment.user_id });
+        return {
+          id: comment.id,
+          author: user?.name || 'Unknown User',
+          authorId: comment.user_id,
+          content: comment.content,
+          imageUrl: comment.image_url,
+          createdAt: new Date(comment.created_at * 1000).toISOString(),
+          updatedAt: new Date(comment.created_at * 1000).toISOString(),
+        };
+      })
+    );
+
     return NextResponse.json({
-      comments: comments.map(comment => ({
-        id: comment.id,
-        author: comment.author,
-        content: comment.content,
-        created_at: new Date(comment.created_at * 1000).toISOString(),
-        updated_at: new Date(comment.updated_at * 1000).toISOString(),
-      })),
+      comments: commentsWithAuthors,
     });
   } catch (error) {
     console.error('Database error:', error);
@@ -47,12 +60,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
     const body = await request.json();
-    const { taskId, author, content } = body;
+    const { taskId, author, authorId, content, imageUrl } = body;
 
-    if (!taskId || !author || !content) {
+    if (!taskId || !authorId || !content) {
       return NextResponse.json(
-        { error: 'Missing required fields: taskId, author, content' },
+        { error: 'Missing required fields: taskId, authorId, content' },
         { status: 400 }
       );
     }
@@ -64,34 +78,63 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (typeof author !== 'string' || author.trim().length === 0) {
-      return NextResponse.json(
-        { error: 'Author must be a non-empty string' },
-        { status: 400 }
-      );
-    }
-
     const db = getDatabase();
     const helpers = new DbHelpers(db);
     const now = new Date();
 
-    const comment = {
+    const comment: any = {
       id: crypto.randomUUID(),
       task_id: taskId,
-      author: author.trim(),
+      user_id: authorId,
       content: content.trim(),
       created_at: dateToTimestamp(now),
-      updated_at: dateToTimestamp(now),
     };
 
-    await helpers.insert('task_comments', comment as any);
+    if (imageUrl) {
+      comment.image_url = imageUrl;
+    }
+
+    await helpers.insert('task_comments', comment);
+
+    // Try to sync comment to GitHub PR if task has a PR URL
+    let githubSyncStatus = null;
+    try {
+      const task = await helpers.findOne<any>('tasks', { id: taskId });
+      if (task?.pr_url) {
+        // Get user's GitHub token
+        const user = await helpers.findOne<any>('users', { id: authorId });
+        const githubToken = user?.github_access_token;
+
+        if (githubToken) {
+          const githubComment = `**${author}** commented on task:\n\n${content.trim()}`;
+          const result = await postPRComment(task.pr_url, githubComment, githubToken);
+          
+          if (result.success) {
+            console.log(`[COMMENT] Successfully synced comment to GitHub PR: ${task.pr_url}`);
+            githubSyncStatus = { success: true, commentId: result.commentId };
+          } else {
+            console.warn(`[COMMENT] Failed to sync to GitHub PR: ${result.error}`);
+            githubSyncStatus = { success: false, error: result.error };
+          }
+        } else {
+          console.log('[COMMENT] User has not connected GitHub account, skipping PR sync');
+          githubSyncStatus = { success: false, error: 'GitHub account not connected' };
+        }
+      }
+    } catch (syncError) {
+      console.error('[COMMENT] Error syncing to GitHub:', syncError);
+      githubSyncStatus = { success: false, error: 'Sync error' };
+    }
 
     return NextResponse.json({
       id: comment.id,
-      author: comment.author,
+      author: author || 'Unknown User',
+      authorId: comment.user_id,
       content: comment.content,
-      created_at: new Date(comment.created_at * 1000).toISOString(),
-      updated_at: new Date(comment.updated_at * 1000).toISOString(),
+      imageUrl: comment.image_url,
+      createdAt: new Date(comment.created_at * 1000).toISOString(),
+      updatedAt: new Date(comment.created_at * 1000).toISOString(),
+      githubSync: githubSyncStatus,
     }, { status: 201 });
 
   } catch (error) {

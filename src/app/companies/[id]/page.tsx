@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import AdminLayout from '@/components/AdminLayout';
 
 interface Enterprise {
   id: string;
@@ -49,6 +50,26 @@ export default function EnterpriseDetailPage() {
   const [showTokenForm, setShowTokenForm] = useState(false);
 
   const isOwner = enterprise && session && (session as any).userId === enterprise.ownerUserId;
+
+  // Listen for enterprise changes from AdminLayout and redirect if different
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const storedEnterpriseId = localStorage.getItem('selectedEnterpriseId');
+      if (storedEnterpriseId && storedEnterpriseId !== enterpriseId) {
+        // User switched to a different enterprise, redirect to its page
+        router.push(`/companies/${storedEnterpriseId}`);
+      }
+    };
+
+    // Listen for changes
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('enterpriseChanged', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('enterpriseChanged', handleStorageChange);
+    };
+  }, [enterpriseId, router]);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -209,43 +230,45 @@ export default function EnterpriseDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen gh-hero-gradient flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-400 mx-auto mb-4"></div>
-          <p className="text-slate-300">Loading enterprise...</p>
+      <AdminLayout>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-400 mx-auto mb-4"></div>
+            <p className="text-slate-300">Loading enterprise...</p>
+          </div>
         </div>
-      </div>
+      </AdminLayout>
     );
   }
 
   if (error || !enterprise) {
     return (
-      <div className="min-h-screen gh-hero-gradient">
+      <AdminLayout>
         <div className="max-w-6xl mx-auto p-6">
           <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-6 text-center">
             <p className="text-red-400 mb-4">{error || 'Enterprise not found'}</p>
             <Link 
-              href="/enterprises"
+              href="/companies"
               className="gh-cta-button inline-block px-6 py-3 rounded-lg text-white font-semibold"
             >
-              Back to Enterprises
+              Back to Companies
             </Link>
           </div>
         </div>
-      </div>
+      </AdminLayout>
     );
   }
 
   return (
-    <div className="min-h-screen gh-hero-gradient">
+    <AdminLayout>
       <div className="max-w-6xl mx-auto p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <Link 
-              href="/enterprises"
+              href="/companies"
               className="text-orange-400 hover:text-orange-300 text-sm mb-2 inline-block transition-colors"
             >
-              ← Back to Enterprises
+              ← Back to Companies
             </Link>
             <h1 className="text-3xl font-bold text-white">{enterprise.name}</h1>
           </div>
@@ -530,7 +553,7 @@ jane@example.com,Jane Doe`}
           )}
         </div>
       </div>
-    </div>
+    </AdminLayout>
   );
 }
 

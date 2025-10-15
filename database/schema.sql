@@ -15,6 +15,10 @@ CREATE TABLE IF NOT EXISTS users (
   otp_code TEXT,
   otp_expires BIGINT,
   otp_attempts INTEGER DEFAULT 0,
+  github_access_token TEXT,
+  github_refresh_token TEXT,
+  github_username TEXT,
+  github_connected_at BIGINT,
   created_at BIGINT NOT NULL,
   updated_at BIGINT NOT NULL
 );
@@ -311,5 +315,38 @@ BEGIN
                    AND column_name = 'github_token_encrypted') THEN
         ALTER TABLE enterprises ADD COLUMN github_token_encrypted TEXT;
         COMMENT ON COLUMN enterprises.github_token_encrypted IS 'Enterprise admin''s personal GitHub access token (encrypted)';
+    END IF;
+END $$;
+
+-- Migration: Add GitHub OAuth fields to users table (if not exists)
+-- This adds support for user-level GitHub OAuth connections
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name = 'users'
+                   AND column_name = 'github_access_token') THEN
+        ALTER TABLE users ADD COLUMN github_access_token TEXT;
+        COMMENT ON COLUMN users.github_access_token IS 'User''s GitHub OAuth access token';
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name = 'users'
+                   AND column_name = 'github_refresh_token') THEN
+        ALTER TABLE users ADD COLUMN github_refresh_token TEXT;
+        COMMENT ON COLUMN users.github_refresh_token IS 'User''s GitHub OAuth refresh token';
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name = 'users'
+                   AND column_name = 'github_username') THEN
+        ALTER TABLE users ADD COLUMN github_username TEXT;
+        COMMENT ON COLUMN users.github_username IS 'User''s GitHub username';
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name = 'users'
+                   AND column_name = 'github_connected_at') THEN
+        ALTER TABLE users ADD COLUMN github_connected_at BIGINT;
+        COMMENT ON COLUMN users.github_connected_at IS 'Timestamp when GitHub account was connected';
     END IF;
 END $$;

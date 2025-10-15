@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Plus, MoreHorizontal, ExternalLink, Calendar, User, X, Edit3, Trash2, Trash, GitMerge, AlertCircle } from 'lucide-react';
+import { Plus, MoreHorizontal, ExternalLink, Calendar, User, X, Edit3, Trash2, Trash, GitMerge, AlertCircle, XCircle } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Task, Board, type Column, STATUS_COLORS, getColumnColorClasses, COLUMN_COLORS } from '@/lib/types';
 
@@ -88,6 +88,24 @@ function TaskCard({
 
         <div className="flex items-center gap-2 flex-wrap">
           <StatusBadge status={task.status} />
+          {(task.status === 'merged' || (task.status === 'completed' && (task as any).prStatus === 'merged')) && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border bg-purple-500/20 text-purple-400 border-purple-500/30">
+              <GitMerge className="w-3 h-3" />
+              merged
+            </span>
+          )}
+          {task.status === 'changes_requested' && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border bg-amber-500/20 text-amber-400 border-amber-500/30">
+              <AlertCircle className="w-3 h-3" />
+              changes requested
+            </span>
+          )}
+          {(task as any).prStatus === 'closed' && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border bg-red-500/20 text-red-400 border-red-500/30">
+              <XCircle className="w-3 h-3" />
+              closed
+            </span>
+          )}
           {task.labels?.map((label, index) => (
             <span
               key={index}
@@ -136,9 +154,17 @@ function TaskCard({
               </a>
             )}
           </div>
-          <div className="flex items-center gap-1">
-            <Calendar className="w-3 h-3" />
-            <span>{new Date(task.createdAt).toLocaleDateString()}</span>
+          <div className="flex items-center gap-3">
+            {(task as any).createdBy && (
+              <div className="flex items-center gap-1" title={`Created by ${(task as any).createdBy.name}`}>
+                <User className="w-3 h-3" />
+                <span className="font-mono">{(task as any).createdBy.name}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-1">
+              <Calendar className="w-3 h-3" />
+              <span>{new Date(task.createdAt).toLocaleDateString()}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -169,11 +195,11 @@ function Column({
     <div className={`flex flex-col h-full min-w-80 ${colors.bg} ${colors.border} border rounded-lg ${
       isDragging ? 'opacity-50 shadow-2xl' : ''
     }`}>
-      <div className={`${colors.header} ${colors.text} p-4 rounded-t-lg border-b ${colors.border} sticky top-0 z-10 cursor-move`}>
+      <div className={`${colors.header} ${colors.text} p-4 rounded-t-lg border-b ${colors.border} cursor-move`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h3 className="font-semibold text-sm">{column.name}</h3>
-            <span className={`inline-flex items-center justify-center w-5 h-5 text-xs font-medium ${colors.text} bg-white rounded-full`}>
+            <span className={`inline-flex items-center justify-center w-5 h-5 text-xs font-medium text-slate-900 bg-white rounded-full`}>
               {tasks.length}
             </span>
             {(column as any).moveToColumnOnMerge && (
@@ -1106,7 +1132,7 @@ function PlannerBoard() {
 
   return (
     <div className="min-h-screen gh-hero-gradient">
-      <div className="sticky top-16 bg-[#1a2332]/95 backdrop-blur-sm border-b border-white/10 z-10">
+      <div className="sticky top-24 bg-[#1a2332]/95 backdrop-blur-sm border-b border-white/10 z-10">
         <div className="w-full px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
@@ -1169,7 +1195,7 @@ function PlannerBoard() {
         </div>
       </div>
 
-      <div className="w-full px-4 py-4">
+      <div className="w-full px-4 pt-16 pb-4">
         {loading || projectLoading ? (
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4" />

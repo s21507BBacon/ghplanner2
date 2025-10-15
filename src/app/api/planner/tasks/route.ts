@@ -45,6 +45,27 @@ export async function GET(request: NextRequest) {
       return fallback;
     };
 
+    // Fetch creator user details for all tasks
+    const creatorIds = Array.from(new Set(tasks.map(t => t.created_by_user_id).filter(Boolean)));
+    const creators = new Map();
+    
+    if (creatorIds.length > 0) {
+      for (const userId of creatorIds) {
+        try {
+          const user = await helpers.findOne('users', { id: userId });
+          if (user) {
+            creators.set(userId, {
+              id: (user as any).id,
+              name: (user as any).name || (user as any).email,
+              email: (user as any).email,
+            });
+          }
+        } catch (e) {
+          console.warn('Failed to fetch creator:', userId, e);
+        }
+      }
+    }
+
     const mappedTasks = tasks.map(task => {
       try {
         return {
@@ -58,6 +79,8 @@ export async function GET(request: NextRequest) {
           assignee: task.assignee || undefined,
           assignees: safeJsonParse(task.assignees, task.assignee ? [task.assignee] : []),
           isLocked: !!task.is_locked,
+          lockedBy: task.locked_by_user_id || undefined,
+          createdBy: task.created_by_user_id ? creators.get(task.created_by_user_id) : undefined,
           createdAt: new Date(task.created_at * 1000).toISOString(),
           updatedAt: new Date(task.updated_at * 1000).toISOString(),
           checklist: safeJsonParse(task.checklist, []),
@@ -167,6 +190,7 @@ export async function POST(request: NextRequest) {
       project_id: projectId || null,
       created_by_user_id: userId || null,
       is_locked: isLocked === true ? 1 : 0,
+      locked_by_user_id: isLocked === true ? (userId || null) : null,
       order_num: nextOrder,
       created_at: dateToTimestamp(now),
       updated_at: dateToTimestamp(now),
@@ -184,6 +208,23 @@ export async function POST(request: NextRequest) {
 
     console.log('[POST /api/planner/tasks] Task created successfully:', task.id);
 
+    // Fetch creator details
+    let createdBy = undefined;
+    if (task.created_by_user_id) {
+      try {
+        const creator = await helpers.findOne('users', { id: task.created_by_user_id });
+        if (creator) {
+          createdBy = {
+            id: (creator as any).id,
+            name: (creator as any).name || (creator as any).email,
+            email: (creator as any).email,
+          };
+        }
+      } catch (e) {
+        console.warn('Failed to fetch creator:', e);
+      }
+    }
+
     return NextResponse.json({
       id: task.id,
       title: task.title,
@@ -197,6 +238,8 @@ export async function POST(request: NextRequest) {
       companyId: task.company_id || undefined,
       projectId: task.project_id || undefined,
       isLocked: !!task.is_locked,
+      lockedBy: task.locked_by_user_id || undefined,
+      createdBy,
       createdAt: new Date(task.created_at * 1000).toISOString(),
       updatedAt: new Date(task.updated_at * 1000).toISOString(),
       checklist: JSON.parse(task.checklist),
@@ -336,7 +379,15 @@ export async function PATCH(request: NextRequest) {
     if (updateData.assignee !== undefined) translated.assignee = updateData.assignee || null;
     if (updateData.assignees !== undefined) translated.assignees = JSON.stringify(updateData.assignees || []);
     if (updateData.order !== undefined) translated.order_num = updateData.order;
-    if (updateData.isLocked !== undefined) translated.is_locked = updateData.isLocked ? 1 : 0;
+    if (updateData.isLocked !== undefined) {
+      translated.is_locked = updateData.isLocked ? 1 : 0;
+      // Set locked_by_user_id when locking, clear when unlocking
+      if (updateData.isLocked) {
+        translated.locked_by_user_id = userId || null;
+      } else {
+        translated.locked_by_user_id = null;
+      }
+    }
 
     await helpers.update('tasks', { id }, translated);
     const updated: any = await helpers.findOne('tasks', { id });
@@ -364,6 +415,23 @@ export async function PATCH(request: NextRequest) {
       return fallback;
     };
 
+    // Fetch creator details
+    let createdBy = undefined;
+    if (updated.created_by_user_id) {
+      try {
+        const creator = await helpers.findOne('users', { id: updated.created_by_user_id });
+        if (creator) {
+          createdBy = {
+            id: (creator as any).id,
+            name: (creator as any).name || (creator as any).email,
+            email: (creator as any).email,
+          };
+        }
+      } catch (e) {
+        console.warn('Failed to fetch creator:', e);
+      }
+    }
+
     return NextResponse.json({
       id: updated.id,
       title: updated.title,
@@ -375,6 +443,8 @@ export async function PATCH(request: NextRequest) {
       assignee: updated.assignee,
       assignees: safeJsonParse(updated.assignees, []),
       isLocked: !!updated.is_locked,
+      lockedBy: updated.locked_by_user_id || undefined,
+      createdBy,
       createdAt: new Date(updated.created_at * 1000).toISOString(),
       updatedAt: new Date(updated.updated_at * 1000).toISOString(),
       checklist: safeJsonParse(updated.checklist, []),

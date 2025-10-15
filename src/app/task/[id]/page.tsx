@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import {
   ArrowLeft,
   ExternalLink,
@@ -20,7 +21,9 @@ import {
   User,
   Tag,
   AlertCircle,
-  Trash2
+  Trash2,
+  Image as ImageIcon,
+  X
 } from 'lucide-react';
 import { Task, STATUS_COLORS, Column, getColumnColorClasses } from '@/lib/types';
 
@@ -89,7 +92,9 @@ interface PRData {
 interface Comment {
   id: string;
   author: string;
+  authorId?: string;
   content: string;
+  imageUrl?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -144,6 +149,7 @@ export default function TaskDetailPage() {
   const params = useParams();
   const router = useRouter();
   const taskId = params.id as string;
+  const { data: session } = useSession();
 
   const [task, setTask] = useState<Task | null>(null);
   const [column, setColumn] = useState<Column | null>(null);
@@ -154,11 +160,13 @@ export default function TaskDetailPage() {
   const [commentsLoading, setCommentsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [assigneeUsers, setAssigneeUsers] = useState<Array<{ id: string; name: string; email: string }>>([]);
+  const [canComment, setCanComment] = useState(false);
 
   // Comment form state
   const [newComment, setNewComment] = useState('');
-  const [commentAuthor, setCommentAuthor] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   useEffect(() => {
     if (taskId) {
@@ -166,6 +174,12 @@ export default function TaskDetailPage() {
       fetchComments();
     }
   }, [taskId]);
+
+  useEffect(() => {
+    if (session?.user && task) {
+      checkCommentPermission();
+    }
+  }, [session, task]);
 
   useEffect(() => {
     if (task?.prUrl) {
@@ -285,19 +299,78 @@ export default function TaskDetailPage() {
     }
   };
 
+  const checkCommentPermission = async () => {
+    if (!session?.user?.email || !task) {
+      setCanComment(false);
+      return;
+    }
+
+    try {
+      // Check if user is allocated to the project or is admin/enterprise creator
+      const response = await fetch(`/api/planner/tasks/${taskId}/can-comment`);
+      const data = await response.json();
+      setCanComment(data.canComment || false);
+    } catch (err) {
+      console.error('Failed to check comment permission:', err);
+      setCanComment(false);
+    }
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image must be less than 5MB');
+        return;
+      }
+      setSelectedImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+  };
+
   const submitComment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newComment.trim() || !commentAuthor.trim()) return;
+    if (!newComment.trim() || !session?.user?.name) return;
 
     setSubmittingComment(true);
     try {
+      let imageUrl: string | undefined;
+
+      // Upload image if selected
+      if (selectedImage) {
+        const formData = new FormData();
+        formData.append('image', selectedImage);
+        formData.append('taskId', taskId);
+
+        const uploadResponse = await fetch('/api/planner/tasks/comments/upload-image', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (uploadResponse.ok) {
+          const uploadData = await uploadResponse.json();
+          imageUrl = uploadData.imageUrl;
+        }
+      }
+
       const response = await fetch('/api/planner/tasks/comments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           taskId,
-          author: commentAuthor.trim(),
+          author: session.user.name,
+          authorId: (session.user as any).id,
           content: newComment.trim(),
+          imageUrl,
         }),
       });
 
@@ -305,9 +378,23 @@ export default function TaskDetailPage() {
         const newCommentData = await response.json();
         setComments(prev => [...prev, newCommentData]);
         setNewComment('');
+        removeImage();
+        
+        // Show GitHub sync status
+        if (newCommentData.githubSync) {
+          if (newCommentData.githubSync.success) {
+            console.log('Comment synced to GitHub PR successfully');
+          } else if (newCommentData.githubSync.error === 'GitHub account not connected') {
+            // Optionally show a notification to connect GitHub
+            console.log('GitHub account not connected - comment not synced to PR');
+          } else {
+            console.warn('Failed to sync comment to GitHub:', newCommentData.githubSync.error);
+          }
+        }
       }
     } catch (err) {
       console.error('Failed to submit comment:', err);
+      alert('Failed to post comment. Please try again.');
     } finally {
       setSubmittingComment(false);
     }
@@ -423,9 +510,15 @@ export default function TaskDetailPage() {
                     </span>
                   </div>
                 )}
+                {(task as any).createdBy && (
+                  <div className="flex items-center gap-1" title="Task creator">
+                    <User className="w-4 h-4 text-orange-400" />
+                    <span>Created by <span className="font-mono">{(task as any).createdBy.name}</span></span>
+                  </div>
+                )}
                 <div className="flex items-center gap-1">
                   <Calendar className="w-4 h-4" />
-                  <span>Created {new Date(task.createdAt).toLocaleDateString()}</span>
+                  <span>{new Date(task.createdAt).toLocaleDateString()}</span>
                 </div>
               </div>
             </div>
@@ -470,6 +563,15 @@ export default function TaskDetailPage() {
                       <span className="font-mono text-white">{user.name}</span>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+            {(task as any).createdBy && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-400">Created By</label>
+                <div className="flex items-center gap-1 text-sm bg-white/10 px-2 py-1 rounded border border-white/10 w-fit">
+                  <User className="w-3 h-3 text-orange-400" />
+                  <span className="font-mono text-white">{(task as any).createdBy.name}</span>
                 </div>
               </div>
             )}
@@ -741,36 +843,67 @@ export default function TaskDetailPage() {
           </div>
 
           {/* Comment Form */}
-          <form onSubmit={submitComment} className="mb-6 p-4 bg-white/5 border border-white/10 rounded-lg">
-            <div className="space-y-3">
-              <input
-                type="text"
-                value={commentAuthor}
-                onChange={(e) => setCommentAuthor(e.target.value)}
-                placeholder="Your name"
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors text-sm"
-                required
-              />
-              <textarea
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Add a comment..."
-                rows={3}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors text-sm"
-                required
-              />
-              <div className="flex justify-end">
-                <button
-                  type="submit"
-                  disabled={submittingComment || !newComment.trim() || !commentAuthor.trim()}
-                  className="gh-cta-button flex items-center gap-2 px-4 py-2 rounded-lg text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                >
-                  <Send className="w-4 h-4" />
-                  {submittingComment ? 'Posting...' : 'Post Comment'}
-                </button>
-              </div>
+          {!session?.user ? (
+            <div className="mb-6 p-4 bg-white/5 border border-white/10 rounded-lg text-center">
+              <p className="text-slate-300 text-sm">Please sign in to comment</p>
             </div>
-          </form>
+          ) : !canComment ? (
+            <div className="mb-6 p-4 bg-white/5 border border-white/10 rounded-lg text-center">
+              <p className="text-slate-300 text-sm">You must be allocated to this project to comment</p>
+            </div>
+          ) : (
+            <form onSubmit={submitComment} className="mb-6 p-4 bg-white/5 border border-white/10 rounded-lg">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <User className="w-4 h-4 text-slate-400" />
+                  <span className="text-sm text-slate-300">Commenting as <span className="font-semibold text-white">{session.user.name}</span></span>
+                </div>
+                <textarea
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder="Add a comment..."
+                  rows={3}
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors text-sm"
+                  required
+                />
+                
+                {/* Image Preview */}
+                {imagePreview && (
+                  <div className="relative inline-block">
+                    <img src={imagePreview} alt="Preview" className="max-w-xs max-h-48 rounded-lg border border-white/10" />
+                    <button
+                      type="button"
+                      onClick={removeImage}
+                      className="absolute top-2 right-2 p-1 bg-red-500 hover:bg-red-600 rounded-full transition-colors"
+                    >
+                      <X className="w-4 h-4 text-white" />
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex justify-between items-center">
+                  <label className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg cursor-pointer transition-colors">
+                    <ImageIcon className="w-4 h-4 text-slate-400" />
+                    <span className="text-sm text-slate-300">Add Image</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageSelect}
+                      className="hidden"
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    disabled={submittingComment || !newComment.trim()}
+                    className="gh-cta-button flex items-center gap-2 px-4 py-2 rounded-lg text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                  >
+                    <Send className="w-4 h-4" />
+                    {submittingComment ? 'Posting...' : 'Post Comment'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          )}
 
           {/* Comments List */}
           <div className="space-y-4">
@@ -798,7 +931,17 @@ export default function TaskDetailPage() {
                       {new Date(comment.createdAt).toLocaleString()}
                     </span>
                   </div>
-                  <p className="text-slate-300 text-sm leading-relaxed">{comment.content}</p>
+                  <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">{comment.content}</p>
+                  {comment.imageUrl && (
+                    <div className="mt-3">
+                      <img 
+                        src={comment.imageUrl} 
+                        alt="Comment attachment" 
+                        className="max-w-md max-h-96 rounded-lg border border-white/10 cursor-pointer hover:border-orange-500/50 transition-colors"
+                        onClick={() => window.open(comment.imageUrl, '_blank')}
+                      />
+                    </div>
+                  )}
                 </div>
               ))
             )}
