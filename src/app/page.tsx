@@ -91,6 +91,7 @@ export default function Home() {
                           height={400} 
                           className="relative w-full h-auto"
                           priority
+                          unoptimized
                         />
                       </div>
                     </div>
@@ -276,6 +277,7 @@ export default function Home() {
                   width={50} 
                   height={50}
                   className="object-contain"
+                  unoptimized
                 />
                 <span className="text-white font-semibold text-2xl">McPeak Bacon Limited</span>
               </div>

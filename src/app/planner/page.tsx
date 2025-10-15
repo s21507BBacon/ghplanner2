@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useMemo, Suspense, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Plus, MoreHorizontal, ExternalLink, Calendar, User, X, Edit3, Trash2, Trash, GitMerge, AlertCircle, XCircle } from 'lucide-react';
+import { Plus, MoreHorizontal, ExternalLink, Calendar, User, X, Edit3, Trash2, Trash, GitMerge, AlertCircle, XCircle, Pin } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { Task, Board, type Column, type Connection, STATUS_COLORS, getColumnColorClasses, COLUMN_COLORS } from '@/lib/types';
+import { Task, Board, type Column, type Connection, type Note, STATUS_COLORS, getColumnColorClasses, COLUMN_COLORS } from '@/lib/types';
 
 // Add project interface
 interface Project {
@@ -27,8 +27,6 @@ function StatusBadge({ status }: { status: string }) {
     'merged': 'Merged',
     'changes_requested': 'Changes Requested',
   };
-
-
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLORS[status as keyof typeof STATUS_COLORS] || STATUS_COLORS.pending}`}>
       {statusLabels[status] || status.replace('_', ' ')}
@@ -596,6 +594,22 @@ function PlannerBoard() {
   const [draggingColumnId, setDraggingColumnId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
+  // Connection edit state
+  const [draggingConn, setDraggingConn] = useState<{ id: string; end: 'source' | 'target' } | null>(null);
+  const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
+
+  // Notes state
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [isNotePaletteOpen, setIsNotePaletteOpen] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteText, setEditingNoteText] = useState('');
+  const [draggingNoteId, setDraggingNoteId] = useState<string | null>(null);
+  const [noteDragOffset, setNoteDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
+  const [resizingColumnId, setResizingColumnId] = useState<string | null>(null);
+  const [resizingNoteId, setResizingNoteId] = useState<string | null>(null);
+  const [resizeStart, setResizeStart] = useState<{ width: number; height: number; x: number; y: number } | null>(null);
+
   // Track DOM rects of each column for accurate side anchors
   const columnRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [columnRects, setColumnRects] = useState<Record<string, { x: number; y: number; width: number; height: number }>>({});
@@ -630,9 +644,39 @@ function PlannerBoard() {
   // Recompute positions when connections are loaded to ensure arrows connect properly
   useEffect(() => {
     if (connections.length > 0) {
-      setTimeout(() => computeColumnRects(), 50);
+      // Use requestAnimationFrame for better timing, then add a small delay
+      // to ensure DOM is fully laid out after navigation
+      requestAnimationFrame(() => {
+        setTimeout(() => computeColumnRects(), 150);
+      });
     }
   }, [connections, computeColumnRects]);
+
+  // Helper to find which column is at a board-relative point
+  const columnIdAtPoint = useCallback((x: number, y: number) => {
+    for (const [id, r] of Object.entries(columnRects)) {
+      if (x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height) return id;
+    }
+    return null;
+  }, [columnRects]);
+
+  // When switching into connect mode, exit any connection editing state
+  useEffect(() => {
+    if (connectMode) {
+      setSelectedConnectionId(null);
+      setDraggingConn(null);
+    }
+  }, [connectMode]);
+
+  // Additional effect to recompute after mount and columns are available
+  useEffect(() => {
+    if (isMounted && columns.length > 0 && connections.length > 0) {
+      // Give extra time for initial render to complete
+      requestAnimationFrame(() => {
+        setTimeout(() => computeColumnRects(), 100);
+      });
+    }
+  }, [isMounted, columns.length, connections.length, computeColumnRects]);
 
   // Project/company scoping from URL
   const searchParams = useSearchParams();
@@ -729,6 +773,7 @@ function PlannerBoard() {
       fetchTasks();
       fetchColumns();
       fetchConnections();
+      fetchNotes();
     }
   }, [selectedBoard]);
 
@@ -943,9 +988,57 @@ function PlannerBoard() {
       const data = await res.json();
       setConnections(data.connections || []);
       // Recompute column positions after connections are loaded to ensure arrows are positioned correctly
-      setTimeout(() => computeColumnRects(), 100);
+      // Use requestAnimationFrame for better timing with the render cycle
+      requestAnimationFrame(() => {
+        setTimeout(() => computeColumnRects(), 150);
+      });
     } catch (e) {
       console.error('Failed to fetch connections:', e);
+    }
+  };
+
+  // Sticky notes CRUD
+  const fetchNotes = async () => {
+    if (!selectedBoard) return;
+    try {
+      const res = await fetch(`/api/planner/notes?boardId=${selectedBoard}`);
+      const data = await res.json();
+      setNotes(data.notes || []);
+    } catch (e) {
+      console.error('Failed to fetch notes:', e);
+    }
+  };
+
+  const createNote = async (color: string) => {
+    if (!selectedBoard) return;
+    try {
+      const res = await fetch('/api/planner/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ boardId: selectedBoard, x: 120, y: 120, color, content: '' })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Failed to create note');
+        return;
+      }
+      const note = await res.json();
+      setNotes(prev => [...prev, note]);
+    } catch (e) {
+      console.error('Failed to create note:', e);
+    }
+  };
+
+  const updateNote = async (id: string, updates: Partial<Pick<Note, 'x' | 'y' | 'color' | 'content' | 'style'>>) => {
+    setNotes(prev => prev.map(n => (n.id === id ? { ...n, ...updates } as Note : n)));
+    try {
+      await fetch('/api/planner/notes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...updates })
+      });
+    } catch (e) {
+      console.error('Failed to update note:', e);
     }
   };
 
@@ -965,6 +1058,41 @@ function PlannerBoard() {
       setConnections(prev => [...prev, conn]);
     } catch (e) {
       console.error('Failed to create connection:', e);
+    }
+  };
+
+  const updateConnection = async (id: string, updates: { sourceColumnId?: string; targetColumnId?: string; label?: string; color?: string }) => {
+    try {
+      const res = await fetch('/api/planner/connections', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...updates }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Failed to update connection');
+        return;
+      }
+      const updated = await res.json();
+      setConnections(prev => prev.map(c => c.id === id ? { ...c, ...updated } : c));
+    } catch (e) {
+      console.error('Failed to update connection:', e);
+    }
+  };
+
+  const deleteConnection = async (id: string) => {
+    try {
+      const res = await fetch(`/api/planner/connections?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Failed to delete connection');
+        return;
+      }
+      setConnections(prev => prev.filter(c => c.id !== id));
+      if (selectedConnectionId === id) setSelectedConnectionId(null);
+      if (draggingConn?.id === id) setDraggingConn(null);
+    } catch (e) {
+      console.error('Failed to delete connection:', e);
     }
   };
 
@@ -1299,6 +1427,48 @@ function PlannerBoard() {
     }
   };
 
+  // Sticky note drag start
+  const handleNotePointerDown = (noteId: string) => (e: any) => {
+    e.stopPropagation();
+    const boardEl = boardRef.current;
+    if (!boardEl) return;
+    const rect = boardEl.getBoundingClientRect();
+    const note = notes.find(n => n.id === noteId);
+    if (!note) return;
+    const offsetX = e.clientX - rect.left - (note.x || 0);
+    const offsetY = e.clientY - rect.top - (note.y || 0);
+    setDraggingNoteId(noteId);
+    setNoteDragOffset({ x: offsetX, y: offsetY });
+  };
+
+  // Column resize start
+  const handleColumnResizeStart = (colId: string) => (e: any) => {
+    e.stopPropagation();
+    const col = columns.find(c => c.id === colId) as any;
+    if (!col) return;
+    setResizingColumnId(colId);
+    setResizeStart({
+      width: col.width || 320,
+      height: col.height || 260,
+      x: e.clientX,
+      y: e.clientY,
+    });
+  };
+
+  // Note resize start
+  const handleNoteResizeStart = (noteId: string) => (e: any) => {
+    e.stopPropagation();
+    const note = notes.find(n => n.id === noteId) as any;
+    if (!note) return;
+    setResizingNoteId(noteId);
+    setResizeStart({
+      width: note.width || 224,
+      height: note.height || 150,
+      x: e.clientX,
+      y: e.clientY,
+    });
+  };
+
   useEffect(() => {
     if (!draggingColumnId) return;
     const onMove = (e: PointerEvent) => {
@@ -1327,6 +1497,86 @@ function PlannerBoard() {
       window.removeEventListener('pointerup', onUp);
     };
   }, [draggingColumnId, dragOffset, columns]);
+
+  // Window-level event listeners for note dragging
+  useEffect(() => {
+    if (!draggingNoteId) return;
+    const onMove = (e: PointerEvent) => {
+      const boardEl = boardRef.current;
+      if (!boardEl) return;
+      const rect = boardEl.getBoundingClientRect();
+      let x = Math.round(e.clientX - rect.left - noteDragOffset.x);
+      let y = Math.round(e.clientY - rect.top - noteDragOffset.y);
+      x = Math.max(0, x);
+      y = Math.max(0, y);
+      setNotes(prev => prev.map(n => (n.id === draggingNoteId ? ({ ...n, x, y } as Note) : n)));
+    };
+    const onUp = async () => {
+      const note = notes.find(n => n.id === draggingNoteId);
+      if (note) {
+        await updateNote(draggingNoteId, { x: note.x, y: note.y });
+      }
+      setDraggingNoteId(null);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+  }, [draggingNoteId, noteDragOffset, notes]);
+
+  // Window-level event listeners for column resizing
+  useEffect(() => {
+    if (!resizingColumnId || !resizeStart) return;
+    const onMove = (e: PointerEvent) => {
+      const deltaX = e.clientX - resizeStart.x;
+      const deltaY = e.clientY - resizeStart.y;
+      const newWidth = Math.max(280, resizeStart.width + deltaX);
+      const newHeight = Math.max(200, resizeStart.height + deltaY);
+      setColumns(prev => prev.map(c => (c.id === resizingColumnId ? ({ ...c, width: newWidth, height: newHeight } as any) : c)));
+    };
+    const onUp = async () => {
+      const col = columns.find(c => c.id === resizingColumnId) as any;
+      if (col && (col.width || col.height)) {
+        await updateColumn(resizingColumnId, { width: col.width, height: col.height });
+      }
+      setResizingColumnId(null);
+      setResizeStart(null);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+  }, [resizingColumnId, resizeStart, columns]);
+
+  // Window-level event listeners for note resizing
+  useEffect(() => {
+    if (!resizingNoteId || !resizeStart) return;
+    const onMove = (e: PointerEvent) => {
+      const deltaX = e.clientX - resizeStart.x;
+      const deltaY = e.clientY - resizeStart.y;
+      const newWidth = Math.max(150, resizeStart.width + deltaX);
+      const newHeight = Math.max(100, resizeStart.height + deltaY);
+      setNotes(prev => prev.map(n => (n.id === resizingNoteId ? ({ ...n, width: newWidth, height: newHeight } as any) : n)));
+    };
+    const onUp = async () => {
+      const note = notes.find(n => n.id === resizingNoteId) as any;
+      if (note && (note.width || note.height)) {
+        await updateNote(resizingNoteId, { width: note.width, height: note.height } as any);
+      }
+      setResizingNoteId(null);
+      setResizeStart(null);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+  }, [resizingNoteId, resizeStart, notes]);
 
   const getApproxRect = (colId: string) => {
     const rect = columnRects[colId];
@@ -1451,6 +1701,25 @@ function PlannerBoard() {
               >
                 {connectMode ? 'Connecting… (click two columns)' : 'Connect Columns'}
               </button>
+              <div className="relative">
+                <button
+                  onClick={() => setIsNotePaletteOpen(v => !v)}
+                  className="gh-cta-button-secondary px-5 py-2 rounded-lg font-semibold bg-transparent"
+                >
+                  New Note
+                </button>
+                {isNotePaletteOpen && (
+                  <div className="absolute right-0 mt-2 bg-[#1a2332] border border-white/10 rounded-lg p-2 flex gap-2 z-40">
+                    {['yellow','pink','blue','green','purple','orange'].map(c => (
+                      <button key={c} onClick={() => { createNote(c); setIsNotePaletteOpen(false); }}
+                        className="w-6 h-6 rounded shadow border border-black/20" 
+                        style={{ backgroundColor: c === 'yellow' ? '#fde047' : c === 'pink' ? '#f9a8d4' : c === 'blue' ? '#7dd3fc' : c === 'green' ? '#86efac' : c === 'purple' ? '#c4b5fd' : '#fdba74' }}
+                        title={`Add ${c} note`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
               <button 
                 onClick={() => {
                   const boardName = prompt('Enter board name:');
@@ -1464,6 +1733,90 @@ function PlannerBoard() {
               </button>
             </div>
           </div>
+          {/* Note formatting toolbar (visible when a note is selected) */}
+          {selectedNoteId && (() => {
+              const n = notes.find(nn => nn.id === selectedNoteId);
+              if (!n) return null;
+              const st = n.style || {};
+              const setStyle = (partial: Partial<NonNullable<Note['style']>>) => {
+                updateNote(n.id, { style: { ...(n.style || {}), ...partial } });
+              };
+              const noteColors = ['yellow','pink','blue','green','purple','orange'];
+              return (
+                <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+                  <span className="text-slate-300 text-sm mr-2">Note style:</span>
+                  <div className="flex flex-wrap items-center gap-2 p-2 bg-white/5 border border-white/10 rounded-lg">
+                  <select
+                    value={st.fontFamily || ''}
+                    onChange={(e) => setStyle({ fontFamily: e.target.value || undefined })}
+                    className="px-2 py-1 bg-white/5 border border-white/10 rounded text-white text-sm"
+                    title="Font family"
+                  >
+                    <option className="bg-[#1a2332]" value="">Default</option>
+                    <option className="bg-[#1a2332]" value="Inter, system-ui, sans-serif">Inter</option>
+                    <option className="bg-[#1a2332]" value="Georgia, serif">Georgia</option>
+                    <option className="bg-[#1a2332]" value="'Times New Roman', serif">Times</option>
+                    <option className="bg-[#1a2332]" value="'Courier New', monospace">Courier</option>
+                    <option className="bg-[#1a2332]" value="Monaco, monospace">Monaco</option>
+                  </select>
+                  <select
+                    value={st.fontSize || 14}
+                    onChange={(e) => setStyle({ fontSize: Number(e.target.value) })}
+                    className="px-2 py-1 bg-white/5 border border-white/10 rounded text-white text-sm"
+                    title="Font size"
+                  >
+                    {[12,14,16,18,20,24,28].map(sz => (
+                      <option key={sz} className="bg-[#1a2332]" value={sz}>{sz}px</option>
+                    ))}
+                  </select>
+                  <button
+                    className={`px-2 py-1 rounded text-sm border ${st.bold ? 'bg-white/10 border-white/20 text-white' : 'bg-transparent border-white/10 text-slate-300'}`}
+                    onClick={() => setStyle({ bold: !st.bold })}
+                    title="Bold"
+                  >
+                    B
+                  </button>
+                  <button
+                    className={`px-2 py-1 rounded text-sm border italic ${st.italic ? 'bg-white/10 border-white/20 text-white' : 'bg-transparent border-white/10 text-slate-300'}`}
+                    onClick={() => setStyle({ italic: !st.italic })}
+                    title="Italic"
+                  >
+                    I
+                  </button>
+                  <button
+                    className={`px-2 py-1 rounded text-sm border underline ${st.underline ? 'bg-white/10 border-white/20 text-white' : 'bg-transparent border-white/10 text-slate-300'}`}
+                    onClick={() => setStyle({ underline: !st.underline })}
+                    title="Underline"
+                  >
+                    U
+                  </button>
+                  <div className="flex items-center gap-2 ml-2">
+                    <span className="text-slate-300 text-xs">Text</span>
+                    <input
+                      type="color"
+                      value={st.textColor || '#111827'}
+                      onChange={(e) => setStyle({ textColor: e.target.value })}
+                      className="w-8 h-8 p-0 border border-white/10 rounded"
+                      title="Text color"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 ml-2">
+                    <span className="text-slate-300 text-xs">Note</span>
+                    <div className="flex gap-1">
+                      {noteColors.map(c => (
+                        <button key={c}
+                          onClick={() => updateNote(n.id, { color: c })}
+                          className={`w-6 h-6 rounded border ${n.color === c ? 'border-white/70' : 'border-black/20'}`}
+                          style={{ backgroundColor: c === 'yellow' ? '#fde047' : c === 'pink' ? '#f9a8d4' : c === 'blue' ? '#7dd3fc' : c === 'green' ? '#86efac' : c === 'purple' ? '#c4b5fd' : '#fdba74' }}
+                          title={`Set ${c} note`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  </div>
+                </div>
+              );
+            })()}
         </div>
       </div>
 
@@ -1482,11 +1835,31 @@ function PlannerBoard() {
             <div className="relative overflow-auto pb-6" style={{ minHeight: '60vh' }}>
               <div ref={boardRef} className="relative" style={{ width: 2400, height: 1400 }}
                    onPointerMove={(e) => {
-                     if (!connectMode || !connectSource) return;
+                     if (!((connectMode && connectSource) || draggingConn)) return;
                      const el = boardRef.current; if (!el) return;
                      const rect = el.getBoundingClientRect();
                      setPointerPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-                   }}>
+                   }}
+                   onPointerUp={(e) => {
+                     if (!draggingConn) return;
+                     const el = boardRef.current; if (!el) return;
+                     const rect = el.getBoundingClientRect();
+                     const x = e.clientX - rect.left;
+                     const y = e.clientY - rect.top;
+                     const dropColId = columnIdAtPoint(x, y);
+                     const conn = connections.find(c => c.id === draggingConn.id);
+                     if (dropColId && conn) {
+                       if (draggingConn.end === 'source' && conn.sourceColumnId !== dropColId) {
+                         updateConnection(conn.id, { sourceColumnId: dropColId });
+                       } else if (draggingConn.end === 'target' && conn.targetColumnId !== dropColId) {
+                         updateConnection(conn.id, { targetColumnId: dropColId });
+                       }
+                     }
+                     setDraggingConn(null);
+                     setPointerPos(null);
+                   }}
+                   onClick={(e) => { if (e.target === e.currentTarget) { setSelectedNoteId(null); } }}
+              >
                 <svg className="absolute inset-0 w-full h-full pointer-events-none z-20">
                   <defs>
                     <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
@@ -1498,15 +1871,68 @@ function PlannerBoard() {
                     const src = chooseAnchor(c.sourceColumnId, { x: targetRect.x + targetRect.width / 2, y: targetRect.y + targetRect.height / 2 });
                     const dst = chooseAnchor(c.targetColumnId, { x: src.x, y: src.y });
                     const path = makeBezierPath({ x: src.x, y: src.y }, src.side, { x: dst.x, y: dst.y }, dst.side);
+                    const midX = (src.x + dst.x) / 2;
+                    const midY = (src.y + dst.y) / 2;
+                    const isSelected = selectedConnectionId === c.id;
                     return (
                       <g key={c.id}>
+                        {/* Visual path */}
                         <path d={path} stroke={c.color || '#f59e0b'} strokeWidth={2} fill="none" markerEnd="url(#arrowhead)" />
+                        {/* Click to select (only when NOT in connect mode) */}
+                        {!connectMode && (
+                          <path
+                            d={path}
+                            stroke="transparent"
+                            strokeWidth={16}
+                            fill="none"
+                            style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+                            onClick={(e) => { e.stopPropagation(); setSelectedConnectionId(c.id); }}
+                          />
+                        )}
                         {c.label && (
-                          <text x={(src.x + dst.x) / 2} y={(src.y + dst.y) / 2 - 6} fill="#fff" fontSize="12" textAnchor="middle">{c.label}</text>
+                          <text x={midX} y={midY - 6} fill="#fff" fontSize="12" textAnchor="middle">{c.label}</text>
+                        )}
+                        {/* Endpoint handles for drag-to-edit (only when selected and NOT in connect mode) */}
+                        {!connectMode && isSelected && (
+                          <>
+                            <circle cx={src.x} cy={src.y} r={6} fill="#1f2937" stroke="#94a3b8" strokeWidth={2}
+                              style={{ pointerEvents: 'auto', cursor: 'grab' }}
+                              onPointerDown={(e) => { e.stopPropagation(); setSelectedConnectionId(c.id); setDraggingConn({ id: c.id, end: 'source' }); }} />
+                            <circle cx={dst.x} cy={dst.y} r={6} fill="#1f2937" stroke="#94a3b8" strokeWidth={2}
+                              style={{ pointerEvents: 'auto', cursor: 'grab' }}
+                              onPointerDown={(e) => { e.stopPropagation(); setSelectedConnectionId(c.id); setDraggingConn({ id: c.id, end: 'target' }); }} />
+                          </>
+                        )}
+                        {/* Delete control at midpoint (only when selected and NOT in connect mode) */}
+                        {!connectMode && isSelected && (
+                          <g onClick={(e) => { e.stopPropagation(); deleteConnection(c.id); }} style={{ cursor: 'pointer', pointerEvents: 'auto' }}>
+                            <circle cx={midX} cy={midY} r={10} fill="#1f2937" stroke="#f87171" strokeWidth={2} />
+                            <text x={midX} y={midY + 4} fill="#f87171" fontSize="12" textAnchor="middle">×</text>
+                          </g>
                         )}
                       </g>
                     );
                   })}
+                  {/* Live preview while dragging an existing connection end */}
+                  {draggingConn && pointerPos && (() => {
+                    const conn = connections.find(cc => cc.id === draggingConn.id);
+                    if (!conn) return null;
+                    if (draggingConn.end === 'source') {
+                      const dst = chooseAnchor(conn.targetColumnId, pointerPos);
+                      const sideA: AnchorSide = Math.abs(pointerPos.x - dst.x) > Math.abs(pointerPos.y - dst.y)
+                        ? (pointerPos.x > dst.x ? 'right' : 'left')
+                        : (pointerPos.y > dst.y ? 'bottom' : 'top');
+                      const live = makeBezierPath({ x: pointerPos.x, y: pointerPos.y }, sideA, { x: dst.x, y: dst.y }, dst.side);
+                      return <path d={live} stroke="#94a3b8" strokeDasharray="6 4" strokeWidth={2} fill="none" />;
+                    } else {
+                      const src2 = chooseAnchor(conn.sourceColumnId, pointerPos);
+                      const sideB: AnchorSide = Math.abs(pointerPos.x - src2.x) > Math.abs(pointerPos.y - src2.y)
+                        ? (pointerPos.x > src2.x ? 'right' : 'left')
+                        : (pointerPos.y > src2.y ? 'bottom' : 'top');
+                      const live = makeBezierPath({ x: src2.x, y: src2.y }, src2.side, { x: pointerPos.x, y: pointerPos.y }, sideB);
+                      return <path d={live} stroke="#94a3b8" strokeDasharray="6 4" strokeWidth={2} fill="none" />;
+                    }
+                  })()}
                   {connectMode && connectSource && pointerPos && (() => {
                     const src = chooseAnchor(connectSource, pointerPos);
                     // Infer a reasonable side for the pointer to shape the curve
@@ -1520,8 +1946,10 @@ function PlannerBoard() {
                 {columns.map((column) => {
                   const posX = (column as any).x ?? ((column as any).order || 0) * 320;
                   const posY = (column as any).y ?? 0;
+                  const colWidth = (column as any).width || 320;
+                  const colHeight = (column as any).height || 260;
                   return (
-                    <div key={column.id} className="absolute" style={{ left: posX, top: posY }} ref={setColumnRef(column.id)}>
+                    <div key={column.id} className="absolute" style={{ left: posX, top: posY, width: colWidth, height: colHeight }} ref={setColumnRef(column.id)}>
                       <Column
                         column={column}
                         tasks={tasksByColumn[column.id] || []}
@@ -1532,9 +1960,78 @@ function PlannerBoard() {
                         isDragging={draggingColumnId === column.id}
                         onDragHandlePointerDown={handleColumnHandlePointerDown(column.id)}
                       />
+                      {/* Resize handle */}
+                      <div
+                        className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize z-50"
+                        style={{ background: 'linear-gradient(135deg, transparent 50%, rgba(148, 163, 184, 0.5) 50%)' }}
+                        onPointerDown={handleColumnResizeStart(column.id)}
+                        title="Resize column"
+                      />
                     </div>
                   );
                 })}
+                {(() => {
+                  const colorClass = (c: string) => {
+                    const map: Record<string, string> = {
+                      yellow: 'bg-yellow-300',
+                      pink: 'bg-pink-300',
+                      blue: 'bg-sky-300',
+                      green: 'bg-green-300',
+                      purple: 'bg-purple-300',
+                      orange: 'bg-orange-300',
+                    };
+                    return map[c] || 'bg-yellow-300';
+                  };
+                  return notes.map((note) => {
+                    const st = note.style || {};
+                    const textStyle: React.CSSProperties = {
+                      color: st.textColor || undefined,
+                      fontFamily: st.fontFamily || undefined,
+                      fontSize: st.fontSize ? `${st.fontSize}px` : undefined,
+                      fontWeight: st.bold ? 700 as React.CSSProperties['fontWeight'] : 400 as React.CSSProperties['fontWeight'],
+                      fontStyle: st.italic ? 'italic' : 'normal',
+                      textDecoration: st.underline ? 'underline' : 'none',
+                    };
+                    const isSelected = selectedNoteId === note.id;
+                    const noteWidth = (note as any).width || 224;
+                    const noteHeight = (note as any).height || 150;
+                    return (
+                      <div key={note.id} className="absolute z-30" style={{ left: note.x || 0, top: note.y || 0, width: noteWidth }} onClick={(e) => { e.stopPropagation(); setSelectedNoteId(note.id); }}>
+                        {/* Pin icon at top center */}
+                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
+                          <Pin className="w-7 h-7 text-red-600 fill-red-600" style={{ transform: 'rotate(45deg)' }} />
+                        </div>
+                        <div className={`rounded shadow-lg border ${isSelected ? 'border-orange-400 ring-2 ring-orange-400/50' : 'border-black/20'} ${colorClass(note.color)} text-slate-900`} style={{ width: noteWidth, minHeight: noteHeight }}> 
+                          <div className="px-2 py-1 cursor-move bg-black/10 rounded-t" onPointerDown={handleNotePointerDown(note.id)} />
+                          <div className="p-3" style={{ minHeight: noteHeight - 32 }}>
+                            {editingNoteId === note.id ? (
+                              <textarea
+                                value={editingNoteText}
+                                onChange={(e) => setEditingNoteText(e.target.value)}
+                                onBlur={() => { const t = editingNoteText.trim(); updateNote(note.id, { content: t }); setEditingNoteId(null); }}
+                                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { (e.currentTarget as HTMLTextAreaElement).blur(); } if (e.key === 'Escape') { setEditingNoteId(null); }} }
+                                className="w-full bg-transparent outline-none text-sm"
+                                style={{ ...textStyle, minHeight: noteHeight - 56 }}
+                                autoFocus
+                              />
+                            ) : (
+                              <div className="text-sm whitespace-pre-wrap" style={{ ...textStyle, minHeight: noteHeight - 56 }} onClick={() => { setEditingNoteId(note.id); setEditingNoteText(note.content || ''); }}>
+                                {note.content || 'Click to type...'}
+                              </div>
+                            )}
+                          </div>
+                          {/* Resize handle */}
+                          <div
+                            className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize z-50"
+                            style={{ background: 'linear-gradient(135deg, transparent 50%, rgba(71, 85, 105, 0.5) 50%)' }}
+                            onPointerDown={handleNoteResizeStart(note.id)}
+                            title="Resize note"
+                          />
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             </div>
           </DragDropContext>

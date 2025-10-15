@@ -190,6 +190,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   width={68} 
                   height={68}
                   className="relative"
+                  unoptimized
                 />
               </div>
               <span className="text-3xl font-bold text-white">Gh Planner</span>

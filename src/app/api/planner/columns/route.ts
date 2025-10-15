@@ -28,6 +28,8 @@ export async function GET(request: NextRequest) {
         boardId: column.board_id,
         x: typeof column.x === 'number' ? column.x : 0,
         y: typeof column.y === 'number' ? column.y : 0,
+        width: typeof column.width === 'number' ? column.width : undefined,
+        height: typeof column.height === 'number' ? column.height : undefined,
         created_at: new Date(column.created_at * 1000).toISOString(),
         updated_at: new Date(column.updated_at * 1000).toISOString(),
         requiresPr: !!column.requires_pr,
@@ -48,7 +50,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, color, boardId, requiresPr, moveToColumnOnMerge, moveToColumnOnClosed, moveToColumnOnRequestChanges, x, y } = body;
+    const { name, color, boardId, requiresPr, moveToColumnOnMerge, moveToColumnOnClosed, moveToColumnOnRequestChanges, x, y, width, height } = body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return NextResponse.json(
@@ -89,6 +91,8 @@ export async function POST(request: NextRequest) {
       board_id: boardId,
       x: typeof x === 'number' ? Math.round(x) : nextOrder * 320,
       y: typeof y === 'number' ? Math.round(y) : 0,
+      width: typeof width === 'number' ? Math.round(width) : null,
+      height: typeof height === 'number' ? Math.round(height) : null,
       created_at: dateToTimestamp(now),
       updated_at: dateToTimestamp(now),
       requires_pr: typeof requiresPr === 'boolean' ? requiresPr : 0,
@@ -107,6 +111,8 @@ export async function POST(request: NextRequest) {
       boardId: column.board_id,
       x: column.x || 0,
       y: column.y || 0,
+      width: column.width || undefined,
+      height: column.height || undefined,
       created_at: new Date((column as any).created_at * 1000).toISOString(),
       updated_at: new Date((column as any).updated_at * 1000).toISOString(),
       requiresPr: !!column.requires_pr,
@@ -135,7 +141,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, name, color, order, requiresPr, moveToColumnOnMerge, moveToColumnOnClosed, moveToColumnOnRequestChanges, x, y } = body;
+    const { id, name, color, order, requiresPr, moveToColumnOnMerge, moveToColumnOnClosed, moveToColumnOnRequestChanges, x, y, width, height } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -207,6 +213,26 @@ export async function PUT(request: NextRequest) {
       (updateData as any).y = Math.round(y);
     }
 
+    if (width !== undefined) {
+      if (typeof width !== 'number' || !Number.isFinite(width)) {
+        return NextResponse.json(
+          { error: 'width must be a number' },
+          { status: 400 }
+        );
+      }
+      (updateData as any).width = Math.round(width);
+    }
+
+    if (height !== undefined) {
+      if (typeof height !== 'number' || !Number.isFinite(height)) {
+        return NextResponse.json(
+          { error: 'height must be a number' },
+          { status: 400 }
+        );
+      }
+      (updateData as any).height = Math.round(height);
+    }
+
     if (moveToColumnOnMerge !== undefined) {
       if (moveToColumnOnMerge !== null && typeof moveToColumnOnMerge !== 'string') {
         return NextResponse.json(
@@ -256,6 +282,8 @@ export async function PUT(request: NextRequest) {
     if ((updateData as any).requiresPr !== undefined) translated.requires_pr = (updateData as any).requiresPr ? 1 : 0;
     if ((updateData as any).x !== undefined) translated.x = (updateData as any).x;
     if ((updateData as any).y !== undefined) translated.y = (updateData as any).y;
+    if ((updateData as any).width !== undefined) translated.width = (updateData as any).width;
+    if ((updateData as any).height !== undefined) translated.height = (updateData as any).height;
     if ((updateData as any).moveToColumnOnMerge !== undefined) translated.move_to_column_on_merge = (updateData as any).moveToColumnOnMerge || null;
     if ((updateData as any).moveToColumnOnClosed !== undefined) translated.move_to_column_on_closed = (updateData as any).moveToColumnOnClosed || null;
     if ((updateData as any).moveToColumnOnRequestChanges !== undefined) translated.move_to_column_on_request_changes = (updateData as any).moveToColumnOnRequestChanges || null;
@@ -270,6 +298,8 @@ export async function PUT(request: NextRequest) {
       boardId: updated.board_id,
       x: typeof updated.x === 'number' ? updated.x : 0,
       y: typeof updated.y === 'number' ? updated.y : 0,
+      width: typeof updated.width === 'number' ? updated.width : undefined,
+      height: typeof updated.height === 'number' ? updated.height : undefined,
       created_at: new Date(updated.created_at * 1000).toISOString(),
       updated_at: new Date(updated.updated_at * 1000).toISOString(),
       requiresPr: !!updated.requires_pr,

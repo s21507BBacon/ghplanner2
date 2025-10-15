@@ -1,10 +1,11 @@
 /** @type {import('next').NextConfig} */
+const isCloudflarePages = process.env.CF_PAGES === '1' || process.env.CF_PAGES === 'true' || process.env.BUILDING_FOR_CLOUDFLARE === 'true';
 const nextConfig = {
   // Use standalone for Docker builds, but not for Cloudflare
-  output: process.env.BUILDING_FOR_CLOUDFLARE ? undefined : 'standalone',
+  output: isCloudflarePages ? undefined : 'standalone',
   // Disable image optimization for Cloudflare Pages
   images: {
-    unoptimized: process.env.BUILDING_FOR_CLOUDFLARE === 'true',
+    unoptimized: isCloudflarePages,
   },
   eslint: {
     ignoreDuringBuilds: true,
@@ -22,7 +23,7 @@ const nextConfig = {
       },
     },
     // For Cloudflare builds, disable ISR cache
-    ...(process.env.BUILDING_FOR_CLOUDFLARE === 'true' && {
+    ...(isCloudflarePages && {
       isrMemoryCacheSize: 0,
     }),
   },

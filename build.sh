@@ -99,7 +99,6 @@ cat > .open-next/_routes.json << 'EOF'
   "include": ["/*"],
   "exclude": [
     "/_next/static/*",
-    "/_next/image*",
     "/assets/*",
     "/custom_static/*",
     "/favicon.ico",

@@ -67,6 +67,9 @@ Examples:
 
 - `003_add_github_oauth.sql` - Adds GitHub OAuth support
 - `004_enhance_member_roles_and_profiles.sql` - Adds new role system, profile images, and activity tracking
+- `005_add_column_position_coordinates.sql` - Adds x,y coordinates for free column positioning
+- `006_create_connections_table.sql` - Creates connections table for column arrows
+- `007_create_notes_table.sql` - Creates notes table for sticky notes on boards
 - `add_image_url_to_comments.sql` - Adds image support to task comments
 
 ## Troubleshooting

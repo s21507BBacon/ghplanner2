@@ -338,6 +338,21 @@ BEGIN
     END IF;
 END $$;
 
+-- Sticky notes table
+CREATE TABLE IF NOT EXISTS notes (
+  id TEXT PRIMARY KEY,
+  board_id TEXT NOT NULL,
+  x INTEGER NOT NULL,
+  y INTEGER NOT NULL,
+  color TEXT NOT NULL,
+  content TEXT NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
+  FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_notes_board ON notes(board_id);
+
 -- Migration: Add free-position coordinates to columns (x, y) if not exists
 DO $$
 BEGIN

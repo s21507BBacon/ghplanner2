@@ -303,3 +303,25 @@ export interface Connection {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface NoteStyle {
+  fontSize?: number;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  fontFamily?: string;
+  textColor?: string; // hex or CSS color string
+}
+
+export interface Note {
+  _id?: string;
+  id: string;
+  boardId: string;
+  x: number;
+  y: number;
+  color: string; // e.g. 'yellow' | 'pink' | 'blue' | 'green' | 'purple'
+  content: string;
+  style?: NoteStyle;
+  createdAt: Date;
+  updatedAt: Date;
+}

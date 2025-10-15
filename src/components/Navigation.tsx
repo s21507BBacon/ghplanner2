@@ -148,6 +148,7 @@ export default function Navigation() {
                 height={68} 
                 className="relative"
                 priority
+                unoptimized
               />
             </div>
             <span className="text-3xl font-bold text-white">Gh Planner</span>
