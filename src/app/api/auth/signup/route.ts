@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
     const otpCode = generateOTP();
     const now = new Date();
     const nowTimestamp = dateToTimestamp(now);
-    const expiresAt = new Date(now.getTime() + 10 * 60 * 1000); // 10 minutes
+    const expiresAt = new Date(now.getTime() + 5 * 60 * 1000); // 5 minutes
     const expiresTimestamp = dateToTimestamp(expiresAt);
 
     if (user) {
@@ -142,32 +142,32 @@ export async function POST(request: NextRequest) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Your Verification Code</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f8fafc;">
-  <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-    <div style="background-color: white; border-radius: 8px; padding: 40px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: linear-gradient(135deg, #0f1729 0%, #1a2332 50%, #1e293b 100%);">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background-color: #1a2332; border-radius: 12px; padding: 40px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); border: 1px solid rgba(255, 255, 255, 0.1);">
       <div style="text-align: center; margin-bottom: 30px;">
-        <h1 style="color: #2563eb; margin: 0; font-size: 28px;">GitHub Planner</h1>
+        <h1 style="background: linear-gradient(135deg, #f97316 0%, #10b981 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin: 0; font-size: 32px; font-weight: 700;">Gh Planner</h1>
       </div>
       
-      <h2 style="color: #1e293b; margin: 0 0 20px 0; font-size: 24px;">
+      <h2 style="color: #ffffff; margin: 0 0 20px 0; font-size: 24px; font-weight: 600;">
         Welcome${name ? ` ${name}` : ''}!
       </h2>
       
-      <p style="color: #475569; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
+      <p style="color: #cbd5e1; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
         Your verification code is:
       </p>
       
-      <div style="background-color: #f1f5f9; border-radius: 8px; padding: 24px; text-align: center; margin: 30px 0;">
-        <div style="font-size: 36px; font-weight: bold; letter-spacing: 4px; color: #1e293b; font-family: 'Courier New', monospace;">
+      <div style="background: linear-gradient(135deg, rgba(249, 115, 22, 0.1) 0%, rgba(16, 185, 129, 0.1) 100%); border: 2px solid rgba(249, 115, 22, 0.3); border-radius: 12px; padding: 24px; text-align: center; margin: 30px 0;">
+        <div style="font-size: 36px; font-weight: bold; letter-spacing: 4px; color: #f97316; font-family: 'Courier New', monospace;">
           ${otpCode}
         </div>
       </div>
       
-      <p style="color: #64748b; font-size: 14px; line-height: 20px; margin: 20px 0 0 0;">
-        This code will expire in 10 minutes. Enter it to complete your sign up.
+      <p style="color: #94a3b8; font-size: 14px; line-height: 20px; margin: 20px 0 0 0;">
+        This code will expire in 5 minutes. Enter it to complete your sign up.
       </p>
       
-      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;">
+      <hr style="border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 30px 0;">
       
       <p style="color: #94a3b8; font-size: 12px; line-height: 18px; margin: 0;">
         If you didn't request this code, you can safely ignore this email.
@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
     </div>
     
     <div style="text-align: center; margin-top: 20px; color: #94a3b8; font-size: 12px;">
-      <p style="margin: 0;">© ${new Date().getFullYear()} GitHub Planner. All rights reserved.</p>
+      <p style="margin: 0;">© ${new Date().getFullYear()} Gh Planner. All rights reserved.</p>
     </div>
   </div>
 </body>
@@ -187,7 +187,7 @@ Welcome${name ? ` ${name}` : ''}!
 
 Your verification code is: ${otpCode}
 
-This code will expire in 10 minutes.
+This code will expire in 5 minutes.
 
 If you didn't request this code, you can safely ignore this email.
     `.trim();
@@ -197,7 +197,7 @@ If you didn't request this code, you can safely ignore this email.
       console.log('[SIGNUP] Sending verification code to:', email);
       await sendEmail({
         to: email,
-        subject: 'Your Verification Code - GitHub Planner',
+        subject: 'Your Verification Code - Gh Planner',
         html,
         text,
       });

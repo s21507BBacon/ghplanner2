@@ -75,7 +75,7 @@ export async function sendEmail({ to, subject, html, text }: SendEmailOptions) {
     console.log('[EMAIL] Subject:', subject);
     
     const resend = getResendClient();
-    const fromEmail = process.env.EMAIL_FROM || 'GitHub Planner <onboarding@resend.dev>';
+    const fromEmail = process.env.EMAIL_FROM || 'Gh Planner <onboarding@resend.dev>';
     
     console.log('[EMAIL] From:', fromEmail);
     
@@ -141,44 +141,44 @@ export async function sendVerificationEmail(email: string, token: string, name?:
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Verify Your Email</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f8fafc;">
-  <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-    <div style="background-color: white; border-radius: 8px; padding: 40px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: linear-gradient(135deg, #0f1729 0%, #1a2332 50%, #1e293b 100%);">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background-color: #1a2332; border-radius: 12px; padding: 40px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); border: 1px solid rgba(255, 255, 255, 0.1);">
       <div style="text-align: center; margin-bottom: 30px;">
-        <h1 style="color: #2563eb; margin: 0; font-size: 28px;">GitHub Planner</h1>
+        <h1 style="background: linear-gradient(135deg, #f97316 0%, #10b981 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin: 0; font-size: 32px; font-weight: 700;">Gh Planner</h1>
       </div>
       
-      <h2 style="color: #1e293b; margin: 0 0 20px 0; font-size: 24px;">
+      <h2 style="color: #ffffff; margin: 0 0 20px 0; font-size: 24px; font-weight: 600;">
         Welcome${name ? ` ${name}` : ''}!
       </h2>
       
-      <p style="color: #475569; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
-        Thanks for signing up for GitHub Planner. To complete your registration and verify your email address, please click the button below:
+      <p style="color: #cbd5e1; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
+        Thanks for signing up for Gh Planner. To complete your registration and verify your email address, please click the button below:
       </p>
       
       <div style="text-align: center; margin: 30px 0;">
         <a href="${verificationUrl}" 
-           style="display: inline-block; background-color: #2563eb; color: white; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: 600; font-size: 16px;">
+           style="display: inline-block; background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(249, 115, 22, 0.4);">
           Verify Email Address
         </a>
       </div>
       
-      <p style="color: #64748b; font-size: 14px; line-height: 20px; margin: 20px 0 0 0;">
+      <p style="color: #94a3b8; font-size: 14px; line-height: 20px; margin: 20px 0 0 0;">
         Or copy and paste this link into your browser:<br>
-        <a href="${verificationUrl}" style="color: #2563eb; word-break: break-all;">
+        <a href="${verificationUrl}" style="color: #f97316; word-break: break-all; text-decoration: underline;">
           ${verificationUrl}
         </a>
       </p>
       
-      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;">
+      <hr style="border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 30px 0;">
       
       <p style="color: #94a3b8; font-size: 12px; line-height: 18px; margin: 0;">
-        This link will expire in 24 hours. If you didn't create an account with GitHub Planner, you can safely ignore this email.
+        This link will expire in 24 hours. If you didn't create an account with Gh Planner, you can safely ignore this email.
       </p>
     </div>
     
     <div style="text-align: center; margin-top: 20px; color: #94a3b8; font-size: 12px;">
-      <p style="margin: 0;">© ${new Date().getFullYear()} GitHub Planner. All rights reserved.</p>
+      <p style="margin: 0;">© ${new Date().getFullYear()} Gh Planner. All rights reserved.</p>
     </div>
   </div>
 </body>
@@ -188,16 +188,16 @@ export async function sendVerificationEmail(email: string, token: string, name?:
   const text = `
 Welcome${name ? ` ${name}` : ''}!
 
-Thanks for signing up for GitHub Planner. To complete your registration and verify your email address, please visit:
+Thanks for signing up for Gh Planner. To complete your registration and verify your email address, please visit:
 
 ${verificationUrl}
 
-This link will expire in 24 hours. If you didn't create an account with GitHub Planner, you can safely ignore this email.
+This link will expire in 24 hours. If you didn't create an account with Gh Planner, you can safely ignore this email.
   `.trim();
 
   await sendEmail({
     to: email,
-    subject: 'Verify Your Email - GitHub Planner',
+    subject: 'Verify Your Email - Gh Planner',
     html,
     text,
   });
@@ -223,40 +223,40 @@ export async function sendEnterpriseInviteEmail(
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Enterprise Invitation</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f8fafc;">
-  <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-    <div style="background-color: white; border-radius: 8px; padding: 40px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: linear-gradient(135deg, #0f1729 0%, #1a2332 50%, #1e293b 100%);">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background-color: #1a2332; border-radius: 12px; padding: 40px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); border: 1px solid rgba(255, 255, 255, 0.1);">
       <div style="text-align: center; margin-bottom: 30px;">
-        <h1 style="color: #2563eb; margin: 0; font-size: 28px;">GitHub Planner</h1>
+        <h1 style="background: linear-gradient(135deg, #f97316 0%, #10b981 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin: 0; font-size: 32px; font-weight: 700;">Gh Planner</h1>
       </div>
       
-      <h2 style="color: #1e293b; margin: 0 0 20px 0; font-size: 24px;">
+      <h2 style="color: #ffffff; margin: 0 0 20px 0; font-size: 24px; font-weight: 600;">
         ${greeting}!
       </h2>
       
-      <p style="color: #475569; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
-        ${invitedByName} has invited you to join the <strong>${enterpriseName}</strong> enterprise on GitHub Planner.
+      <p style="color: #cbd5e1; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
+        ${invitedByName} has invited you to join the <strong style="color: #f97316;">${enterpriseName}</strong> enterprise on Gh Planner.
       </p>
       
-      <p style="color: #475569; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
+      <p style="color: #cbd5e1; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
         Click the button below to accept this invitation. If you don't have an account yet, you'll be able to create one.
       </p>
       
       <div style="text-align: center; margin: 30px 0;">
         <a href="${inviteUrl}" 
-           style="display: inline-block; background-color: #2563eb; color: white; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: 600; font-size: 16px;">
+           style="display: inline-block; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);">
           Accept Invitation
         </a>
       </div>
       
-      <p style="color: #64748b; font-size: 14px; line-height: 20px; margin: 20px 0 0 0;">
+      <p style="color: #94a3b8; font-size: 14px; line-height: 20px; margin: 20px 0 0 0;">
         Or copy and paste this link into your browser:<br>
-        <a href="${inviteUrl}" style="color: #2563eb; word-break: break-all;">
+        <a href="${inviteUrl}" style="color: #10b981; word-break: break-all; text-decoration: underline;">
           ${inviteUrl}
         </a>
       </p>
       
-      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;">
+      <hr style="border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 30px 0;">
       
       <p style="color: #94a3b8; font-size: 12px; line-height: 18px; margin: 0;">
         This invitation will expire in 7 days. If you weren't expecting this invitation, you can safely ignore this email.
@@ -264,7 +264,7 @@ export async function sendEnterpriseInviteEmail(
     </div>
     
     <div style="text-align: center; margin-top: 20px; color: #94a3b8; font-size: 12px;">
-      <p style="margin: 0;">© ${new Date().getFullYear()} GitHub Planner. All rights reserved.</p>
+      <p style="margin: 0;">© ${new Date().getFullYear()} Gh Planner. All rights reserved.</p>
     </div>
   </div>
 </body>
@@ -274,7 +274,7 @@ export async function sendEnterpriseInviteEmail(
   const text = `
 ${greeting}!
 
-${invitedByName} has invited you to join the ${enterpriseName} enterprise on GitHub Planner.
+${invitedByName} has invited you to join the ${enterpriseName} enterprise on Gh Planner.
 
 Click the link below to accept this invitation. If you don't have an account yet, you'll be able to create one.
 
@@ -285,7 +285,7 @@ This invitation will expire in 7 days. If you weren't expecting this invitation,
 
   await sendEmail({
     to: email,
-    subject: `You've been invited to join ${enterpriseName} on GitHub Planner`,
+    subject: `You've been invited to join ${enterpriseName} on Gh Planner`,
     html,
     text,
   });
