@@ -252,7 +252,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <div className="absolute right-0 mt-2 w-48 bg-[#1a2332] rounded-md shadow-lg border border-white/10 py-1 z-[100]">
                     <button
                       onClick={() => {
-                        router.push('/dashboard/settings');
+                        router.push('/settings');
                         setShowUserMenu(false);
                       }}
                       className="flex items-center w-full px-4 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white"

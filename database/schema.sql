@@ -252,12 +252,32 @@ CREATE TABLE IF NOT EXISTS columns (
   move_to_column_on_merge TEXT,
   move_to_column_on_closed TEXT,
   move_to_column_on_request_changes TEXT,
+  x INTEGER DEFAULT 0,
+  y INTEGER DEFAULT 0,
   created_at BIGINT NOT NULL,
   updated_at BIGINT NOT NULL,
   FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_columns_board ON columns(board_id, order_num);
+
+-- Connections table (arrows between columns)
+CREATE TABLE IF NOT EXISTS connections (
+  id TEXT PRIMARY KEY,
+  board_id TEXT NOT NULL,
+  source_column_id TEXT NOT NULL,
+  target_column_id TEXT NOT NULL,
+  label TEXT,
+  color TEXT,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
+  FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE,
+  FOREIGN KEY (source_column_id) REFERENCES columns(id) ON DELETE CASCADE,
+  FOREIGN KEY (target_column_id) REFERENCES columns(id) ON DELETE CASCADE,
+  UNIQUE(board_id, source_column_id, target_column_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_connections_board ON connections(board_id);
 
 -- Tasks table
 CREATE TABLE IF NOT EXISTS tasks (
@@ -315,6 +335,24 @@ BEGIN
                    AND column_name = 'github_token_encrypted') THEN
         ALTER TABLE enterprises ADD COLUMN github_token_encrypted TEXT;
         COMMENT ON COLUMN enterprises.github_token_encrypted IS 'Enterprise admin''s personal GitHub access token (encrypted)';
+    END IF;
+END $$;
+
+-- Migration: Add free-position coordinates to columns (x, y) if not exists
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'columns' AND column_name = 'x'
+    ) THEN
+        ALTER TABLE columns ADD COLUMN x INTEGER DEFAULT 0;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'columns' AND column_name = 'y'
+    ) THEN
+        ALTER TABLE columns ADD COLUMN y INTEGER DEFAULT 0;
     END IF;
 END $$;
 

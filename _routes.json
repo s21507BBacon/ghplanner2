@@ -8,7 +8,9 @@
     "/custom_static/*",
     "/favicon.ico",
     "/robots.txt",
-    "/sitemap.xml"
+    "/sitemap.xml",
+    "/*.png",
+    "/*.webmanifest"
   ]
 }
 

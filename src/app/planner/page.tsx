@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useMemo, Suspense } from 'react';
+import { useState, useEffect, useMemo, Suspense, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Plus, MoreHorizontal, ExternalLink, Calendar, User, X, Edit3, Trash2, Trash, GitMerge, AlertCircle, XCircle } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { Task, Board, type Column, STATUS_COLORS, getColumnColorClasses, COLUMN_COLORS } from '@/lib/types';
+import { Task, Board, type Column, type Connection, STATUS_COLORS, getColumnColorClasses, COLUMN_COLORS } from '@/lib/types';
 
 // Add project interface
 interface Project {
@@ -27,6 +27,7 @@ function StatusBadge({ status }: { status: string }) {
     'merged': 'Merged',
     'changes_requested': 'Changes Requested',
   };
+
 
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLORS[status as keyof typeof STATUS_COLORS] || STATUS_COLORS.pending}`}>
@@ -180,6 +181,7 @@ function Column({
   onDeleteColumn,
   onEditTask,
   isDragging = false,
+  onDragHandlePointerDown,
 }: {
   column: Column;
   tasks: Task[];
@@ -188,6 +190,7 @@ function Column({
   onDeleteColumn: (columnId: string) => void;
   onEditTask: (task: Task) => void;
   isDragging?: boolean;
+  onDragHandlePointerDown?: (e: any) => void;
 }) {
   const colors = getColumnColorClasses(column.color);
 
@@ -195,7 +198,7 @@ function Column({
     <div className={`flex flex-col h-full min-w-80 ${colors.bg} ${colors.border} border rounded-lg ${
       isDragging ? 'opacity-50 shadow-2xl' : ''
     }`}>
-      <div className={`${colors.header} ${colors.text} p-4 rounded-t-lg border-b ${colors.border} cursor-move`}>
+      <div className={`${colors.header} ${colors.text} p-4 rounded-t-lg border-b ${colors.border} cursor-move`} onPointerDown={onDragHandlePointerDown}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h3 className="font-semibold text-sm">{column.name}</h3>
@@ -528,6 +531,52 @@ function PlannerBoard() {
   const [prModalTask, setPrModalTask] = useState<Task | null>(null);
   const [pendingMove, setPendingMove] = useState<DropResult | null>(null);
 
+  const boardRef = useRef<HTMLDivElement | null>(null);
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [connectMode, setConnectMode] = useState(false);
+  const [connectSource, setConnectSource] = useState<string | null>(null);
+  const [pointerPos, setPointerPos] = useState<{ x: number; y: number } | null>(null);
+  const [draggingColumnId, setDraggingColumnId] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Track DOM rects of each column for accurate side anchors
+  const columnRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const [columnRects, setColumnRects] = useState<Record<string, { x: number; y: number; width: number; height: number }>>({});
+
+  const setColumnRef = (id: string) => (el: HTMLDivElement | null) => {
+    if (el) columnRefs.current.set(id, el);
+    else columnRefs.current.delete(id);
+  };
+
+  const computeColumnRects = useCallback(() => {
+    const boardEl = boardRef.current;
+    if (!boardEl) return;
+    const boardBox = boardEl.getBoundingClientRect();
+    const next: Record<string, { x: number; y: number; width: number; height: number }> = {};
+    columnRefs.current.forEach((el, id) => {
+      const r = el.getBoundingClientRect();
+      next[id] = { x: r.left - boardBox.left, y: r.top - boardBox.top, width: r.width, height: r.height };
+    });
+    setColumnRects(next);
+  }, []);
+
+  useEffect(() => {
+    computeColumnRects();
+  }, [columns, draggingColumnId, computeColumnRects]);
+
+  useEffect(() => {
+    const onResize = () => computeColumnRects();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [computeColumnRects]);
+
+  // Recompute positions when connections are loaded to ensure arrows connect properly
+  useEffect(() => {
+    if (connections.length > 0) {
+      setTimeout(() => computeColumnRects(), 50);
+    }
+  }, [connections, computeColumnRects]);
+
   // Project/company scoping from URL
   const searchParams = useSearchParams();
   const projectIdFromQuery = searchParams.get('projectId') || '';
@@ -622,6 +671,7 @@ function PlannerBoard() {
     if (selectedBoard) {
       fetchTasks();
       fetchColumns();
+      fetchConnections();
     }
   }, [selectedBoard]);
 
@@ -829,7 +879,39 @@ function PlannerBoard() {
     }
   };
 
-  const updateColumn = async (columnId: string, updates: { name?: string; color?: string; requiresPr?: boolean; moveToColumnOnMerge?: string; moveToColumnOnClosed?: string; moveToColumnOnRequestChanges?: string }) => {
+  const fetchConnections = async () => {
+    if (!selectedBoard) return;
+    try {
+      const res = await fetch(`/api/planner/connections?boardId=${selectedBoard}`);
+      const data = await res.json();
+      setConnections(data.connections || []);
+      // Recompute column positions after connections are loaded to ensure arrows are positioned correctly
+      setTimeout(() => computeColumnRects(), 100);
+    } catch (e) {
+      console.error('Failed to fetch connections:', e);
+    }
+  };
+
+  const createConnection = async (sourceColumnId: string, targetColumnId: string, label?: string, color?: string) => {
+    try {
+      const res = await fetch('/api/planner/connections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ boardId: selectedBoard, sourceColumnId, targetColumnId, label, color }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Failed to create connection');
+        return;
+      }
+      const conn = await res.json();
+      setConnections(prev => [...prev, conn]);
+    } catch (e) {
+      console.error('Failed to create connection:', e);
+    }
+  };
+
+  const updateColumn = async (columnId: string, updates: { name?: string; color?: string; requiresPr?: boolean; moveToColumnOnMerge?: string; moveToColumnOnClosed?: string; moveToColumnOnRequestChanges?: string; x?: number; y?: number }) => {
     try {
       console.log('Updating column:', columnId, 'with updates:', updates);
       const response = await fetch('/api/planner/columns', {
@@ -1130,6 +1212,126 @@ function PlannerBoard() {
     }, {} as Record<string, Task[]>);
   }, [columns, tasks]);
 
+  const handleColumnHandlePointerDown = (colId: string) => (e: any) => {
+    if (connectMode) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!connectSource) {
+        setConnectSource(colId);
+      } else if (connectSource !== colId) {
+        createConnection(connectSource, colId);
+        setConnectSource(null);
+      } else {
+        setConnectSource(null);
+      }
+      return;
+    }
+    const boardEl = boardRef.current;
+    if (!boardEl) return;
+    const rect = boardEl.getBoundingClientRect();
+    const col = columns.find(c => c.id === colId);
+    if (!col) return;
+    const baseX = (col as any).x ?? ((col as any).order || 0) * 320;
+    const baseY = (col as any).y ?? 0;
+    const offsetX = e.clientX - rect.left - baseX;
+    const offsetY = e.clientY - rect.top - baseY;
+    setDraggingColumnId(colId);
+    setDragOffset({ x: offsetX, y: offsetY });
+    if (e.target && typeof e.target.setPointerCapture === 'function') {
+      try { e.target.setPointerCapture(e.pointerId); } catch {}
+    }
+  };
+
+  useEffect(() => {
+    if (!draggingColumnId) return;
+    const onMove = (e: PointerEvent) => {
+      const boardEl = boardRef.current;
+      if (!boardEl) return;
+      const rect = boardEl.getBoundingClientRect();
+      let x = Math.round(e.clientX - rect.left - dragOffset.x);
+      let y = Math.round(e.clientY - rect.top - dragOffset.y);
+      x = Math.max(0, x);
+      y = Math.max(0, y);
+      setColumns(prev => prev.map(c => (c.id === draggingColumnId ? ({ ...c, x, y } as any) : c)));
+    };
+    const onUp = async () => {
+      const col = columns.find(c => c.id === draggingColumnId) as any;
+      if (col) {
+        const x = typeof col.x === 'number' ? col.x : 0;
+        const y = typeof col.y === 'number' ? col.y : 0;
+        await updateColumn(draggingColumnId, { x, y });
+      }
+      setDraggingColumnId(null);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+  }, [draggingColumnId, dragOffset, columns]);
+
+  const getApproxRect = (colId: string) => {
+    const rect = columnRects[colId];
+    if (rect) return rect;
+    const col = columns.find(c => c.id === colId) as any;
+    const x = (col?.x ?? ((col?.order || 0) * 320));
+    const y = (col?.y ?? 0);
+    const width = 320; // default min width
+    const height = 260; // reasonable default
+    return { x, y, width, height };
+  };
+
+  type AnchorSide = 'left' | 'right' | 'top' | 'bottom';
+
+  const chooseAnchor = (colId: string, toward: { x: number; y: number }) => {
+    const r = getApproxRect(colId);
+    const cx = r.x + r.width / 2;
+    const cy = r.y + r.height / 2;
+    const sides: { side: AnchorSide; x: number; y: number }[] = [
+      { side: 'left', x: r.x, y: cy },
+      { side: 'right', x: r.x + r.width, y: cy },
+      { side: 'top', x: cx, y: r.y },
+      { side: 'bottom', x: cx, y: r.y + r.height },
+    ];
+    let best = sides[0];
+    let bestD = Infinity;
+    for (const s of sides) {
+      const d = Math.hypot(s.x - toward.x, s.y - toward.y);
+      if (d < bestD) { best = s; bestD = d; }
+    }
+    return best; // {side, x, y}
+  };
+
+  const offsetAlongSide = (p: { x: number; y: number }, side: AnchorSide, delta: number) => {
+    if (side === 'left') return { x: p.x - delta, y: p.y };
+    if (side === 'right') return { x: p.x + delta, y: p.y };
+    if (side === 'top') return { x: p.x, y: p.y - delta };
+    return { x: p.x, y: p.y + delta };
+  };
+
+  const makeBezierPath = (a0: { x: number; y: number }, sideA: AnchorSide, b0: { x: number; y: number }, sideB: AnchorSide) => {
+    // Nudge start slightly outside; keep end exactly at edge so tip touches column
+    const start = offsetAlongSide(a0, sideA, 6);
+    const end = offsetAlongSide(b0, sideB, 0);
+    const dx = Math.abs(end.x - start.x);
+    const dy = Math.abs(end.y - start.y);
+    const k = Math.max(40, Math.max(dx, dy) / 2);
+    const c1 = { x: start.x, y: start.y };
+    const c2 = { x: end.x, y: end.y };
+    if (sideA === 'left') c1.x -= k;
+    if (sideA === 'right') c1.x += k;
+    if (sideA === 'top') c1.y -= k;
+    if (sideA === 'bottom') c1.y += k;
+
+    if (sideB === 'left') c2.x -= k;
+    if (sideB === 'right') c2.x += k;
+    if (sideB === 'top') c2.y -= k;
+    if (sideB === 'bottom') c2.y += k;
+
+    return `M ${start.x},${start.y} C ${c1.x},${c1.y} ${c2.x},${c2.y} ${end.x},${end.y}`;
+  };
+
   return (
     <div className="min-h-screen gh-hero-gradient">
       <div className="sticky top-24 bg-[#1a2332]/95 backdrop-blur-sm border-b border-white/10 z-10">
@@ -1179,6 +1381,19 @@ function PlannerBoard() {
               >
                 New Column
               </button>
+              <button
+                onClick={() => {
+                  setConnectMode((prev) => {
+                    const next = !prev;
+                    if (!next) setConnectSource(null);
+                    return next;
+                  });
+                }}
+                className={connectMode ? "gh-cta-button px-5 py-2 rounded-lg text-white font-semibold" : "gh-cta-button-secondary px-5 py-2 rounded-lg font-semibold bg-transparent"}
+                title="Connect columns: click a source column header, then a target column header"
+              >
+                {connectMode ? 'Connecting… (click two columns)' : 'Connect Columns'}
+              </button>
               <button 
                 onClick={() => {
                   const boardName = prompt('Enter board name:');
@@ -1207,38 +1422,64 @@ function PlannerBoard() {
           </div>
         ) : (
           <DragDropContext onDragEnd={onDragEnd}>
-            <Droppable droppableId="all-columns" direction="horizontal" type="column">
-              {(provided) => (
-                <div 
-                  className="flex gap-4 overflow-x-auto pb-6"
-                  ref={provided.innerRef}
-                  {...provided.droppableProps}
-                >
-                  {columns.map((column, index) => (
-                    <Draggable key={column.id} draggableId={`column-${column.id}`} index={index}>
-                      {(provided, snapshot) => (
-                        <div
-                          ref={provided.innerRef}
-                          {...provided.draggableProps}
-                          {...provided.dragHandleProps}
-                        >
-                          <Column
-                            column={column}
-                            tasks={tasksByColumn[column.id] || []}
-                            onAddTask={handleAddTask}
-                            onEditColumn={handleEditColumn}
-                            onDeleteColumn={handleDeleteColumn}
-                            onEditTask={handleEditTask}
-                            isDragging={snapshot.isDragging}
-                          />
-                        </div>
-                      )}
-                    </Draggable>
-                  ))}
-                  {provided.placeholder}
-                </div>
-              )}
-            </Droppable>
+            <div className="relative overflow-auto pb-6" style={{ minHeight: '60vh' }}>
+              <div ref={boardRef} className="relative" style={{ width: 2400, height: 1400 }}
+                   onPointerMove={(e) => {
+                     if (!connectMode || !connectSource) return;
+                     const el = boardRef.current; if (!el) return;
+                     const rect = el.getBoundingClientRect();
+                     setPointerPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+                   }}>
+                <svg className="absolute inset-0 w-full h-full pointer-events-none z-20">
+                  <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+                      <polygon points="0 0, 10 3.5, 0 7" fill="#f59e0b" />
+                    </marker>
+                  </defs>
+                  {connections.map((c) => {
+                    const targetRect = getApproxRect(c.targetColumnId);
+                    const src = chooseAnchor(c.sourceColumnId, { x: targetRect.x + targetRect.width / 2, y: targetRect.y + targetRect.height / 2 });
+                    const dst = chooseAnchor(c.targetColumnId, { x: src.x, y: src.y });
+                    const path = makeBezierPath({ x: src.x, y: src.y }, src.side, { x: dst.x, y: dst.y }, dst.side);
+                    return (
+                      <g key={c.id}>
+                        <path d={path} stroke={c.color || '#f59e0b'} strokeWidth={2} fill="none" markerEnd="url(#arrowhead)" />
+                        {c.label && (
+                          <text x={(src.x + dst.x) / 2} y={(src.y + dst.y) / 2 - 6} fill="#fff" fontSize="12" textAnchor="middle">{c.label}</text>
+                        )}
+                      </g>
+                    );
+                  })}
+                  {connectMode && connectSource && pointerPos && (() => {
+                    const src = chooseAnchor(connectSource, pointerPos);
+                    // Infer a reasonable side for the pointer to shape the curve
+                    const sideB: AnchorSide = Math.abs(pointerPos.x - src.x) > Math.abs(pointerPos.y - src.y)
+                      ? (pointerPos.x > src.x ? 'right' : 'left')
+                      : (pointerPos.y > src.y ? 'bottom' : 'top');
+                    const path = makeBezierPath({ x: src.x, y: src.y }, src.side, { x: pointerPos.x, y: pointerPos.y }, sideB);
+                    return <path d={path} stroke="#94a3b8" strokeDasharray="6 4" strokeWidth={2} fill="none" />;
+                  })()}
+                </svg>
+                {columns.map((column) => {
+                  const posX = (column as any).x ?? ((column as any).order || 0) * 320;
+                  const posY = (column as any).y ?? 0;
+                  return (
+                    <div key={column.id} className="absolute" style={{ left: posX, top: posY }} ref={setColumnRef(column.id)}>
+                      <Column
+                        column={column}
+                        tasks={tasksByColumn[column.id] || []}
+                        onAddTask={handleAddTask}
+                        onEditColumn={handleEditColumn}
+                        onDeleteColumn={handleDeleteColumn}
+                        onEditTask={handleEditTask}
+                        isDragging={draggingColumnId === column.id}
+                        onDragHandlePointerDown={handleColumnHandlePointerDown(column.id)}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </DragDropContext>
         )}
       </div>

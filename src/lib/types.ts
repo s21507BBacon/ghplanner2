@@ -55,6 +55,8 @@ export interface Column {
   boardId: string;
   createdAt: Date;
   updatedAt: Date;
+  x?: number;
+  y?: number;
   requiresPr?: boolean;
   moveToColumnOnMerge?: string; // Column ID to move tasks to when PR is merged
   moveToColumnOnClosed?: string; // Column ID to move tasks to when PR is closed (but not merged)
@@ -288,4 +290,16 @@ export interface EnterpriseInvite {
   expiresAt: Date;
   createdAt: Date;
   acceptedAt?: Date;
+}
+
+export interface Connection {
+  _id?: string;
+  id: string;
+  boardId: string;
+  sourceColumnId: string;
+  targetColumnId: string;
+  label?: string;
+  color?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
