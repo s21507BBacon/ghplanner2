@@ -55,6 +55,34 @@ else
   echo "Warning: .open-next/assets/_next directory not found"
 fi
 
+echo "Copying public folder assets..."
+if [ -d "public" ]; then
+  # Copy all public files to the root of .open-next for direct access
+  echo "Copying public files to .open-next root..."
+  for item in public/*; do
+    # Skip the custom_static directory as it's handled separately
+    if [ "$(basename "$item")" != "custom_static" ]; then
+      if [ -f "$item" ]; then
+        cp "$item" .open-next/
+        echo "Copied $(basename "$item")"
+      fi
+    fi
+  done
+  
+  # Also copy to assets folder for compatibility
+  echo "Copying public files to .open-next/assets..."
+  for item in public/*; do
+    if [ "$(basename "$item")" != "custom_static" ]; then
+      if [ -f "$item" ]; then
+        cp "$item" .open-next/assets/
+      fi
+    fi
+  done
+  echo "Public assets copied successfully"
+else
+  echo "Warning: public directory not found"
+fi
+
 echo "Copying custom static assets..."
 if [ -d "public/custom_static" ]; then
   mkdir -p .open-next/custom_static
@@ -75,6 +103,12 @@ cat > .open-next/_routes.json << 'EOF'
     "/assets/*",
     "/custom_static/*",
     "/favicon.ico",
+    "/favicon-*.png",
+    "/logo.png",
+    "/mcpeak-bacon-logo.png",
+    "/apple-touch-icon.png",
+    "/android-chrome-*.png",
+    "/site.webmanifest",
     "/robots.txt",
     "/sitemap.xml"
   ]
@@ -90,6 +124,16 @@ cat > .open-next/_headers << 'EOF'
   Cache-Control: public, max-age=31536000, immutable
 
 /custom_static/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Public image files
+/*.png
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.ico
+  Cache-Control: public, max-age=31536000, immutable
+
+/site.webmanifest
   Cache-Control: public, max-age=31536000, immutable
 EOF
 
