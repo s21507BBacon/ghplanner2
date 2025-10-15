@@ -7,10 +7,14 @@
     "/assets/*",
     "/custom_static/*",
     "/favicon.ico",
+    "/favicon-*.png",
+    "/logo.png",
+    "/mcpeak-bacon-logo.png",
+    "/apple-touch-icon.png",
+    "/android-chrome-*.png",
+    "/site.webmanifest",
     "/robots.txt",
-    "/sitemap.xml",
-    "/*.png",
-    "/*.webmanifest"
+    "/sitemap.xml"
   ]
 }
 

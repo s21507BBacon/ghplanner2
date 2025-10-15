@@ -329,6 +329,8 @@ function NewTaskModal({
   const [projectUsers, setProjectUsers] = useState<Array<{ id: string; name: string; email: string }>>([]);
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   useEffect(() => {
     if (isOpen && projectId) {
@@ -356,14 +358,13 @@ function NewTaskModal({
       title: title.trim(),
       description: description.trim() || undefined,
       columnId,
-      labels: labels
-        .split(',')
-        .map(l => l.trim())
-        .filter(Boolean),
+      labels: labels.trim() ? [labels.trim()] : [],
       prUrl: prUrl.trim() || undefined,
       assignees: assignees.length > 0 ? assignees : undefined,
       isLocked: isLocked,
-    });
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+    } as any);
 
     setTitle('');
     setDescription('');
@@ -371,6 +372,8 @@ function NewTaskModal({
     setPrUrl('');
     setAssignees([]);
     setIsLocked(false);
+    setStartDate('');
+    setEndDate('');
     onClose();
   };
 
@@ -378,12 +381,13 @@ function NewTaskModal({
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-[#1a2332] border border-white/10 rounded-lg max-w-md w-full max-h-96 overflow-y-auto shadow-2xl">
+      <div className="bg-[#1a2332] border border-white/10 rounded-lg w-1/2 max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl">
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <h3 className="text-xl font-semibold text-white">
             Add Task to {columnName}
           </h3>
 
+          {/* Title */}
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">
               Title *
@@ -398,6 +402,118 @@ function NewTaskModal({
             />
           </div>
 
+          {/* Assignment / Lock row */}
+          <div className="flex items-center gap-4">
+            <div className="relative flex-1">
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Assignees
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowAssigneeDropdown(!showAssigneeDropdown)}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-left focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+              >
+                {assignees.length === 0 ? (
+                  <span className="text-slate-400">Select assignees...</span>
+                ) : (
+                  <span className="text-white">
+                    {assignees.length} user{assignees.length > 1 ? 's' : ''} selected
+                  </span>
+                )}
+              </button>
+              {showAssigneeDropdown && (
+                <div className="absolute z-10 w-full mt-1 bg-[#1a2332] border border-white/10 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {projectUsers.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-slate-400">No users in this project</div>
+                  ) : (
+                    projectUsers.map(user => (
+                      <label key={user.id} className="flex items-center px-3 py-2 hover:bg-white/5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={assignees.includes(user.id)}
+                          onChange={() => toggleAssignee(user.id)}
+                          className="mr-2"
+                        />
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-white">{user.name}</div>
+                          <div className="text-xs text-slate-400">{user.email}</div>
+                        </div>
+                      </label>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="flex items-end pb-3">
+              <label className="inline-flex items-center gap-2 text-sm text-slate-300">
+                <input type="checkbox" checked={isLocked} onChange={(e) => setIsLocked(e.target.checked)} />
+                Lock task
+              </label>
+            </div>
+          </div>
+
+          {/* Column / Label / Attachments row */}
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Column
+              </label>
+              <input
+                type="text"
+                value={columnName}
+                disabled
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-slate-400 cursor-not-allowed"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Label
+              </label>
+              <input
+                type="text"
+                value={labels}
+                onChange={(e) => setLabels(e.target.value)}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                placeholder="Enter label..."
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Attachments
+              </label>
+              <div className="px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-slate-400 text-sm">
+                Upload files
+              </div>
+            </div>
+          </div>
+
+          {/* Start date / End date row */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Start date (optional)
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                End date (optional)
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+              />
+            </div>
+          </div>
+
+          {/* Description */}
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">
               Description
@@ -405,28 +521,16 @@ function NewTaskModal({
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              rows={3}
+              rows={5}
               className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
               placeholder="Enter task description..."
             />
           </div>
 
+          {/* PR Link */}
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">
-              Labels (comma-separated)
-            </label>
-            <input
-              type="text"
-              value={labels}
-              onChange={(e) => setLabels(e.target.value)}
-              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
-              placeholder="bug, feature, urgent..."
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              PR URL
+              PR Link
             </label>
             <input
               type="text"
@@ -437,67 +541,20 @@ function NewTaskModal({
             />
           </div>
 
-          <div className="relative">
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Assignees
-            </label>
-            <button
-              type="button"
-              onClick={() => setShowAssigneeDropdown(!showAssigneeDropdown)}
-              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-left focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
-            >
-              {assignees.length === 0 ? (
-                <span className="text-slate-400">Select assignees...</span>
-              ) : (
-                <span className="text-white">
-                  {assignees.length} user{assignees.length > 1 ? 's' : ''} selected
-                </span>
-              )}
-            </button>
-            {showAssigneeDropdown && (
-              <div className="absolute z-10 w-full mt-1 bg-[#1a2332] border border-white/10 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                {projectUsers.length === 0 ? (
-                  <div className="px-3 py-2 text-sm text-slate-400">No users in this project</div>
-                ) : (
-                  projectUsers.map(user => (
-                    <label key={user.id} className="flex items-center px-3 py-2 hover:bg-white/5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={assignees.includes(user.id)}
-                        onChange={() => toggleAssignee(user.id)}
-                        className="mr-2"
-                      />
-                      <div className="flex-1">
-                        <div className="text-sm font-medium text-white">{user.name}</div>
-                        <div className="text-xs text-slate-400">{user.email}</div>
-                      </div>
-                    </label>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="inline-flex items-center gap-2 text-sm text-slate-300">
-              <input type="checkbox" checked={isLocked} onChange={(e) => setIsLocked(e.target.checked)} />
-              Lock this task (only assignees can edit)
-            </label>
-          </div>
-
+          {/* Action buttons */}
           <div className="flex gap-3 pt-4">
+            <button
+              type="submit"
+              className="gh-cta-button px-6 py-2 rounded-lg text-white font-semibold"
+            >
+              Add Task
+            </button>
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 text-slate-300 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
+              className="px-6 py-2 text-slate-300 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
             >
               Cancel
-            </button>
-            <button
-              type="submit"
-              className="flex-1 gh-cta-button px-4 py-2 rounded-lg text-white font-semibold"
-            >
-              Add Task
             </button>
           </div>
         </form>
@@ -1852,6 +1909,8 @@ function EditTaskModal({
   const [isLocked, setIsLocked] = useState<boolean>(false);
   const [projectUsers, setProjectUsers] = useState<Array<{ id: string; name: string; email: string }>>([]);
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   useEffect(() => {
     if (isOpen && projectId) {
@@ -1869,12 +1928,14 @@ function EditTaskModal({
     if (task) {
       setTitle(task.title);
       setDescription(task.description || '');
-      setLabels(task.labels?.join(', ') || '');
+      setLabels(task.labels?.[0] || '');
       setPrUrl(task.prUrl || '');
       setAssignees((task as any).assignees || (task.assignee ? [task.assignee] : []));
       setStatus(task.status);
       setColumnId(task.columnId);
       setIsLocked(!!(task as any).isLocked);
+      setStartDate((task as any).startDate || '');
+      setEndDate((task as any).endDate || '');
     }
   }, [task]);
 
@@ -1891,16 +1952,15 @@ function EditTaskModal({
     const updates: Partial<Task> = {
       title: title.trim(),
       description: description.trim() || undefined,
-      labels: labels
-        .split(',')
-        .map(l => l.trim())
-        .filter(Boolean),
+      labels: labels.trim() ? [labels.trim()] : [],
       prUrl: prUrl.trim() || undefined,
       assignees: assignees.length > 0 ? assignees : undefined,
       status: status as Task['status'],
       columnId,
       isLocked,
-    };
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+    } as any;
 
     onSubmit(updates);
     onClose();
@@ -1910,12 +1970,13 @@ function EditTaskModal({
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-[#1a2332] border border-white/10 rounded-lg max-w-md w-full max-h-96 overflow-y-auto shadow-2xl">
+      <div className="bg-[#1a2332] border border-white/10 rounded-lg w-1/2 max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl">
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <h3 className="text-xl font-semibold text-white">
             Edit Task
           </h3>
 
+          {/* Title */}
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">
               Title *
@@ -1930,43 +1991,124 @@ function EditTaskModal({
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Column *
-            </label>
-            <select
-              value={columnId}
-              onChange={(e) => setColumnId(e.target.value)}
-              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
-              required
-            >
-              {columns.map((column) => (
-                <option key={column.id} value={column.id} className="bg-[#1a2332]">
-                  {column.name}
-                </option>
-              ))}
-            </select>
+          {/* Assignment / Lock row */}
+          <div className="flex items-center gap-4">
+            <div className="relative flex-1">
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Assignees
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowAssigneeDropdown(!showAssigneeDropdown)}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-left focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+              >
+                {assignees.length === 0 ? (
+                  <span className="text-slate-400">Select assignees...</span>
+                ) : (
+                  <span className="text-white">
+                    {assignees.length} user{assignees.length > 1 ? 's' : ''} selected
+                  </span>
+                )}
+              </button>
+              {showAssigneeDropdown && (
+                <div className="absolute z-10 w-full mt-1 bg-[#1a2332] border border-white/10 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {projectUsers.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-slate-400">No users in this project</div>
+                  ) : (
+                    projectUsers.map(user => (
+                      <label key={user.id} className="flex items-center px-3 py-2 hover:bg-white/5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={assignees.includes(user.id)}
+                          onChange={() => toggleAssignee(user.id)}
+                          className="mr-2"
+                        />
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-white">{user.name}</div>
+                          <div className="text-xs text-slate-400">{user.email}</div>
+                        </div>
+                      </label>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="flex items-end pb-3">
+              <label className="inline-flex items-center gap-2 text-sm text-slate-300">
+                <input type="checkbox" checked={isLocked} onChange={(e) => setIsLocked(e.target.checked)} />
+                Lock task
+              </label>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Status
-            </label>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
-            >
-              <option value="pending" className="bg-[#1a2332]">Pending</option>
-              <option value="in_progress" className="bg-[#1a2332]">In Progress</option>
-              <option value="completed" className="bg-[#1a2332]">Completed</option>
-              <option value="blocked" className="bg-[#1a2332]">Blocked</option>
-              <option value="approved" className="bg-[#1a2332]">Approved</option>
-              <option value="merged" className="bg-[#1a2332]">Merged</option>
-              <option value="changes_requested" className="bg-[#1a2332]">Changes Requested</option>
-            </select>
+          {/* Column / Label / Attachments row */}
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Column
+              </label>
+              <select
+                value={columnId}
+                onChange={(e) => setColumnId(e.target.value)}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                required
+              >
+                {columns.map((column) => (
+                  <option key={column.id} value={column.id} className="bg-[#1a2332]">
+                    {column.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Label
+              </label>
+              <input
+                type="text"
+                value={labels}
+                onChange={(e) => setLabels(e.target.value)}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                placeholder="Enter label..."
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Attachments
+              </label>
+              <div className="px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-slate-400 text-sm">
+                Upload files
+              </div>
+            </div>
           </div>
 
+          {/* Start date / End date row */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Start date (optional)
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                End date (optional)
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+              />
+            </div>
+          </div>
+
+          {/* Description */}
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">
               Description
@@ -1974,35 +2116,16 @@ function EditTaskModal({
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              rows={3}
+              rows={5}
               className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
               placeholder="Enter task description..."
             />
           </div>
 
+          {/* PR Link */}
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">
-              Labels (comma-separated)
-            </label>
-            <input
-              type="text"
-              value={labels}
-              onChange={(e) => setLabels(e.target.value)}
-              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
-              placeholder="bug, feature, urgent..."
-            />
-          </div>
-
-          <div>
-            <label className="inline-flex items-center gap-2 text-sm text-slate-300">
-              <input type="checkbox" checked={isLocked} onChange={(e) => setIsLocked(e.target.checked)} />
-              Lock this task (only assignees can edit)
-            </label>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              PR URL
+              PR Link
             </label>
             <input
               type="text"
@@ -2013,48 +2136,21 @@ function EditTaskModal({
             />
           </div>
 
-          <div className="relative">
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Assignees
-            </label>
+          {/* Action buttons */}
+          <div className="flex gap-3 pt-4">
+            <button
+              type="submit"
+              className="gh-cta-button px-6 py-2 rounded-lg text-white font-semibold"
+            >
+              Update Task
+            </button>
             <button
               type="button"
-              onClick={() => setShowAssigneeDropdown(!showAssigneeDropdown)}
-              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-left focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+              onClick={onClose}
+              className="px-6 py-2 text-slate-300 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
             >
-              {assignees.length === 0 ? (
-                <span className="text-slate-400">Select assignees...</span>
-              ) : (
-                <span className="text-white">
-                  {assignees.length} user{assignees.length > 1 ? 's' : ''} selected
-                </span>
-              )}
+              Cancel
             </button>
-            {showAssigneeDropdown && (
-              <div className="absolute z-10 w-full mt-1 bg-[#1a2332] border border-white/10 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                {projectUsers.length === 0 ? (
-                  <div className="px-3 py-2 text-sm text-slate-400">No users in this project</div>
-                ) : (
-                  projectUsers.map(user => (
-                    <label key={user.id} className="flex items-center px-3 py-2 hover:bg-white/5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={assignees.includes(user.id)}
-                        onChange={() => toggleAssignee(user.id)}
-                        className="mr-2"
-                      />
-                      <div className="flex-1">
-                        <div className="text-sm font-medium text-white">{user.name}</div>
-                        <div className="text-xs text-slate-400">{user.email}</div>
-                      </div>
-                    </label>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3 pt-4">
             <button
               type="button"
               onClick={() => {
@@ -2062,25 +2158,11 @@ function EditTaskModal({
                   onDelete(task.id);
                 }
               }}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 font-semibold"
+              className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 font-semibold"
               title="Delete task"
             >
               <Trash2 className="w-4 h-4" />
               Delete
-            </button>
-            <div className="flex-1" />
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-slate-300 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="gh-cta-button px-4 py-2 rounded-lg text-white font-semibold"
-            >
-              Update Task
             </button>
           </div>
         </form>

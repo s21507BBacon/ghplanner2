@@ -2,6 +2,10 @@
 const nextConfig = {
   // Use standalone for Docker builds, but not for Cloudflare
   output: process.env.BUILDING_FOR_CLOUDFLARE ? undefined : 'standalone',
+  // Disable image optimization for Cloudflare Pages
+  images: {
+    unoptimized: process.env.BUILDING_FOR_CLOUDFLARE === 'true',
+  },
   eslint: {
     ignoreDuringBuilds: true,
   },
