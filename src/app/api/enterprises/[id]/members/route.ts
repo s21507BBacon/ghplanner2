@@ -181,8 +181,34 @@ export async function POST(
   }
 
   const now = new Date();
-  const assignmentId = crypto.randomUUID();
   
+  // Ensure user has enterprise membership
+  const userMembership = await helpers.findOne<any>('enterprise_memberships', {
+    user_id: userId,
+    enterprise_id: enterpriseId
+  });
+
+  if (!userMembership) {
+    // Create enterprise membership for the user
+    await helpers.insert('enterprise_memberships', {
+      id: crypto.randomUUID(),
+      user_id: userId,
+      enterprise_id: enterpriseId,
+      role: 'member',
+      status: 'active',
+      created_at: dateToTimestamp(now),
+      updated_at: dateToTimestamp(now)
+    });
+  } else if (userMembership.status !== 'active') {
+    // Reactivate membership if it exists but is inactive
+    await helpers.update('enterprise_memberships',
+      { id: userMembership.id },
+      { status: 'active', updated_at: dateToTimestamp(now) }
+    );
+  }
+  
+  // Create project assignment
+  const assignmentId = crypto.randomUUID();
   await helpers.insert('assignments', {
     id: assignmentId,
     user_id: userId,

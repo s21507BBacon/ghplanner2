@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
         id: board.id,
         name: board.name,
         description: board.description,
+        viewMode: (board as any).view_mode || 'free-form',
         companyId: (board as any).company_id || undefined,
         projectId: (board as any).project_id || undefined,
         created_at: new Date((board as any).created_at * 1000).toISOString(),
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, description, projectId, companyId } = body as any;
+    const { name, description, projectId, companyId, viewMode } = body as any;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return NextResponse.json(
@@ -62,6 +63,7 @@ export async function POST(request: NextRequest) {
       id: crypto.randomUUID(),
       name: name.trim(),
       description: description?.trim() || '',
+      view_mode: viewMode || 'free-form',
       project_id: projectId || null,
       company_id: companyId || null,
       created_at: dateToTimestamp(now),
@@ -74,6 +76,7 @@ export async function POST(request: NextRequest) {
       id: board.id,
       name: board.name,
       description: board.description,
+      viewMode: (board as any).view_mode || 'free-form',
       projectId: (board as any).project_id || undefined,
       companyId: (board as any).company_id || undefined,
       created_at: new Date((board as any).created_at * 1000).toISOString(),
@@ -92,6 +95,69 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       { error: 'Failed to create board' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { id, name, description, viewMode } = body as any;
+
+    if (!id) {
+      return NextResponse.json(
+        { error: 'Board ID is required' },
+        { status: 400 }
+      );
+    }
+
+    const db = getDatabase();
+    const helpers = new DbHelpers(db);
+
+    const existing = await helpers.findOne('boards', { id });
+    if (!existing) {
+      return NextResponse.json(
+        { error: 'Board not found' },
+        { status: 404 }
+      );
+    }
+
+    const updates: any = {
+      updated_at: dateToTimestamp(new Date()),
+    };
+
+    if (name !== undefined) updates.name = name.trim();
+    if (description !== undefined) updates.description = description.trim();
+    if (viewMode !== undefined) {
+      if (!['free-form', 'traditional', 'grid'].includes(viewMode)) {
+        return NextResponse.json(
+          { error: 'Invalid view mode. Must be free-form, traditional, or grid' },
+          { status: 400 }
+        );
+      }
+      updates.view_mode = viewMode;
+    }
+
+    await helpers.update('boards', { id }, updates);
+
+    const updated = await helpers.findOne('boards', { id });
+
+    return NextResponse.json({
+      id: updated.id,
+      name: updated.name,
+      description: updated.description,
+      viewMode: (updated as any).view_mode || 'free-form',
+      projectId: (updated as any).project_id || undefined,
+      companyId: (updated as any).company_id || undefined,
+      created_at: new Date((updated as any).created_at * 1000).toISOString(),
+      updated_at: new Date((updated as any).updated_at * 1000).toISOString(),
+    });
+
+  } catch (error) {
+    console.error('Database error:', error);
+    return NextResponse.json(
+      { error: 'Failed to update board' },
       { status: 500 }
     );
   }

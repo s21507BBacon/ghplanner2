@@ -26,6 +26,8 @@ export async function GET(request: NextRequest) {
         targetColumnId: r.target_column_id,
         label: r.label || undefined,
         color: r.color || undefined,
+        style: r.style || 'solid',
+        arrowType: r.arrow_type || 'single',
         created_at: new Date(r.created_at * 1000).toISOString(),
         updated_at: new Date(r.updated_at * 1000).toISOString(),
       })),
@@ -39,7 +41,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { boardId, sourceColumnId, targetColumnId, label, color } = body || {};
+    const { boardId, sourceColumnId, targetColumnId, label, color, style, arrowType } = body || {};
 
     if (!boardId || !sourceColumnId || !targetColumnId) {
       return NextResponse.json({ error: 'boardId, sourceColumnId, and targetColumnId are required' }, { status: 400 });
@@ -59,6 +61,8 @@ export async function POST(request: NextRequest) {
       target_column_id: targetColumnId,
       label: label || null,
       color: color || null,
+      style: style || 'solid',
+      arrow_type: arrowType || 'single',
       created_at: dateToTimestamp(now),
       updated_at: dateToTimestamp(now),
     };
@@ -72,6 +76,8 @@ export async function POST(request: NextRequest) {
       targetColumnId: row.target_column_id,
       label: row.label || undefined,
       color: row.color || undefined,
+      style: row.style || 'solid',
+      arrowType: row.arrow_type || 'single',
       created_at: new Date(row.created_at * 1000).toISOString(),
       updated_at: new Date(row.updated_at * 1000).toISOString(),
     }, { status: 201 });
@@ -88,7 +94,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, label, color, sourceColumnId, targetColumnId } = body || {};
+    const { id, label, color, style, arrowType, sourceColumnId, targetColumnId } = body || {};
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
@@ -104,6 +110,8 @@ export async function PUT(request: NextRequest) {
     const data: any = { updated_at: dateToTimestamp(new Date()) };
     if (label !== undefined) data.label = label || null;
     if (color !== undefined) data.color = color || null;
+    if (style !== undefined) data.style = style || 'solid';
+    if (arrowType !== undefined) data.arrow_type = arrowType || 'single';
     if (sourceColumnId !== undefined) data.source_column_id = sourceColumnId;
     if (targetColumnId !== undefined) data.target_column_id = targetColumnId;
 
@@ -117,6 +125,8 @@ export async function PUT(request: NextRequest) {
       targetColumnId: updated!.target_column_id,
       label: updated!.label || undefined,
       color: updated!.color || undefined,
+      style: updated!.style || 'solid',
+      arrowType: updated!.arrow_type || 'single',
       created_at: new Date(updated!.created_at * 1000).toISOString(),
       updated_at: new Date(updated!.updated_at * 1000).toISOString(),
     });

@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/database';
-import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, parseJsonField, stringifyJsonField } from '@/lib/db';
+import { DbHelpers } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import type { Assignment, AppUser } from '@/lib/types';
 
 export async function GET(
   request: NextRequest,
@@ -17,17 +16,22 @@ export async function GET(
   
   const projectId = params.id;
   const db = getDatabase();
-    const helpers = new DbHelpers(db);
+  const helpers = new DbHelpers(db);
   
-  const assignments = await db.collection<Assignment>('assignments')
-    .find({ projectId } as any)
-    .toArray();
+  // Get all assignments for this project
+  const assignments = await helpers.findMany<any>('assignments', {
+    project_id: projectId
+  });
   
-  const userIds = assignments.map(a => a.userId);
+  if (assignments.length === 0) {
+    return NextResponse.json({ users: [] });
+  }
   
-  const users = await db.collection<AppUser>('users')
-    .find({ id: { $in: userIds } } as any)
-    .toArray();
+  // Get unique user IDs from assignments
+  const userIds = Array.from(new Set(assignments.map(a => a.user_id)));
+  
+  // Get user details for all assigned users
+  const users = await helpers.findWhereIn<any>('users', 'id', userIds);
   
   return NextResponse.json({
     users: users.map(u => ({

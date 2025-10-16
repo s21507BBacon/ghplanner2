@@ -70,6 +70,9 @@ Examples:
 - `005_add_column_position_coordinates.sql` - Adds x,y coordinates for free column positioning
 - `006_create_connections_table.sql` - Creates connections table for column arrows
 - `007_create_notes_table.sql` - Creates notes table for sticky notes on boards
+- `008_add_note_style.sql` - Adds style properties to notes for text formatting
+- `009_add_column_dimensions.sql` - Adds width and height dimensions to columns
+- `010_add_connection_styling.sql` - Adds style and arrow type properties for connection customization
 - `add_image_url_to_comments.sql` - Adds image support to task comments
 
 ## Troubleshooting

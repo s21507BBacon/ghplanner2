@@ -6,6 +6,38 @@ const config: Config = {
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
+  safelist: [
+    // Column background colors
+    'bg-slate-500/40',
+    'bg-blue-500/40',
+    'bg-green-500/40',
+    'bg-amber-500/40',
+    'bg-red-500/40',
+    'bg-purple-500/40',
+    'bg-indigo-500/40',
+    'bg-pink-500/40',
+    'bg-zinc-500/40',
+    // Column border colors
+    'border-slate-500',
+    'border-blue-500',
+    'border-green-500',
+    'border-amber-500',
+    'border-red-500',
+    'border-purple-500',
+    'border-indigo-500',
+    'border-pink-500',
+    'border-zinc-500',
+    // Column header colors
+    'bg-slate-500/60',
+    'bg-blue-500/60',
+    'bg-green-500/60',
+    'bg-amber-500/60',
+    'bg-red-500/60',
+    'bg-purple-500/60',
+    'bg-indigo-500/60',
+    'bg-pink-500/60',
+    'bg-zinc-500/60',
+  ],
   theme: {
     extend: {
       colors: {

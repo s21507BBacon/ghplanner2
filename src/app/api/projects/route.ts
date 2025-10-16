@@ -18,11 +18,44 @@ export async function GET(request: NextRequest) {
 
   const db = getDatabase();
   const helpers = new DbHelpers(db);
-  const member = await helpers.findOne<Membership>('memberships', { user_id: userId, company_id: companyId });
-  if (!member) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  
+  // Check if user has access via memberships (old system) or assignments (new system)
+  const member = await helpers.findOne<any>('memberships', { user_id: userId, company_id: companyId });
+  const assignments = await helpers.findMany<any>('assignments', { user_id: userId, company_id: companyId });
+  
+  // Check enterprise membership for role
+  const company = await helpers.findOne<any>('companies', { id: companyId });
+  let enterpriseMembership = null;
+  if (company) {
+    enterpriseMembership = await helpers.findOne<any>('enterprise_memberships', { 
+      user_id: userId, 
+      enterprise_id: company.enterprise_id 
+    });
+  }
+  
+  if (!member && assignments.length === 0 && !enterpriseMembership) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
-  const projects = await helpers.findMany<Project>('projects', { company_id: companyId });
-  return NextResponse.json({ projects: projects.map(p => ({
+  const allProjects = await helpers.findMany<any>('projects', { company_id: companyId });
+  
+  // For owners/admins, return all projects
+  const isOwnerOrAdmin = member?.role === 'owner' || member?.role === 'admin' || 
+                         enterpriseMembership?.role === 'owner' || enterpriseMembership?.role === 'admin' ||
+                         enterpriseMembership?.role === 'company_admin';
+  
+  if (isOwnerOrAdmin) {
+    return NextResponse.json({ projects: allProjects.map(p => ({
+      id: p.id, name: p.name, maxSeats: p.max_seats, isActive: p.is_active,
+      inviteCode: p.invite_code, repoOwner: p.repo_owner, repoName: p.repo_name
+    })) });
+  }
+  
+  // For regular members, only return projects they're assigned to
+  const assignedProjectIds = assignments.map((a: any) => a.project_id);
+  const assignedProjects = allProjects.filter(p => assignedProjectIds.includes(p.id));
+  
+  return NextResponse.json({ projects: assignedProjects.map(p => ({
     id: p.id, name: p.name, maxSeats: p.max_seats, isActive: p.is_active,
     inviteCode: p.invite_code, repoOwner: p.repo_owner, repoName: p.repo_name
   })) });

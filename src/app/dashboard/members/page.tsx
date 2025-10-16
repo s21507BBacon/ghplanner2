@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { 
-  UserPlus, X, ArrowLeft, Search, Mail, Upload, Download, 
+  UserPlus, X, ArrowLeft, Search, Download, 
   Edit2, Trash2, Camera, ChevronDown 
 } from 'lucide-react';
 import Link from 'next/link';
@@ -97,6 +97,23 @@ export default function MembersPage() {
   const [editingRole, setEditingRole] = useState<string | null>(null);
   const [editingImage, setEditingImage] = useState<string | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  
+  // Batch actions state
+  const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
+  const [showBatchActions, setShowBatchActions] = useState(false);
+  
+  // Edit modal state
+  const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [editModalData, setEditModalData] = useState<{
+    name: string;
+    email: string;
+    role: string;
+    selectedProjects: string[];
+  }>({ name: '', email: '', role: '', selectedProjects: [] });
+  
+  // Companies and projects for assignment
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
+  const [projects, setProjects] = useState<{ id: string; name: string; companyId: string }[]>([]);
 
   // Listen for enterprise changes from AdminLayout
   useEffect(() => {
@@ -169,6 +186,8 @@ export default function MembersPage() {
       if (res.ok) {
         const data = await res.json();
         setMembers(data.members || []);
+        setCompanies(data.companies || []);
+        setProjects(data.projects || []);
       }
     } catch (err) {
       console.error('Failed to load members:', err);
@@ -212,16 +231,15 @@ export default function MembersPage() {
 
   const handleExport = () => {
     const csvContent = [
-      ['Full Name', 'Email', 'Username', 'Role', 'Status', 'Projects', 'Joined Date', 'Last Active'],
+      ['Full Name', 'Email', 'Role', 'Status', 'Companies', 'Projects', 'Joined Date'],
       ...filteredMembers.map(member => [
         member.name,
         member.email,
-        member.username,
         member.role,
         member.status,
+        Array.from(new Set(member.assignments?.map(a => a.companyName) || [])).join('; ') || 'None',
         member.assignments?.map(a => `${a.companyName} - ${a.projectName}`).join('; ') || 'None',
-        member.joinedDate || 'N/A',
-        member.lastActive || 'N/A'
+        member.joinedDate || 'N/A'
       ])
     ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
 
@@ -264,6 +282,164 @@ export default function MembersPage() {
       console.error('Failed to send invite:', err);
     } finally {
       setSendingSingleInvite(false);
+    }
+  };
+
+  // Batch selection handlers
+  const toggleMemberSelection = (userId: string) => {
+    const newSelection = new Set(selectedMembers);
+    if (newSelection.has(userId)) {
+      newSelection.delete(userId);
+    } else {
+      newSelection.add(userId);
+    }
+    setSelectedMembers(newSelection);
+    setShowBatchActions(newSelection.size > 0);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedMembers.size === filteredMembers.length) {
+      setSelectedMembers(new Set());
+      setShowBatchActions(false);
+    } else {
+      setSelectedMembers(new Set(filteredMembers.map(m => m.userId)));
+      setShowBatchActions(true);
+    }
+  };
+
+  // Batch action handlers
+  const handleBatchDelete = async () => {
+    if (!confirm(`Are you sure you want to remove ${selectedMembers.size} member(s)?`)) return;
+    
+    try {
+      const promises = Array.from(selectedMembers).map(userId => 
+        fetch(`/api/enterprises/${selectedEnterpriseId}/members/${userId}`, {
+          method: 'DELETE'
+        })
+      );
+      await Promise.all(promises);
+      await loadMembers();
+      setSelectedMembers(new Set());
+      setShowBatchActions(false);
+    } catch (err) {
+      console.error('Failed to batch delete:', err);
+      alert('Failed to delete some members');
+    }
+  };
+
+  const handleBatchRoleChange = async (newRole: string) => {
+    try {
+      const promises = Array.from(selectedMembers).map(userId => 
+        fetch(`/api/enterprises/${selectedEnterpriseId}/members/${userId}/role`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: newRole })
+        })
+      );
+      await Promise.all(promises);
+      await loadMembers();
+      setSelectedMembers(new Set());
+      setShowBatchActions(false);
+    } catch (err) {
+      console.error('Failed to batch update roles:', err);
+      alert('Failed to update roles for some members');
+    }
+  };
+
+  const handleBatchAddToProject = async (projectId: string) => {
+    const project = projects.find(p => p.id === projectId);
+    if (!project) return;
+
+    try {
+      const promises = Array.from(selectedMembers).map(userId => 
+        fetch(`/api/enterprises/${selectedEnterpriseId}/members`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            userId, 
+            companyId: project.companyId, 
+            projectId 
+          })
+        })
+      );
+      await Promise.all(promises);
+      await loadMembers();
+      setSelectedMembers(new Set());
+      setShowBatchActions(false);
+    } catch (err) {
+      console.error('Failed to batch add to project:', err);
+      alert('Failed to add some members to project');
+    }
+  };
+
+  // Edit modal handlers
+  const openEditModal = (member: Member) => {
+    setEditingMember(member);
+    setEditModalData({
+      name: member.name,
+      email: member.email,
+      role: member.role,
+      selectedProjects: member.assignments?.map(a => a.projectId) || []
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingMember) return;
+
+    try {
+      // Update name and email if changed
+      if (editModalData.name !== editingMember.name || editModalData.email !== editingMember.email) {
+        await fetch(`/api/users/${editingMember.userId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            name: editModalData.name,
+            email: editModalData.email 
+          })
+        });
+      }
+
+      // Update role if changed
+      if (editModalData.role !== editingMember.role) {
+        await handleRoleChange(editingMember.userId, editModalData.role);
+      }
+
+      // Handle project assignments
+      const currentProjectIds = editingMember.assignments?.map(a => a.projectId) || [];
+      const newProjectIds = editModalData.selectedProjects;
+      
+      // Remove unselected projects
+      const toRemove = editingMember.assignments?.filter(a => !newProjectIds.includes(a.projectId));
+      if (toRemove) {
+        for (const assignment of toRemove) {
+          await fetch(`/api/enterprises/${selectedEnterpriseId}/members?assignmentId=${assignment.assignmentId}`, {
+            method: 'DELETE'
+          });
+        }
+      }
+
+      // Add new projects
+      const toAdd = newProjectIds.filter(pid => !currentProjectIds.includes(pid));
+      for (const projectId of toAdd) {
+        const project = projects.find(p => p.id === projectId);
+        if (project) {
+          await fetch(`/api/enterprises/${selectedEnterpriseId}/members`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              userId: editingMember.userId,
+              companyId: project.companyId,
+              projectId 
+            })
+          });
+        }
+      }
+
+      await loadMembers();
+      setEditingMember(null);
+    } catch (err) {
+      console.error('Failed to save member edits:', err);
+      alert('Failed to save changes');
     }
   };
 
@@ -374,21 +550,96 @@ export default function MembersPage() {
             </button>
           </div>
 
+          {/* Batch Actions Toolbar */}
+          {showBatchActions && (
+            <div className="flex items-center justify-between p-4 bg-orange-500/10 border border-orange-500/30 rounded-lg mb-4">
+              <div className="flex items-center gap-3">
+                <span className="text-white font-medium">
+                  {selectedMembers.size} member{selectedMembers.size !== 1 ? 's' : ''} selected
+                </span>
+                <button
+                  onClick={() => {
+                    setSelectedMembers(new Set());
+                    setShowBatchActions(false);
+                  }}
+                  className="text-slate-400 hover:text-white transition-colors"
+                >
+                  Clear selection
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <select
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      handleBatchAddToProject(e.target.value);
+                      e.target.value = '';
+                    }
+                  }}
+                  className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-orange-500"
+                  defaultValue=""
+                >
+                  <option value="" disabled>Add to Project</option>
+                  {companies.map(company => {
+                    const companyProjects = projects.filter(p => p.companyId === company.id);
+                    if (companyProjects.length === 0) return null;
+                    return (
+                      <optgroup key={company.id} label={company.name}>
+                        {companyProjects.map(project => (
+                          <option key={project.id} value={project.id} className="bg-[#1a2332]">
+                            {project.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
+                </select>
+                <select
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      handleBatchRoleChange(e.target.value);
+                      e.target.value = '';
+                    }
+                  }}
+                  className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-orange-500"
+                  defaultValue=""
+                >
+                  <option value="" disabled>Change Role</option>
+                  {ROLE_OPTIONS.map(role => (
+                    <option key={role.value} value={role.value} className="bg-[#1a2332]">
+                      {role.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleBatchDelete}
+                  className="px-4 py-2 bg-red-500/20 border border-red-500/30 text-red-300 rounded-lg hover:bg-red-500/30 transition-colors text-sm font-medium"
+                >
+                  Delete Selected
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Table */}
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-white/10">
                   <th className="text-left py-3 px-4 text-sm font-semibold text-slate-400">
-                    <input type="checkbox" className="rounded border-white/20 bg-white/5" />
+                    <input 
+                      type="checkbox" 
+                      className="rounded border-white/20 bg-white/5 cursor-pointer"
+                      checked={selectedMembers.size === filteredMembers.length && filteredMembers.length > 0}
+                      onChange={toggleSelectAll}
+                    />
                   </th>
                   <th className="text-left py-3 px-4 text-sm font-semibold text-slate-400">Full Name</th>
                   <th className="text-left py-3 px-4 text-sm font-semibold text-slate-400">Email</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-400">Username</th>
                   <th className="text-left py-3 px-4 text-sm font-semibold text-slate-400">Status</th>
                   <th className="text-left py-3 px-4 text-sm font-semibold text-slate-400">Role</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-400">Company</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-400">Assigned Project</th>
                   <th className="text-left py-3 px-4 text-sm font-semibold text-slate-400">Joined Date</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-400">Last Active</th>
                   <th className="text-left py-3 px-4 text-sm font-semibold text-slate-400">Actions</th>
                 </tr>
               </thead>
@@ -396,7 +647,12 @@ export default function MembersPage() {
                 {filteredMembers.map((member) => (
                   <tr key={member.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                     <td className="py-3 px-4">
-                      <input type="checkbox" className="rounded border-white/20 bg-white/5" />
+                      <input 
+                        type="checkbox" 
+                        className="rounded border-white/20 bg-white/5 cursor-pointer"
+                        checked={selectedMembers.has(member.userId)}
+                        onChange={() => toggleMemberSelection(member.userId)}
+                      />
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
@@ -441,7 +697,6 @@ export default function MembersPage() {
                       </div>
                     </td>
                     <td className="py-3 px-4 text-slate-300">{member.email}</td>
-                    <td className="py-3 px-4 text-slate-300">{member.username || member.userId.slice(0, 8)}</td>
                     <td className="py-3 px-4">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusBadgeColor(member.status)}`}>
                         {member.status.charAt(0).toUpperCase() + member.status.slice(1)}
@@ -471,22 +726,78 @@ export default function MembersPage() {
                         </button>
                       )}
                     </td>
+                    <td className="py-3 px-4">
+                      {member.assignments && member.assignments.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {Array.from(new Set(member.assignments.map(a => a.companyName))).slice(0, 2).map((companyName, idx) => (
+                            <span 
+                              key={idx}
+                              className="px-2 py-1 bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded text-xs"
+                            >
+                              {companyName}
+                            </span>
+                          ))}
+                          {Array.from(new Set(member.assignments.map(a => a.companyName))).length > 2 && (
+                            <span className="px-2 py-1 bg-slate-500/20 text-slate-300 border border-slate-500/30 rounded text-xs">
+                              +{Array.from(new Set(member.assignments.map(a => a.companyName))).length - 2}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-slate-500 text-sm">None</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      {member.assignments && member.assignments.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {member.assignments.slice(0, 2).map((assignment) => (
+                            <span 
+                              key={assignment.assignmentId}
+                              className="px-2 py-1 bg-orange-500/20 text-orange-300 border border-orange-500/30 rounded text-xs"
+                              title={`${assignment.companyName} - ${assignment.projectName}`}
+                            >
+                              {assignment.projectName}
+                            </span>
+                          ))}
+                          {member.assignments.length > 2 && (
+                            <span className="px-2 py-1 bg-slate-500/20 text-slate-300 border border-slate-500/30 rounded text-xs">
+                              +{member.assignments.length - 2}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-slate-500 text-sm">None</span>
+                      )}
+                    </td>
                     <td className="py-3 px-4 text-slate-300 text-sm">
                       {member.joinedDate || 'N/A'}
                     </td>
-                    <td className="py-3 px-4 text-slate-300 text-sm">
-                      {member.lastActive || 'N/A'}
-                    </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
-                        <button
-                          className="p-1 text-slate-400 hover:text-white transition-colors"
-                          title="Edit"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
                         {isOwnerOrAdmin && (
                           <button
+                            onClick={() => openEditModal(member)}
+                            className="p-1 text-slate-400 hover:text-white transition-colors"
+                            title="Edit"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        )}
+                        {isOwnerOrAdmin && (
+                          <button
+                            onClick={async () => {
+                              if (confirm(`Remove ${member.name} from this enterprise?`)) {
+                                try {
+                                  await fetch(`/api/enterprises/${selectedEnterpriseId}/members/${member.userId}`, {
+                                    method: 'DELETE'
+                                  });
+                                  await loadMembers();
+                                } catch (err) {
+                                  console.error('Failed to delete member:', err);
+                                  alert('Failed to remove member');
+                                }
+                              }
+                            }}
                             className="p-1 text-slate-400 hover:text-red-400 transition-colors"
                             title="Delete"
                           >
@@ -583,6 +894,143 @@ export default function MembersPage() {
                 </button>
                 <button
                   onClick={() => setShowInviteModal(false)}
+                  className="px-4 py-3 bg-white/5 text-slate-300 rounded-lg hover:bg-white/10 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Member Modal */}
+      {editingMember && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a2332] border border-white/10 rounded-lg w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-white/10 sticky top-0 bg-[#1a2332] z-10">
+              <h3 className="text-xl font-semibold text-white">Edit Member</h3>
+              <button 
+                onClick={() => setEditingMember(null)}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* User Details */}
+              <div className="space-y-4">
+                <h4 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">User Details</h4>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Full Name <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editModalData.name}
+                    onChange={(e) => setEditModalData({ ...editModalData, name: e.target.value })}
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Email Address <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={editModalData.email}
+                    onChange={(e) => setEditModalData({ ...editModalData, email: e.target.value })}
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                  />
+                </div>
+              </div>
+
+              {/* Role Selection */}
+              <div className="space-y-4">
+                <h4 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">Role & Permissions</h4>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Role <span className="text-red-400">*</span>
+                  </label>
+                  <select
+                    value={editModalData.role}
+                    onChange={(e) => setEditModalData({ ...editModalData, role: e.target.value })}
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                  >
+                    {ROLE_OPTIONS.map(role => (
+                      <option key={role.value} value={role.value} className="bg-[#1a2332]">
+                        {role.label} - {role.description}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Project Assignments */}
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">Project Assignments</h4>
+                  <p className="text-xs text-slate-400 mt-1">Select projects grouped by company. Users will be assigned to both the company and selected projects.</p>
+                </div>
+                
+                <div className="space-y-2">
+                  {companies.map(company => {
+                    const companyProjects = projects.filter(p => p.companyId === company.id);
+                    if (companyProjects.length === 0) return null;
+                    
+                    return (
+                      <div key={company.id} className="border border-white/10 rounded-lg p-4 bg-white/5">
+                        <h5 className="text-sm font-medium text-white mb-3">{company.name}</h5>
+                        <div className="space-y-2">
+                          {companyProjects.map(project => (
+                            <label key={project.id} className="flex items-center gap-3 cursor-pointer group">
+                              <input
+                                type="checkbox"
+                                checked={editModalData.selectedProjects.includes(project.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setEditModalData({
+                                      ...editModalData,
+                                      selectedProjects: [...editModalData.selectedProjects, project.id]
+                                    });
+                                  } else {
+                                    setEditModalData({
+                                      ...editModalData,
+                                      selectedProjects: editModalData.selectedProjects.filter(id => id !== project.id)
+                                    });
+                                  }
+                                }}
+                                className="rounded border-white/20 bg-white/5 cursor-pointer"
+                              />
+                              <span className="text-slate-300 group-hover:text-white transition-colors">
+                                {project.name}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {companies.length === 0 && (
+                    <p className="text-slate-400 text-sm">No projects available</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4 border-t border-white/10">
+                <button
+                  onClick={handleSaveEdit}
+                  className="flex-1 gh-cta-button px-4 py-3 rounded-lg text-white font-semibold"
+                >
+                  Save Changes
+                </button>
+                <button
+                  onClick={() => setEditingMember(null)}
                   className="px-4 py-3 bg-white/5 text-slate-300 rounded-lg hover:bg-white/10 transition-colors"
                 >
                   Cancel

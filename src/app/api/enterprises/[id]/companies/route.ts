@@ -30,11 +30,40 @@ export async function GET(
     return NextResponse.json({ error: 'Not a member of this enterprise' }, { status: 403 });
   }
 
-  const companies = await helpers.findMany<any>('companies', { 
+  // Get all companies in enterprise
+  const allCompanies = await helpers.findMany<any>('companies', { 
     enterprise_id: enterpriseId 
   });
 
+  // For owners and admins, return all companies
+  const isOwnerOrAdmin = membership.role === 'owner' || membership.role === 'admin' || membership.role === 'company_admin';
+  
+  if (isOwnerOrAdmin) {
+    return NextResponse.json({ 
+      companies: allCompanies.map((c: any) => ({ 
+        id: c.id, 
+        name: c.name,
+        description: c.description 
+      })) 
+    });
+  }
+
+  // For regular members, only return companies they're assigned to
+  const assignments = await helpers.findMany<any>('assignments', {
+    user_id: userId
+  });
+
+  const assignedCompanyIds = Array.from(new Set(assignments.map((a: any) => a.company_id)));
+  
+  const assignedCompanies = allCompanies.filter((c: any) => 
+    assignedCompanyIds.includes(c.id)
+  );
+
   return NextResponse.json({ 
-    companies: companies.map((c: any) => ({ id: c.id, name: c.name })) 
+    companies: assignedCompanies.map((c: any) => ({ 
+      id: c.id, 
+      name: c.name,
+      description: c.description 
+    })) 
   });
 }

@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useMemo, Suspense, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Plus, MoreHorizontal, ExternalLink, Calendar, User, X, Edit3, Trash2, Trash, GitMerge, AlertCircle, XCircle, Pin } from 'lucide-react';
+import { Plus, MoreHorizontal, ExternalLink, Calendar, User, X, Edit3, Trash2, Trash, GitMerge, AlertCircle, XCircle, Pin, Filter, Layout, Grid3x3, Maximize, Search, Lock, Upload, File, Download } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { Task, Board, type Column, type Connection, type Note, STATUS_COLORS, getColumnColorClasses, COLUMN_COLORS } from '@/lib/types';
+import { Task, Board, type Column, type Connection, type Note, type Label, type Attachment, STATUS_COLORS, getColumnColorClasses, COLUMN_COLORS, LABEL_COLORS } from '@/lib/types';
 
 // Add project interface
 interface Project {
@@ -86,6 +86,19 @@ function TaskCard({
         )}
 
         <div className="flex items-center gap-2 flex-wrap">
+          {(task as any).labelObjects?.map((label: any) => {
+            const isWhite = label.color === '#ffffff' || label.color.toLowerCase() === '#fff';
+            const textColor = isWhite ? 'text-black' : 'text-white';
+            return (
+              <span
+                key={label.id}
+                className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${textColor}`}
+                style={{ backgroundColor: label.color }}
+              >
+                {label.name}
+              </span>
+            );
+          })}
           <StatusBadge status={task.status} />
           {(task.status === 'merged' || (task.status === 'completed' && (task as any).prStatus === 'merged')) && (
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border bg-purple-500/20 text-purple-400 border-purple-500/30">
@@ -105,14 +118,6 @@ function TaskCard({
               closed
             </span>
           )}
-          {task.labels?.map((label, index) => (
-            <span
-              key={index}
-              className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30"
-            >
-              {label}
-            </span>
-          ))}
         </div>
 
         {totalItems > 0 && (
@@ -268,32 +273,45 @@ function Column({
               }`}
             >
               {tasks.length === 0 ? (
-                <div className="text-center py-8 text-slate-400">
-                  <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-white/10 flex items-center justify-center">
+                <div 
+                  className="text-center py-8 text-slate-400 cursor-pointer hover:text-slate-300 transition-colors"
+                  onClick={() => onAddTask(column.id)}
+                >
+                  <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors">
                     <Plus className="w-6 h-6" />
                   </div>
                   <p className="text-sm">No tasks yet</p>
                   <p className="text-xs">Click + to add a task</p>
                 </div>
               ) : (
-                tasks.map((task, index) => (
-                  <Draggable key={task.id} draggableId={task.id} index={index}>
-                    {(provided, snapshot) => (
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.draggableProps}
-                        {...provided.dragHandleProps}
-                      >
-                        <TaskCard
-                          task={task}
-                          onUpdate={() => {}}
-                          onEdit={onEditTask}
-                          isDragging={snapshot.isDragging}
-                        />
-                      </div>
-                    )}
-                  </Draggable>
-                ))
+                <>
+                  {tasks.map((task, index) => (
+                    <Draggable key={task.id} draggableId={task.id} index={index}>
+                      {(provided, snapshot) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          {...provided.dragHandleProps}
+                        >
+                          <TaskCard
+                            task={task}
+                            onUpdate={() => {}}
+                            onEdit={onEditTask}
+                            isDragging={snapshot.isDragging}
+                          />
+                        </div>
+                      )}
+                    </Draggable>
+                  ))}
+                  {/* Add task button below existing tasks */}
+                  <button
+                    onClick={() => onAddTask(column.id)}
+                    className="w-full py-3 border-2 border-dashed border-white/20 rounded-lg text-slate-400 hover:border-orange-500/50 hover:text-orange-400 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span className="text-sm">Add task</span>
+                  </button>
+                </>
               )}
               {provided.placeholder}
             </div>
@@ -311,6 +329,7 @@ function NewTaskModal({
   columnName,
   onSubmit,
   projectId,
+  boardLabels,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -318,17 +337,21 @@ function NewTaskModal({
   columnName: string;
   onSubmit: (task: Partial<Task>) => void;
   projectId: string;
+  boardLabels: Label[];
 }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [labels, setLabels] = useState('');
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [prUrl, setPrUrl] = useState('');
   const [assignees, setAssignees] = useState<string[]>([]);
   const [projectUsers, setProjectUsers] = useState<Array<{ id: string; name: string; email: string }>>([]);
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
+  const [showLabelDropdown, setShowLabelDropdown] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen && projectId) {
@@ -348,6 +371,22 @@ function NewTaskModal({
     );
   };
 
+  const toggleLabel = (labelId: string) => {
+    setSelectedLabels(prev =>
+      prev.includes(labelId) ? prev.filter(id => id !== labelId) : [...prev, labelId]
+    );
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setSelectedFiles(prev => [...prev, ...Array.from(e.target.files!)]);
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
@@ -356,7 +395,7 @@ function NewTaskModal({
       title: title.trim(),
       description: description.trim() || undefined,
       columnId,
-      labels: labels.trim() ? [labels.trim()] : [],
+      labels: selectedLabels,
       prUrl: prUrl.trim() || undefined,
       assignees: assignees.length > 0 ? assignees : undefined,
       isLocked: isLocked,
@@ -366,12 +405,13 @@ function NewTaskModal({
 
     setTitle('');
     setDescription('');
-    setLabels('');
+    setSelectedLabels([]);
     setPrUrl('');
     setAssignees([]);
     setIsLocked(false);
     setStartDate('');
     setEndDate('');
+    setSelectedFiles([]);
     onClose();
   };
 
@@ -443,9 +483,19 @@ function NewTaskModal({
               )}
             </div>
             <div className="flex items-end pb-3">
-              <label className="inline-flex items-center gap-2 text-sm text-slate-300">
-                <input type="checkbox" checked={isLocked} onChange={(e) => setIsLocked(e.target.checked)} />
-                Lock task
+              <label 
+                className="inline-flex items-center gap-2 text-sm text-slate-300 cursor-pointer hover:text-white transition-colors"
+                title="Locking task prevents other users who are not the creator or assignees from making edits to task"
+              >
+                <input type="checkbox" checked={isLocked} onChange={(e) => setIsLocked(e.target.checked)} className="sr-only" />
+                <div className={`flex items-center justify-center w-8 h-8 rounded-lg border-2 transition-colors ${
+                  isLocked 
+                    ? 'bg-orange-500 border-orange-500 text-white' 
+                    : 'border-white/30 text-slate-400 hover:border-white/50'
+                }`}>
+                  <Lock className="w-4 h-4" />
+                </div>
+                <span className="text-sm">Lock task</span>
               </label>
             </div>
           </div>
@@ -463,25 +513,105 @@ function NewTaskModal({
                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-slate-400 cursor-not-allowed"
               />
             </div>
-            <div>
+            <div className="relative">
               <label className="block text-sm font-medium text-slate-300 mb-2">
-                Label
+                Labels
               </label>
-              <input
-                type="text"
-                value={labels}
-                onChange={(e) => setLabels(e.target.value)}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
-                placeholder="Enter label..."
-              />
+              <button
+                type="button"
+                onClick={() => setShowLabelDropdown(!showLabelDropdown)}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-left focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+              >
+                {selectedLabels.length === 0 ? (
+                  <span className="text-slate-400">Select labels...</span>
+                ) : (
+                  <div className="flex gap-1 flex-wrap">
+                    {selectedLabels.map(labelId => {
+                      const label = boardLabels.find(l => l.id === labelId);
+                      if (!label) return null;
+                      const isWhite = label.color === '#ffffff' || label.color.toLowerCase() === '#fff';
+                      const textColor = isWhite ? 'text-black' : 'text-white';
+                      return (
+                        <span
+                          key={label.id}
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${textColor}`}
+                          style={{ backgroundColor: label.color }}
+                        >
+                          {label.name}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+              </button>
+              {showLabelDropdown && (
+                <div className="absolute z-10 w-full mt-1 bg-[#1a2332] border border-white/10 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {boardLabels.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-slate-400">No labels available</div>
+                  ) : (
+                    boardLabels.map(label => {
+                      const isWhite = label.color === '#ffffff' || label.color.toLowerCase() === '#fff';
+                      const textColor = isWhite ? 'text-black' : 'text-white';
+                      return (
+                        <label key={label.id} className="flex items-center px-3 py-2 hover:bg-white/5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={selectedLabels.includes(label.id)}
+                            onChange={() => toggleLabel(label.id)}
+                            className="mr-2"
+                          />
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${textColor}`}
+                            style={{ backgroundColor: label.color }}
+                          >
+                            {label.name}
+                          </span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 Attachments
               </label>
-              <div className="px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-slate-400 text-sm">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-slate-300 hover:bg-white/10 transition-colors text-sm flex items-center justify-center gap-2"
+              >
+                <Upload className="w-4 h-4" />
                 Upload files
-              </div>
+              </button>
+              {selectedFiles.length > 0 && (
+                <div className="mt-2 space-y-2">
+                  {selectedFiles.map((file, index) => (
+                    <div key={index} className="flex items-center justify-between px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <File className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                        <span className="text-white truncate">{file.name}</span>
+                        <span className="text-slate-400 text-xs flex-shrink-0">({(file.size / 1024).toFixed(1)} KB)</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeFile(index)}
+                        className="text-red-400 hover:text-red-300 ml-2 flex-shrink-0"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -561,6 +691,128 @@ function NewTaskModal({
   );
 }
 
+function LabelManagementModal({
+  isOpen,
+  onClose,
+  labels,
+  onCreateLabel,
+  onDeleteLabel,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  labels: Label[];
+  onCreateLabel: (name: string, color: string) => void;
+  onDeleteLabel: (labelId: string) => void;
+}) {
+  const [labelName, setLabelName] = useState('');
+  const [labelColor, setLabelColor] = useState<string>(LABEL_COLORS[0].value);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!labelName.trim()) return;
+    onCreateLabel(labelName.trim(), labelColor);
+    setLabelName('');
+    setLabelColor(LABEL_COLORS[0].value);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-[#1a2332] border border-white/10 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-semibold text-white">Manage Labels</h3>
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-white transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Create new label form */}
+          <form onSubmit={handleSubmit} className="mb-6 p-4 bg-white/5 rounded-lg border border-white/10">
+            <h4 className="text-sm font-semibold text-white mb-3">Create New Label</h4>
+            <div className="flex gap-3 items-end">
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-slate-300 mb-2">Label Name</label>
+                <input
+                  type="text"
+                  value={labelName}
+                  onChange={(e) => setLabelName(e.target.value)}
+                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 transition-colors text-sm"
+                  placeholder="Enter label name..."
+                  required
+                />
+              </div>
+              <div className="w-32">
+                <label className="block text-xs font-medium text-slate-300 mb-2">Color</label>
+                <select
+                  value={labelColor}
+                  onChange={(e) => setLabelColor(e.target.value)}
+                  className={`w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:border-orange-500 transition-colors text-sm ${labelColor === '#ffffff' || labelColor.toLowerCase() === '#fff' ? 'text-black' : 'text-white'}`}
+                  style={{ backgroundColor: labelColor }}
+                >
+                  {LABEL_COLORS.map(color => (
+                    <option key={color.value} value={color.value} style={{ backgroundColor: color.value, color: color.value === '#ffffff' ? '#000000' : '#ffffff' }}>
+                      {color.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="submit"
+                className="gh-cta-button px-4 py-2 rounded-lg text-white font-semibold text-sm"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+          </form>
+
+          {/* Existing labels list */}
+          <div>
+            <h4 className="text-sm font-semibold text-white mb-3">Existing Labels</h4>
+            {labels.length === 0 ? (
+              <div className="text-center py-8 text-slate-400">
+                <p className="text-sm">No labels yet</p>
+                <p className="text-xs">Create your first label above</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {labels.map(label => {
+                  const isWhite = label.color === '#ffffff' || label.color.toLowerCase() === '#fff';
+                  const textColor = isWhite ? 'text-black' : 'text-white';
+                  return (
+                    <div
+                      key={label.id}
+                      className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10 hover:border-white/20 transition-colors"
+                    >
+                      <span
+                        className={`inline-flex items-center px-3 py-1 rounded text-sm font-medium ${textColor}`}
+                        style={{ backgroundColor: label.color }}
+                      >
+                        {label.name}
+                      </span>
+                      <button
+                        onClick={() => onDeleteLabel(label.id)}
+                        className="text-red-400 hover:text-red-300 transition-colors p-1"
+                        title="Delete label"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PlannerBoard() {
   const [isMounted, setIsMounted] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -609,6 +861,20 @@ function PlannerBoard() {
   const [resizingColumnId, setResizingColumnId] = useState<string | null>(null);
   const [resizingNoteId, setResizingNoteId] = useState<string | null>(null);
   const [resizeStart, setResizeStart] = useState<{ width: number; height: number; x: number; y: number } | null>(null);
+
+  // View mode and filter state
+  const [viewMode, setViewMode] = useState<'free-form' | 'traditional' | 'grid'>('free-form');
+  const [filterSearch, setFilterSearch] = useState('');
+  const [filterPRNumber, setFilterPRNumber] = useState('');
+  const [filterLabels, setFilterLabels] = useState<string[]>([]);
+  const [filterAssignees, setFilterAssignees] = useState<string[]>([]);
+  const [filterHasPR, setFilterHasPR] = useState<boolean | null>(null);
+  const [selectedGridColumn, setSelectedGridColumn] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Labels state
+  const [labels, setLabels] = useState<Label[]>([]);
+  const [isLabelModalOpen, setIsLabelModalOpen] = useState(false);
 
   // Track DOM rects of each column for accurate side anchors
   const columnRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -774,6 +1040,7 @@ function PlannerBoard() {
       fetchColumns();
       fetchConnections();
       fetchNotes();
+      fetchLabels();
     }
   }, [selectedBoard]);
 
@@ -848,6 +1115,37 @@ function PlannerBoard() {
       alert('Failed to delete board. Please try again.');
     }
   };
+
+  const updateBoardViewMode = async (boardId: string, newViewMode: 'free-form' | 'traditional' | 'grid') => {
+    try {
+      const response = await fetch('/api/planner/boards', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: boardId, viewMode: newViewMode }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        alert(errorData.error || 'Failed to update view mode');
+        return;
+      }
+
+      const updated = await response.json();
+      setBoards(prev => prev.map(b => (b.id === boardId ? { ...b, viewMode: updated.viewMode } : b)));
+      setViewMode(newViewMode);
+    } catch (error) {
+      console.error('Failed to update view mode:', error);
+      alert('Failed to update view mode. Please try again.');
+    }
+  };
+
+  // Sync view mode when board changes
+  useEffect(() => {
+    const currentBoard = boards.find(b => b.id === selectedBoard);
+    if (currentBoard?.viewMode) {
+      setViewMode(currentBoard.viewMode);
+    }
+  }, [selectedBoard, boards]);
 
   const fetchColumns = async () => {
     if (!selectedBoard) return;
@@ -960,8 +1258,9 @@ function PlannerBoard() {
           ...(companyIdFromQuery ? { companyId: companyIdFromQuery } : {}),
         }),
       });
-      const data = await response.json();
-      setTasks(prev => [data, ...prev]);
+      await response.json();
+      // Refetch all tasks to get populated label data
+      await fetchTasks();
     } catch (error) {
       console.error('Failed to create task:', error);
     }
@@ -969,10 +1268,49 @@ function PlannerBoard() {
 
   const createColumn = async (columnData: { name: string; color: string; requiresPr: boolean; moveToColumnOnMerge?: string; moveToColumnOnClosed?: string; moveToColumnOnRequestChanges?: string }) => {
     try {
+      // Calculate position within visible viewport
+      let x = 20; // Default position with some padding
+      let y = 20;
+      
+      // Get the scroll container (parent of boardRef)
+      const boardEl = boardRef.current;
+      if (boardEl) {
+        const scrollContainer = boardEl.parentElement;
+        if (scrollContainer) {
+          // Get current scroll position
+          const scrollLeft = scrollContainer.scrollLeft;
+          const scrollTop = scrollContainer.scrollTop;
+          
+          // Position new column in the visible area with padding
+          x = scrollLeft + 20;
+          y = scrollTop + 20;
+          
+          // Check if position would overlap with existing columns
+          const existingColumns = columns.filter(col => {
+            const colWithPos = col as Column & { x?: number; y?: number };
+            const colX = colWithPos.x || 0;
+            const colY = colWithPos.y || 0;
+            // Check if position is too close to existing column
+            return Math.abs(colX - x) < 100 && Math.abs(colY - y) < 100;
+          });
+          
+          // If there's overlap, offset the position
+          if (existingColumns.length > 0) {
+            x += 40;
+            y += 40;
+          }
+        }
+      }
+      
       const response = await fetch('/api/planner/columns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...columnData, boardId: selectedBoard }),
+        body: JSON.stringify({ 
+          ...columnData, 
+          boardId: selectedBoard,
+          x: Math.round(x),
+          y: Math.round(y)
+        }),
       });
       const data = await response.json();
       setColumns(prev => [...prev, data]);
@@ -994,6 +1332,48 @@ function PlannerBoard() {
       });
     } catch (e) {
       console.error('Failed to fetch connections:', e);
+    }
+  };
+
+  const fetchLabels = async () => {
+    if (!selectedBoard) return;
+    try {
+      const res = await fetch(`/api/planner/labels?boardId=${selectedBoard}`);
+      const data = await res.json();
+      setLabels(data.labels || []);
+    } catch (e) {
+      console.error('Failed to fetch labels:', e);
+    }
+  };
+
+  const createLabel = async (name: string, color: string) => {
+    try {
+      const res = await fetch('/api/planner/labels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          color,
+          boardId: selectedBoard,
+          projectId: projectIdFromQuery,
+          companyId: companyIdFromQuery,
+        }),
+      });
+      const data = await res.json();
+      setLabels(prev => [...prev, data.label]);
+    } catch (e) {
+      console.error('Failed to create label:', e);
+    }
+  };
+
+  const deleteLabel = async (labelId: string) => {
+    try {
+      await fetch(`/api/planner/labels?id=${labelId}`, {
+        method: 'DELETE',
+      });
+      setLabels(prev => prev.filter(l => l.id !== labelId));
+    } catch (e) {
+      console.error('Failed to delete label:', e);
     }
   };
 
@@ -1029,7 +1409,7 @@ function PlannerBoard() {
     }
   };
 
-  const updateNote = async (id: string, updates: Partial<Pick<Note, 'x' | 'y' | 'color' | 'content' | 'style'>>) => {
+  const updateNote = async (id: string, updates: Partial<Pick<Note, 'x' | 'y' | 'width' | 'height' | 'color' | 'content' | 'style'>>) => {
     setNotes(prev => prev.map(n => (n.id === id ? { ...n, ...updates } as Note : n)));
     try {
       await fetch('/api/planner/notes', {
@@ -1039,6 +1419,20 @@ function PlannerBoard() {
       });
     } catch (e) {
       console.error('Failed to update note:', e);
+    }
+  };
+
+  const deleteNote = async (id: string) => {
+    if (!confirm('Delete this note?')) return;
+    setNotes(prev => prev.filter(n => n.id !== id));
+    setSelectedNoteId(null);
+    setEditingNoteId(null);
+    try {
+      await fetch(`/api/planner/notes?id=${id}`, {
+        method: 'DELETE'
+      });
+    } catch (e) {
+      console.error('Failed to delete note:', e);
     }
   };
 
@@ -1061,7 +1455,7 @@ function PlannerBoard() {
     }
   };
 
-  const updateConnection = async (id: string, updates: { sourceColumnId?: string; targetColumnId?: string; label?: string; color?: string }) => {
+  const updateConnection = async (id: string, updates: { sourceColumnId?: string; targetColumnId?: string; label?: string; color?: string; style?: 'solid' | 'dashed' | 'dotted'; arrowType?: 'single' | 'double' | 'none' }) => {
     try {
       const res = await fetch('/api/planner/connections', {
         method: 'PUT',
@@ -1081,22 +1475,36 @@ function PlannerBoard() {
   };
 
   const deleteConnection = async (id: string) => {
+    // First, optimistically remove from state to prevent multiple delete attempts
+    setConnections(prev => prev.filter(c => c.id !== id));
+    if (selectedConnectionId === id) setSelectedConnectionId(null);
+    if (draggingConn?.id === id) setDraggingConn(null);
+    
     try {
       const res = await fetch(`/api/planner/connections?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
       if (!res.ok) {
+        // If it's a 404, the connection is already deleted, so we can ignore it
+        if (res.status === 404) {
+          console.log('Connection already deleted:', id);
+          return;
+        }
+        
+        // For other errors, restore the connection and show an alert
         const err = await res.json().catch(() => ({}));
         alert(err.error || 'Failed to delete connection');
+        
+        // Restore the connection by re-fetching
+        await fetchConnections();
         return;
       }
-      setConnections(prev => prev.filter(c => c.id !== id));
-      if (selectedConnectionId === id) setSelectedConnectionId(null);
-      if (draggingConn?.id === id) setDraggingConn(null);
     } catch (e) {
       console.error('Failed to delete connection:', e);
+      // Restore connections on error
+      await fetchConnections();
     }
   };
 
-  const updateColumn = async (columnId: string, updates: { name?: string; color?: string; requiresPr?: boolean; moveToColumnOnMerge?: string; moveToColumnOnClosed?: string; moveToColumnOnRequestChanges?: string; x?: number; y?: number }) => {
+  const updateColumn = async (columnId: string, updates: { name?: string; color?: string; requiresPr?: boolean; moveToColumnOnMerge?: string; moveToColumnOnClosed?: string; moveToColumnOnRequestChanges?: string; x?: number; y?: number; width?: number; height?: number }) => {
     try {
       console.log('Updating column:', columnId, 'with updates:', updates);
       const response = await fetch('/api/planner/columns', {
@@ -1191,8 +1599,8 @@ function PlannerBoard() {
         body: JSON.stringify({ id: taskId, ...updates }),
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const updatedTask = await response.json();
-      setTasks(prev => prev.map(t => (t.id === taskId ? updatedTask : t)));
+      // Refetch all tasks to get populated label data
+      await fetchTasks();
     } catch (error) {
       console.error('Failed to update task:', error);
       // Re-sync from server if update failed
@@ -1219,23 +1627,32 @@ function PlannerBoard() {
   };
 
   const handleColumnReorder = async (sourceIndex: number, destinationIndex: number) => {
+    console.log('handleColumnReorder called:', { sourceIndex, destinationIndex });
     const reorderedColumns = Array.from(columns);
     const [movedColumn] = reorderedColumns.splice(sourceIndex, 1);
     reorderedColumns.splice(destinationIndex, 0, movedColumn);
 
-    // Update local state optimistically
-    setColumns(reorderedColumns);
+    console.log('Reordered columns:', reorderedColumns.map((c, i) => ({ name: c.name, order: i })));
+
+    // Update local state optimistically with new order values
+    const columnsWithNewOrder = reorderedColumns.map((col, index) => ({
+      ...col,
+      order: index
+    }));
+    setColumns(columnsWithNewOrder);
 
     // Persist the new order to the database
     try {
-      const updatePromises = reorderedColumns.map((col, index) =>
-        fetch('/api/planner/columns', {
+      const updatePromises = columnsWithNewOrder.map((col, index) => {
+        console.log(`Updating column ${col.name} to order ${index}`);
+        return fetch('/api/planner/columns', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: col.id, order: index }),
-        })
-      );
+        });
+      });
       await Promise.all(updatePromises);
+      console.log('All column order updates completed');
     } catch (error) {
       console.error('Failed to persist column order:', error);
       // Revert on error
@@ -1348,8 +1765,8 @@ function PlannerBoard() {
         return;
       }
 
-      // Check if dragging a column
-      if (type === 'column' || draggableId.startsWith('column-')) {
+      // Check if dragging a column (supports both free-form and traditional modes)
+      if (type === 'column' || draggableId.startsWith('column-') || draggableId.startsWith('col-')) {
         console.log('Column drag detected');
         await handleColumnReorder(source.index, destination.index);
         return;
@@ -1390,12 +1807,80 @@ function PlannerBoard() {
     }
   };
 
+  // Filter tasks based on current filters
+  const filteredTasks = useMemo(() => {
+    return tasks.filter(task => {
+      // Search filter
+      if (filterSearch && !task.title.toLowerCase().includes(filterSearch.toLowerCase()) && 
+          !(task.description || '').toLowerCase().includes(filterSearch.toLowerCase())) {
+        return false;
+      }
+      
+      // Label filter
+      if (filterLabels.length > 0) {
+        const taskLabels = task.labels || [];
+        if (!filterLabels.some(label => taskLabels.includes(label))) {
+          return false;
+        }
+      }
+      
+      // Assignee filter
+      if (filterAssignees.length > 0) {
+        const taskAssignees = (task as any).assignees || [];
+        if (!filterAssignees.some(assignee => taskAssignees.includes(assignee))) {
+          return false;
+        }
+      }
+      
+      // PR filter
+      if (filterHasPR !== null) {
+        const hasPR = !!task.prUrl;
+        if (hasPR !== filterHasPR) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
+  }, [tasks, filterSearch, filterLabels, filterAssignees, filterHasPR]);
+
   const tasksByColumn = useMemo(() => {
     return columns.reduce((acc, column) => {
-      acc[column.id] = tasks.filter(t => t.columnId === column.id).sort((a, b) => (a.order || 0) - (b.order || 0));
+      acc[column.id] = filteredTasks.filter(t => t.columnId === column.id).sort((a, b) => (a.order || 0) - (b.order || 0));
       return acc;
     }, {} as Record<string, Task[]>);
-  }, [columns, tasks]);
+  }, [columns, filteredTasks]);
+
+  // Extract unique labels and assignees for filter dropdowns
+  const uniqueLabels = useMemo(() => {
+    const labels = new Set<string>();
+    tasks.forEach(task => {
+      (task.labels || []).forEach(label => labels.add(label));
+    });
+    return Array.from(labels).sort();
+  }, [tasks]);
+
+  const uniqueAssignees = useMemo(() => {
+    const assignees = new Set<string>();
+    tasks.forEach(task => {
+      ((task as any).assignees || []).forEach((assignee: string) => assignees.add(assignee));
+    });
+    return Array.from(assignees);
+  }, [tasks]);
+
+  // Get user names for assignee filter
+  const [projectUsers, setProjectUsers] = useState<Array<{ id: string; name: string; email: string }>>([]);
+  useEffect(() => {
+    if (projectIdFromQuery) {
+      (async () => {
+        const res = await fetch(`/api/projects/${projectIdFromQuery}/users`);
+        if (res.ok) {
+          const data = await res.json();
+          setProjectUsers(data.users || []);
+        }
+      })();
+    }
+  }, [projectIdFromQuery]);
 
   const handleColumnHandlePointerDown = (colId: string) => (e: any) => {
     if (connectMode) {
@@ -1560,12 +2045,13 @@ function PlannerBoard() {
       const deltaY = e.clientY - resizeStart.y;
       const newWidth = Math.max(150, resizeStart.width + deltaX);
       const newHeight = Math.max(100, resizeStart.height + deltaY);
-      setNotes(prev => prev.map(n => (n.id === resizingNoteId ? ({ ...n, width: newWidth, height: newHeight } as any) : n)));
+      setNotes(prev => prev.map(n => (n.id === resizingNoteId ? ({ ...n, width: newWidth, height: newHeight } as Note) : n)));
     };
     const onUp = async () => {
-      const note = notes.find(n => n.id === resizingNoteId) as any;
-      if (note && (note.width || note.height)) {
-        await updateNote(resizingNoteId, { width: note.width, height: note.height } as any);
+      const note = notes.find(n => n.id === resizingNoteId);
+      const noteWithDims = note as Note & { width?: number; height?: number };
+      if (noteWithDims && (noteWithDims.width || noteWithDims.height)) {
+        await updateNote(resizingNoteId, { width: noteWithDims.width, height: noteWithDims.height });
       }
       setResizingNoteId(null);
       setResizeStart(null);
@@ -1581,9 +2067,10 @@ function PlannerBoard() {
   const getApproxRect = (colId: string) => {
     const rect = columnRects[colId];
     if (rect) return rect;
-    const col = columns.find(c => c.id === colId) as any;
-    const x = (col?.x ?? ((col?.order || 0) * 320));
-    const y = (col?.y ?? 0);
+    const col = columns.find(c => c.id === colId);
+    const colWithPos = col as Column & { x?: number; y?: number; order?: number };
+    const x = (colWithPos?.x ?? ((colWithPos?.order || 0) * 320));
+    const y = (colWithPos?.y ?? 0);
     const width = 320; // default min width
     const height = 260; // reasonable default
     return { x, y, width, height };
@@ -1639,6 +2126,93 @@ function PlannerBoard() {
     return `M ${start.x},${start.y} C ${c1.x},${c1.y} ${c2.x},${c2.y} ${end.x},${end.y}`;
   };
 
+  // Render traditional planner board view (fixed row, reorderable columns, no arrows/notes)
+  const renderTraditionalView = () => {
+    const sortedColumns = [...columns].sort((a, b) => (a.order || 0) - (b.order || 0));
+    console.log('Rendering traditional view with columns:', sortedColumns.map(c => ({ name: c.name, order: c.order })));
+    
+    return (
+      <Droppable droppableId="traditional-columns" direction="horizontal" type="column">
+        {(provided) => (
+          <div 
+            ref={provided.innerRef}
+            {...provided.droppableProps}
+            className="flex gap-4 overflow-x-auto pb-6"
+          >
+            {sortedColumns.map((column, index) => (
+              <Draggable key={column.id} draggableId={`col-${column.id}`} index={index}>
+                {(provided, snapshot) => (
+                  <div
+                    ref={provided.innerRef}
+                    {...provided.draggableProps}
+                    {...provided.dragHandleProps}
+                    className={`flex-shrink-0 w-80 ${snapshot.isDragging ? 'opacity-50' : ''}`}
+                  >
+                    <Column
+                      column={column}
+                      tasks={tasksByColumn[column.id] || []}
+                      onAddTask={handleAddTask}
+                      onEditColumn={handleEditColumn}
+                      onDeleteColumn={handleDeleteColumn}
+                      onEditTask={handleEditTask}
+                    />
+                  </div>
+                )}
+              </Draggable>
+            ))}
+            {provided.placeholder}
+          </div>
+        )}
+      </Droppable>
+    );
+  };
+
+  // Render grid view with task cards
+  const renderGridView = () => {
+    const tasksToShow = selectedGridColumn
+      ? tasksByColumn[selectedGridColumn] || []
+      : Object.values(tasksByColumn).flat();
+
+    return (
+      <div className="space-y-4">
+        {/* Column Filter for Grid View */}
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium text-slate-300">View Column:</label>
+          <select
+            value={selectedGridColumn || ''}
+            onChange={(e) => setSelectedGridColumn(e.target.value || null)}
+            className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+          >
+            <option value="" className="bg-[#1a2332]">All Columns</option>
+            {columns.map(column => (
+              <option key={column.id} value={column.id} className="bg-[#1a2332]">
+                {column.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Task Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {tasksToShow.length === 0 ? (
+            <div className="col-span-full text-center py-12 text-slate-400">
+              No tasks found{selectedGridColumn ? ' in this column' : ''}.
+            </div>
+          ) : (
+            tasksToShow.map(task => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                onUpdate={() => {}}
+                onEdit={handleEditTask}
+              />
+            ))
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen gh-hero-gradient">
       <div className="sticky top-24 bg-[#1a2332]/95 backdrop-blur-sm border-b border-white/10 z-10">
@@ -1654,7 +2228,7 @@ function PlannerBoard() {
                 </p>
               )}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 relative">
               <div className="flex items-center gap-2">
                 <select
                   value={selectedBoard}
@@ -1682,44 +2256,94 @@ function PlannerBoard() {
                   </button>
                 )}
               </div>
-              <button
-                onClick={() => setIsNewColumnModalOpen(true)}
-                className="gh-cta-button-secondary px-5 py-2 rounded-lg font-semibold bg-transparent"
-              >
-                New Column
-              </button>
-              <button
-                onClick={() => {
-                  setConnectMode((prev) => {
-                    const next = !prev;
-                    if (!next) setConnectSource(null);
-                    return next;
-                  });
-                }}
-                className={connectMode ? "gh-cta-button px-5 py-2 rounded-lg text-white font-semibold" : "gh-cta-button-secondary px-5 py-2 rounded-lg font-semibold bg-transparent"}
-                title="Connect columns: click a source column header, then a target column header"
-              >
-                {connectMode ? 'Connecting… (click two columns)' : 'Connect Columns'}
-              </button>
-              <div className="relative">
+              
+              {/* View Mode Selector */}
+              <div className="flex items-center gap-1 border border-white/10 rounded-lg p-1 bg-white/5">
                 <button
-                  onClick={() => setIsNotePaletteOpen(v => !v)}
-                  className="gh-cta-button-secondary px-5 py-2 rounded-lg font-semibold bg-transparent"
+                  onClick={() => updateBoardViewMode(selectedBoard, 'free-form')}
+                  className={`px-3 py-1.5 rounded transition-colors ${viewMode === 'free-form' ? 'bg-orange-500 text-white' : 'text-slate-300 hover:bg-white/10'}`}
+                  title="Free-form Board (drag anywhere)"
                 >
-                  New Note
+                  <Maximize className="w-4 h-4" />
                 </button>
-                {isNotePaletteOpen && (
-                  <div className="absolute right-0 mt-2 bg-[#1a2332] border border-white/10 rounded-lg p-2 flex gap-2 z-40">
-                    {['yellow','pink','blue','green','purple','orange'].map(c => (
-                      <button key={c} onClick={() => { createNote(c); setIsNotePaletteOpen(false); }}
-                        className="w-6 h-6 rounded shadow border border-black/20" 
-                        style={{ backgroundColor: c === 'yellow' ? '#fde047' : c === 'pink' ? '#f9a8d4' : c === 'blue' ? '#7dd3fc' : c === 'green' ? '#86efac' : c === 'purple' ? '#c4b5fd' : '#fdba74' }}
-                        title={`Add ${c} note`}
-                      />
-                    ))}
-                  </div>
-                )}
+                <button
+                  onClick={() => updateBoardViewMode(selectedBoard, 'traditional')}
+                  className={`px-3 py-1.5 rounded transition-colors ${viewMode === 'traditional' ? 'bg-orange-500 text-white' : 'text-slate-300 hover:bg-white/10'}`}
+                  title="Traditional Planner (fixed row)"
+                >
+                  <Layout className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => updateBoardViewMode(selectedBoard, 'grid')}
+                  className={`px-3 py-1.5 rounded transition-colors ${viewMode === 'grid' ? 'bg-orange-500 text-white' : 'text-slate-300 hover:bg-white/10'}`}
+                  title="Grid View"
+                >
+                  <Grid3x3 className="w-4 h-4" />
+                </button>
               </div>
+
+              {/* Filter Toggle Button */}
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`px-5 py-2 rounded-lg font-semibold ${showFilters ? 'gh-cta-button text-white' : 'gh-cta-button-secondary bg-transparent'}`}
+                title="Toggle Filters"
+              >
+                <Filter className="w-4 h-4 inline mr-2" />
+                Filters
+              </button>
+
+              {viewMode !== 'grid' && (
+                <>
+                  <button
+                    onClick={() => setIsNewColumnModalOpen(true)}
+                    className="gh-cta-button-secondary px-5 py-2 rounded-lg font-semibold bg-transparent"
+                  >
+                    New Column
+                  </button>
+                  <button
+                    onClick={() => setIsLabelModalOpen(true)}
+                    className="gh-cta-button-secondary px-5 py-2 rounded-lg font-semibold bg-transparent"
+                  >
+                    Manage Labels
+                  </button>
+                </>
+              )}
+              {viewMode === 'free-form' && (
+                <>
+                  <button
+                    onClick={() => {
+                      setConnectMode((prev) => {
+                        const next = !prev;
+                        if (!next) setConnectSource(null);
+                        return next;
+                      });
+                    }}
+                    className={connectMode ? "gh-cta-button px-5 py-2 rounded-lg text-white font-semibold" : "gh-cta-button-secondary px-5 py-2 rounded-lg font-semibold bg-transparent"}
+                    title="Connect columns: click a source column header, then a target column header"
+                  >
+                    {connectMode ? 'Connecting… (click two columns)' : 'Connect Columns'}
+                  </button>
+                  <div className="relative">
+                    <button
+                      onClick={() => setIsNotePaletteOpen(v => !v)}
+                      className="gh-cta-button-secondary px-5 py-2 rounded-lg font-semibold bg-transparent"
+                    >
+                      New Note
+                    </button>
+                    {isNotePaletteOpen && (
+                      <div className="absolute right-0 mt-2 bg-[#1a2332] border border-white/10 rounded-lg p-2 flex gap-2 z-40">
+                        {['yellow','pink','blue','green','purple','orange'].map(c => (
+                          <button key={c} onClick={() => { createNote(c); setIsNotePaletteOpen(false); }}
+                            className="w-6 h-6 rounded shadow border border-black/20" 
+                            style={{ backgroundColor: c === 'yellow' ? '#fde047' : c === 'pink' ? '#f9a8d4' : c === 'blue' ? '#7dd3fc' : c === 'green' ? '#86efac' : c === 'purple' ? '#c4b5fd' : '#fdba74' }}
+                            title={`Add ${c} note`}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
               <button 
                 onClick={() => {
                   const boardName = prompt('Enter board name:');
@@ -1733,6 +2357,111 @@ function PlannerBoard() {
               </button>
             </div>
           </div>
+          {/* Connection styling toolbar (visible when a connection is selected) */}
+          {selectedConnectionId && (() => {
+              const conn = connections.find(c => c.id === selectedConnectionId);
+              if (!conn) return null;
+              return (
+                <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+                  <span className="text-slate-300 text-sm mr-2">Arrow style:</span>
+                  <div className="flex flex-wrap items-center gap-2 p-2 bg-white/5 border border-white/10 rounded-lg">
+                    {/* Arrow colors */}
+                    <div className="flex items-center gap-1">
+                      {['#f59e0b', '#ef4444', '#3b82f6', '#10b981', '#a855f7', '#ec4899', '#6b7280'].map(color => (
+                        <button
+                          key={color}
+                          className={`w-6 h-6 rounded border-2 ${
+                            conn.color === color ? 'border-white' : 'border-transparent'
+                          }`}
+                          style={{ backgroundColor: color }}
+                          onClick={() => updateConnection(conn.id, { color })}
+                          title="Arrow color"
+                        />
+                      ))}
+                    </div>
+                    <div className="h-6 w-px bg-white/20" />
+                    {/* Line style buttons */}
+                    <button
+                      className={`px-3 py-1 rounded text-sm border ${
+                        conn.style === 'solid' || !conn.style
+                          ? 'bg-white/10 border-white/20 text-white'
+                          : 'bg-transparent border-white/10 text-slate-300'
+                      }`}
+                      onClick={() => updateConnection(conn.id, { style: 'solid' })}
+                      title="Solid line"
+                    >
+                      ——
+                    </button>
+                    <button
+                      className={`px-3 py-1 rounded text-sm border ${
+                        conn.style === 'dashed'
+                          ? 'bg-white/10 border-white/20 text-white'
+                          : 'bg-transparent border-white/10 text-slate-300'
+                      }`}
+                      onClick={() => updateConnection(conn.id, { style: 'dashed' })}
+                      title="Dashed line"
+                    >
+                      - - -
+                    </button>
+                    <button
+                      className={`px-3 py-1 rounded text-sm border ${
+                        conn.style === 'dotted'
+                          ? 'bg-white/10 border-white/20 text-white'
+                          : 'bg-transparent border-white/10 text-slate-300'
+                      }`}
+                      onClick={() => updateConnection(conn.id, { style: 'dotted' })}
+                      title="Dotted line"
+                    >
+                      · · ·
+                    </button>
+                    <div className="h-6 w-px bg-white/20" />
+                    {/* Arrow type buttons */}
+                    <button
+                      className={`px-3 py-1 rounded text-sm border ${
+                        conn.arrowType === 'single' || !conn.arrowType
+                          ? 'bg-white/10 border-white/20 text-white'
+                          : 'bg-transparent border-white/10 text-slate-300'
+                      }`}
+                      onClick={() => updateConnection(conn.id, { arrowType: 'single' })}
+                      title="Single arrow"
+                    >
+                      →
+                    </button>
+                    <button
+                      className={`px-3 py-1 rounded text-sm border ${
+                        conn.arrowType === 'double'
+                          ? 'bg-white/10 border-white/20 text-white'
+                          : 'bg-transparent border-white/10 text-slate-300'
+                      }`}
+                      onClick={() => updateConnection(conn.id, { arrowType: 'double' })}
+                      title="Double arrow"
+                    >
+                      ↔
+                    </button>
+                    <button
+                      className={`px-3 py-1 rounded text-sm border ${
+                        conn.arrowType === 'none'
+                          ? 'bg-white/10 border-white/20 text-white'
+                          : 'bg-transparent border-white/10 text-slate-300'
+                      }`}
+                      onClick={() => updateConnection(conn.id, { arrowType: 'none' })}
+                      title="No arrows"
+                    >
+                      —
+                    </button>
+                    <div className="h-6 w-px bg-white/20" />
+                    {/* Connection label */}
+                    <input
+                      type="text"
+                      value={conn.label || ''}
+                      onChange={(e) => updateConnection(conn.id, { label: e.target.value })}
+                      placeholder="Label..."
+                      className="px-2 py-1 bg-white/5 border border-white/10 rounded text-white text-sm w-24"
+                    />
+                  </div>
+                </div>
+              );
+            })()}
           {/* Note formatting toolbar (visible when a note is selected) */}
           {selectedNoteId && (() => {
               const n = notes.find(nn => nn.id === selectedNoteId);
@@ -1817,6 +2546,83 @@ function PlannerBoard() {
                 </div>
               );
             })()}
+
+          {/* Filter Panel */}
+          {showFilters && (
+            <div className="absolute top-full right-6 mt-2 z-20">
+              <div className="p-4 bg-[#1a2332] border border-white/10 rounded-lg shadow-xl">
+                <div className="flex items-center gap-3 flex-wrap">
+                {/* Search Filter */}
+                <input
+                  type="text"
+                  value={filterSearch}
+                  onChange={(e) => setFilterSearch(e.target.value)}
+                  placeholder="Search box"
+                  className="px-4 py-2 bg-transparent border-2 border-white/30 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-orange-500 transition-colors text-sm min-w-[200px]"
+                />
+
+                {/* Creator/Assignee Filter */}
+                <select
+                  value={filterAssignees[0] || ''}
+                  onChange={(e) => setFilterAssignees(e.target.value ? [e.target.value] : [])}
+                  className="px-4 py-2 bg-transparent border-2 border-white/30 rounded-lg text-white focus:outline-none focus:border-orange-500 transition-colors text-sm min-w-[180px]"
+                >
+                  <option value="" className="bg-[#1a2332]">Creator/Assignee</option>
+                  {projectUsers.map(user => (
+                    <option key={user.id} value={user.id} className="bg-[#1a2332]">{user.name}</option>
+                  ))}
+                </select>
+
+                {/* Label Filter Dropdown */}
+                <select
+                  value={filterLabels[0] || ''}
+                  onChange={(e) => setFilterLabels(e.target.value ? [e.target.value] : [])}
+                  className="px-4 py-2 bg-transparent border-2 border-white/30 rounded-lg text-white focus:outline-none focus:border-orange-500 transition-colors text-sm min-w-[150px]"
+                >
+                  <option value="" className="bg-[#1a2332]">Select Label</option>
+                  {labels.map(label => (
+                    <option key={label.id} value={label.id} className="bg-[#1a2332]">{label.name}</option>
+                  ))}
+                </select>
+
+                {/* PR Number Search */}
+                <input
+                  type="number"
+                  value={filterPRNumber}
+                  onChange={(e) => setFilterPRNumber(e.target.value)}
+                  placeholder="Search PR #"
+                  className="px-4 py-2 bg-transparent border-2 border-white/30 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-orange-500 transition-colors text-sm min-w-[140px]"
+                />
+
+                {/* PR Checkbox */}
+                <label className="flex items-center gap-2 px-4 py-2 border-2 border-white/30 rounded-lg cursor-pointer hover:border-white/50 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={filterHasPR === true}
+                    onChange={(e) => setFilterHasPR(e.target.checked ? true : null)}
+                    className="w-4 h-4 rounded border-white/30 text-orange-500 focus:ring-orange-500"
+                  />
+                  <span className="text-sm text-white">Has PR</span>
+                </label>
+
+                {/* Clear Filters Icon */}
+                <button
+                  onClick={() => {
+                    setFilterSearch('');
+                    setFilterPRNumber('');
+                    setFilterLabels([]);
+                    setFilterAssignees([]);
+                    setFilterHasPR(null);
+                  }}
+                  className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                  title="Clear all filters"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1830,6 +2636,12 @@ function PlannerBoard() {
           <div className="text-center py-12">
             <p className="text-slate-300">Initialising board...</p>
           </div>
+        ) : viewMode === 'traditional' ? (
+          <DragDropContext onDragEnd={onDragEnd}>
+            {renderTraditionalView()}
+          </DragDropContext>
+        ) : viewMode === 'grid' ? (
+          renderGridView()
         ) : (
           <DragDropContext onDragEnd={onDragEnd}>
             <div className="relative overflow-auto pb-6" style={{ minHeight: '60vh' }}>
@@ -1858,13 +2670,49 @@ function PlannerBoard() {
                      setDraggingConn(null);
                      setPointerPos(null);
                    }}
-                   onClick={(e) => { if (e.target === e.currentTarget) { setSelectedNoteId(null); } }}
+                   onClick={(e) => { if (e.target === e.currentTarget) { setSelectedNoteId(null); setSelectedConnectionId(null); } }}
               >
                 <svg className="absolute inset-0 w-full h-full pointer-events-none z-20">
                   <defs>
-                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
-                      <polygon points="0 0, 10 3.5, 0 7" fill="#f59e0b" />
-                    </marker>
+                    {/* Create unique markers for each color */}
+                    {Array.from(new Set(connections.map(c => c.color || '#f59e0b'))).map(color => [
+                        <marker 
+                          key={`arrowhead-${color}`}
+                          id={`arrowhead-${color.replace('#', '')}`} 
+                          viewBox="0 0 10 10"
+                          refX="9" 
+                          refY="5" 
+                          markerWidth="6" 
+                          markerHeight="6" 
+                          orient="auto"
+                        >
+                          <path d="M 0 0 L 10 5 L 0 10 z" fill={color} />
+                        </marker>,
+                        <marker 
+                          key={`arrowhead-double-${color}`}
+                          id={`arrowhead-double-${color.replace('#', '')}`} 
+                          viewBox="0 0 10 10"
+                          refX="9" 
+                          refY="5" 
+                          markerWidth="6" 
+                          markerHeight="6" 
+                          orient="auto"
+                        >
+                          <path d="M 0 0 L 10 5 L 0 10 z" fill={color} />
+                        </marker>,
+                        <marker 
+                          key={`arrowhead-double-start-${color}`}
+                          id={`arrowhead-double-start-${color.replace('#', '')}`} 
+                          viewBox="0 0 10 10"
+                          refX="1" 
+                          refY="5" 
+                          markerWidth="6" 
+                          markerHeight="6" 
+                          orient="auto"
+                        >
+                          <path d="M 10 0 L 0 5 L 10 10 z" fill={color} />
+                        </marker>
+                    ]).flat()}
                   </defs>
                   {connections.map((c) => {
                     const targetRect = getApproxRect(c.targetColumnId);
@@ -1877,7 +2725,15 @@ function PlannerBoard() {
                     return (
                       <g key={c.id}>
                         {/* Visual path */}
-                        <path d={path} stroke={c.color || '#f59e0b'} strokeWidth={2} fill="none" markerEnd="url(#arrowhead)" />
+                        <path 
+                          d={path} 
+                          stroke={c.color || '#f59e0b'} 
+                          strokeWidth={2} 
+                          fill="none" 
+                          strokeDasharray={c.style === 'dashed' ? '8 4' : c.style === 'dotted' ? '2 2' : undefined}
+                          markerEnd={c.arrowType === 'none' ? undefined : (c.arrowType === 'double' ? `url(#arrowhead-double-${(c.color || '#f59e0b').replace('#', '')})` : `url(#arrowhead-${(c.color || '#f59e0b').replace('#', '')})`)} 
+                          markerStart={c.arrowType === 'double' ? `url(#arrowhead-double-start-${(c.color || '#f59e0b').replace('#', '')})` : undefined}
+                        />
                         {/* Click to select (only when NOT in connect mode) */}
                         {!connectMode && (
                           <path
@@ -1996,26 +2852,38 @@ function PlannerBoard() {
                     const noteWidth = (note as any).width || 224;
                     const noteHeight = (note as any).height || 150;
                     return (
-                      <div key={note.id} className="absolute z-30" style={{ left: note.x || 0, top: note.y || 0, width: noteWidth }} onClick={(e) => { e.stopPropagation(); setSelectedNoteId(note.id); }}>
+                      <div key={note.id} className="absolute z-[5]" style={{ left: note.x || 0, top: note.y || 0, width: noteWidth }} onClick={(e) => { e.stopPropagation(); setSelectedNoteId(note.id); }}>
                         {/* Pin icon at top center */}
                         <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
                           <Pin className="w-7 h-7 text-red-600 fill-red-600" style={{ transform: 'rotate(45deg)' }} />
                         </div>
                         <div className={`rounded shadow-lg border ${isSelected ? 'border-orange-400 ring-2 ring-orange-400/50' : 'border-black/20'} ${colorClass(note.color)} text-slate-900`} style={{ width: noteWidth, minHeight: noteHeight }}> 
-                          <div className="px-2 py-1 cursor-move bg-black/10 rounded-t" onPointerDown={handleNotePointerDown(note.id)} />
+                          <div className="px-2 py-1 cursor-move bg-black/10 rounded-t flex items-center justify-between" onPointerDown={handleNotePointerDown(note.id)}>
+                            <div className="flex-1" />
+                            {isSelected && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); deleteNote(note.id); }}
+                                onPointerDown={(e) => e.stopPropagation()}
+                                className="text-red-600 hover:text-red-800 hover:bg-red-100/50 rounded p-1 transition-colors"
+                                title="Delete note"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
                           <div className="p-3" style={{ minHeight: noteHeight - 32 }}>
                             {editingNoteId === note.id ? (
                               <textarea
                                 value={editingNoteText}
                                 onChange={(e) => setEditingNoteText(e.target.value)}
                                 onBlur={() => { const t = editingNoteText.trim(); updateNote(note.id, { content: t }); setEditingNoteId(null); }}
-                                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { (e.currentTarget as HTMLTextAreaElement).blur(); } if (e.key === 'Escape') { setEditingNoteId(null); }} }
-                                className="w-full bg-transparent outline-none text-sm"
-                                style={{ ...textStyle, minHeight: noteHeight - 56 }}
+                                onKeyDown={(e) => { if (e.key === 'Escape') { setEditingNoteId(null); }} }
+                                className="w-full bg-transparent outline-none text-sm resize-none"
+                                style={{ ...textStyle, minHeight: noteHeight - 56, lineHeight: '1.5' }}
                                 autoFocus
                               />
                             ) : (
-                              <div className="text-sm whitespace-pre-wrap" style={{ ...textStyle, minHeight: noteHeight - 56 }} onClick={() => { setEditingNoteId(note.id); setEditingNoteText(note.content || ''); }}>
+                              <div className="text-sm whitespace-pre-wrap" style={{ ...textStyle, minHeight: noteHeight - 56, lineHeight: '1.5' }} onClick={() => { setEditingNoteId(note.id); setEditingNoteText(note.content || ''); }}>
                                 {note.content || 'Click to type...'}
                               </div>
                             )}
@@ -2045,6 +2913,7 @@ function PlannerBoard() {
         columnName={newTaskColumnName}
         onSubmit={createTask}
         projectId={projectIdFromQuery}
+        boardLabels={labels}
       />
 
       <ColumnModal
@@ -2106,6 +2975,7 @@ function PlannerBoard() {
         }}
         onDelete={(taskId) => deleteTask(taskId)}
         projectId={projectIdFromQuery}
+        boardLabels={labels}
       />
 
       <PrLinkModal
@@ -2144,6 +3014,14 @@ function PlannerBoard() {
           console.log('Checking PR status immediately after adding URL');
           await checkMergedPRs();
         }}
+      />
+
+      <LabelManagementModal
+        isOpen={isLabelModalOpen}
+        onClose={() => setIsLabelModalOpen(false)}
+        labels={labels}
+        onCreateLabel={createLabel}
+        onDeleteLabel={deleteLabel}
       />
     </div>
   );
@@ -2210,7 +3088,7 @@ function ColumnModal({
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-[#1a2332] border border-white/10 rounded-lg max-w-md w-full shadow-2xl">
+      <div className="bg-[#1a2332] border border-white/10 rounded-lg w-full shadow-2xl" style={{ maxWidth: '538px' }}>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <h3 className="text-xl font-semibold text-white">{title}</h3>
 
@@ -2387,6 +3265,7 @@ function EditTaskModal({
   onSubmit,
   onDelete,
   projectId,
+  boardLabels,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -2395,10 +3274,11 @@ function EditTaskModal({
   onSubmit: (updates: Partial<Task>) => void;
   onDelete: (taskId: string) => void;
   projectId: string;
+  boardLabels: Label[];
 }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [labels, setLabels] = useState('');
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [prUrl, setPrUrl] = useState('');
   const [assignees, setAssignees] = useState<string[]>([]);
   const [status, setStatus] = useState('pending');
@@ -2406,6 +3286,7 @@ function EditTaskModal({
   const [isLocked, setIsLocked] = useState<boolean>(false);
   const [projectUsers, setProjectUsers] = useState<Array<{ id: string; name: string; email: string }>>([]);
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
+  const [showLabelDropdown, setShowLabelDropdown] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -2425,7 +3306,7 @@ function EditTaskModal({
     if (task) {
       setTitle(task.title);
       setDescription(task.description || '');
-      setLabels(task.labels?.[0] || '');
+      setSelectedLabels(task.labels || []);
       setPrUrl(task.prUrl || '');
       setAssignees((task as any).assignees || (task.assignee ? [task.assignee] : []));
       setStatus(task.status);
@@ -2442,6 +3323,12 @@ function EditTaskModal({
     );
   };
 
+  const toggleLabel = (labelId: string) => {
+    setSelectedLabels(prev =>
+      prev.includes(labelId) ? prev.filter(id => id !== labelId) : [...prev, labelId]
+    );
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
@@ -2449,7 +3336,7 @@ function EditTaskModal({
     const updates: Partial<Task> = {
       title: title.trim(),
       description: description.trim() || undefined,
-      labels: labels.trim() ? [labels.trim()] : [],
+      labels: selectedLabels,
       prUrl: prUrl.trim() || undefined,
       assignees: assignees.length > 0 ? assignees : undefined,
       status: status as Task['status'],
@@ -2531,9 +3418,19 @@ function EditTaskModal({
               )}
             </div>
             <div className="flex items-end pb-3">
-              <label className="inline-flex items-center gap-2 text-sm text-slate-300">
-                <input type="checkbox" checked={isLocked} onChange={(e) => setIsLocked(e.target.checked)} />
-                Lock task
+              <label 
+                className="inline-flex items-center gap-2 text-sm text-slate-300 cursor-pointer hover:text-white transition-colors"
+                title="Locking task prevents other users who are not the creator or assignees from making edits to task"
+              >
+                <input type="checkbox" checked={isLocked} onChange={(e) => setIsLocked(e.target.checked)} className="sr-only" />
+                <div className={`flex items-center justify-center w-8 h-8 rounded-lg border-2 transition-colors ${
+                  isLocked 
+                    ? 'bg-orange-500 border-orange-500 text-white' 
+                    : 'border-white/30 text-slate-400 hover:border-white/50'
+                }`}>
+                  <Lock className="w-4 h-4" />
+                </div>
+                <span className="text-sm">Lock task</span>
               </label>
             </div>
           </div>
@@ -2557,17 +3454,65 @@ function EditTaskModal({
                 ))}
               </select>
             </div>
-            <div>
+            <div className="relative">
               <label className="block text-sm font-medium text-slate-300 mb-2">
-                Label
+                Labels
               </label>
-              <input
-                type="text"
-                value={labels}
-                onChange={(e) => setLabels(e.target.value)}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
-                placeholder="Enter label..."
-              />
+              <button
+                type="button"
+                onClick={() => setShowLabelDropdown(!showLabelDropdown)}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-left focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+              >
+                {selectedLabels.length === 0 ? (
+                  <span className="text-slate-400">Select labels...</span>
+                ) : (
+                  <div className="flex gap-1 flex-wrap">
+                    {selectedLabels.map(labelId => {
+                      const label = boardLabels.find(l => l.id === labelId);
+                      if (!label) return null;
+                      const isWhite = label.color === '#ffffff' || label.color.toLowerCase() === '#fff';
+                      const textColor = isWhite ? 'text-black' : 'text-white';
+                      return (
+                        <span
+                          key={label.id}
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${textColor}`}
+                          style={{ backgroundColor: label.color }}
+                        >
+                          {label.name}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+              </button>
+              {showLabelDropdown && (
+                <div className="absolute z-10 w-full mt-1 bg-[#1a2332] border border-white/10 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {boardLabels.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-slate-400">No labels available</div>
+                  ) : (
+                    boardLabels.map(label => {
+                      const isWhite = label.color === '#ffffff' || label.color.toLowerCase() === '#fff';
+                      const textColor = isWhite ? 'text-black' : 'text-white';
+                      return (
+                        <label key={label.id} className="flex items-center px-3 py-2 hover:bg-white/5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={selectedLabels.includes(label.id)}
+                            onChange={() => toggleLabel(label.id)}
+                            className="mr-2"
+                          />
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${textColor}`}
+                            style={{ backgroundColor: label.color }}
+                          >
+                            {label.name}
+                          </span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">

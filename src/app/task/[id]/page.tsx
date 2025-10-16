@@ -489,14 +489,19 @@ export default function TaskDetailPage() {
                     {column.name}
                   </span>
                 )}
-                {task.labels?.map((label, index) => (
-                  <span
-                    key={index}
-                    className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30"
-                  >
-                    {label}
-                  </span>
-                ))}
+                {(task as any).labelObjects?.map((label: any) => {
+                  const isWhite = label.color === '#ffffff' || label.color.toLowerCase() === '#fff';
+                  const textColor = isWhite ? 'text-black' : 'text-white';
+                  return (
+                    <span
+                      key={label.id}
+                      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${textColor}`}
+                      style={{ backgroundColor: label.color }}
+                    >
+                      {label.name}
+                    </span>
+                  );
+                })}
               </div>
               {task.description && (
                 <p className="text-slate-300 mb-4">{task.description}</p>
@@ -553,6 +558,28 @@ export default function TaskDetailPage() {
                 {column?.name || 'Unknown'}
               </span>
             </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-400">Labels</label>
+              <div className="flex flex-wrap gap-2">
+                {(task as any).labelObjects && (task as any).labelObjects.length > 0 ? (
+                  (task as any).labelObjects.map((label: any) => {
+                    const isWhite = label.color === '#ffffff' || label.color.toLowerCase() === '#fff';
+                    const textColor = isWhite ? 'text-black' : 'text-white';
+                    return (
+                      <span
+                        key={label.id}
+                        className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${textColor}`}
+                        style={{ backgroundColor: label.color }}
+                      >
+                        {label.name}
+                      </span>
+                    );
+                  })
+                ) : (
+                  <span className="text-sm text-slate-500">No labels</span>
+                )}
+              </div>
+            </div>
             {assigneeUsers.length > 0 && (
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-400">Assignees</label>
@@ -583,22 +610,6 @@ export default function TaskDetailPage() {
               </div>
             </div>
           </div>
-
-          {task.labels && task.labels.length > 0 && (
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-slate-400 mb-2">Labels</label>
-              <div className="flex flex-wrap gap-2">
-                {task.labels.map((label, index) => (
-                  <span
-                    key={index}
-                    className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30"
-                  >
-                    {label}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
 
           {task.description && (
             <div>

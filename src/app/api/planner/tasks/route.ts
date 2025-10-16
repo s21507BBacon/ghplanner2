@@ -66,6 +66,38 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Fetch labels for all tasks
+    const taskIds = tasks.map(t => t.id);
+    const taskLabels = new Map();
+    
+    if (taskIds.length > 0) {
+      try {
+        const placeholders = taskIds.map((_, idx) => `$${idx + 1}`).join(',');
+        const query = `
+          SELECT tl.task_id, l.id, l.name, l.color
+          FROM task_labels tl
+          JOIN labels l ON tl.label_id = l.id
+          WHERE tl.task_id IN (${placeholders})
+        `;
+        const stmt = db.prepare(query).bind(...taskIds);
+        const result = await stmt.all();
+        const taskLabelRows = (result as any).results || [];
+        
+        for (const row of taskLabelRows) {
+          if (!taskLabels.has(row.task_id)) {
+            taskLabels.set(row.task_id, []);
+          }
+          taskLabels.get(row.task_id).push({
+            id: row.id,
+            name: row.name,
+            color: row.color,
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to fetch task labels:', e);
+      }
+    }
+
     const mappedTasks = tasks.map(task => {
       try {
         return {
@@ -75,6 +107,7 @@ export async function GET(request: NextRequest) {
           columnId: task.column_id,
           status: task.status,
           labels: safeJsonParse(task.labels, []),
+          labelObjects: taskLabels.get(task.id) || [],
           prUrl: task.pr_url || undefined,
           assignee: task.assignee || undefined,
           assignees: safeJsonParse(task.assignees, task.assignee ? [task.assignee] : []),
@@ -207,6 +240,23 @@ export async function POST(request: NextRequest) {
     await helpers.insert('tasks', task as any);
 
     console.log('[POST /api/planner/tasks] Task created successfully:', task.id);
+
+    // Insert task_labels entries if labels were provided
+    if (Array.isArray(labels) && labels.length > 0) {
+      const labelIds = labels.filter(l => typeof l === 'string' && l.trim());
+      for (const labelId of labelIds) {
+        try {
+          await helpers.insert('task_labels', {
+            id: crypto.randomUUID(),
+            task_id: task.id,
+            label_id: labelId,
+            created_at: dateToTimestamp(now),
+          } as any);
+        } catch (e) {
+          console.warn('Failed to create task_label:', e);
+        }
+      }
+    }
 
     // Fetch creator details
     let createdBy = undefined;
@@ -390,6 +440,36 @@ export async function PATCH(request: NextRequest) {
     }
 
     await helpers.update('tasks', { id }, translated);
+    
+    // Update task_labels if labels were changed
+    if (updateData.labels !== undefined && Array.isArray(updateData.labels)) {
+      // Delete existing task_labels
+      try {
+        const existingTaskLabels = await helpers.findMany('task_labels', { task_id: id });
+        for (const tl of existingTaskLabels as any[]) {
+          await helpers.delete('task_labels', { id: tl.id });
+        }
+      } catch (e) {
+        console.warn('Failed to delete existing task_labels:', e);
+      }
+      
+      // Insert new task_labels
+      const labelIds = updateData.labels.filter((l: any) => typeof l === 'string' && l.trim());
+      const now = new Date();
+      for (const labelId of labelIds) {
+        try {
+          await helpers.insert('task_labels', {
+            id: crypto.randomUUID(),
+            task_id: id,
+            label_id: labelId,
+            created_at: dateToTimestamp(now),
+          } as any);
+        } catch (e) {
+          console.warn('Failed to create task_label:', e);
+        }
+      }
+    }
+    
     const updated: any = await helpers.findOne('tasks', { id });
     if (!updated) {
       return NextResponse.json(

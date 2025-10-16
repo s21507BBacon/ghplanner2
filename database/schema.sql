@@ -232,6 +232,7 @@ CREATE TABLE IF NOT EXISTS boards (
   description TEXT,
   company_id TEXT,
   project_id TEXT,
+  view_mode TEXT NOT NULL DEFAULT 'free-form' CHECK (view_mode IN ('free-form', 'traditional', 'grid')),
   created_at BIGINT NOT NULL,
   updated_at BIGINT NOT NULL,
   FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
@@ -240,6 +241,7 @@ CREATE TABLE IF NOT EXISTS boards (
 
 CREATE INDEX IF NOT EXISTS idx_boards_company ON boards(company_id);
 CREATE INDEX IF NOT EXISTS idx_boards_project ON boards(project_id);
+CREATE INDEX IF NOT EXISTS idx_boards_view_mode ON boards(view_mode);
 
 -- Columns table
 CREATE TABLE IF NOT EXISTS columns (
@@ -403,3 +405,68 @@ BEGIN
         COMMENT ON COLUMN users.github_connected_at IS 'Timestamp when GitHub account was connected';
     END IF;
 END $$;
+
+-- Migration: Add view_mode column to boards table (if not exists)
+-- This enables different board layouts: free-form, traditional planner, and grid view
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'boards' AND column_name = 'view_mode'
+    ) THEN
+        ALTER TABLE boards ADD COLUMN view_mode TEXT NOT NULL DEFAULT 'free-form'
+            CHECK (view_mode IN ('free-form', 'traditional', 'grid'));
+        COMMENT ON COLUMN boards.view_mode IS 'Board layout mode: free-form (drag anywhere), traditional (fixed row), or grid (task grid view)';
+    END IF;
+END $$;
+
+-- Labels table for color-coded task labels
+CREATE TABLE IF NOT EXISTS labels (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  color TEXT NOT NULL,
+  board_id TEXT NOT NULL,
+  project_id TEXT,
+  company_id TEXT,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
+  FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE,
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_labels_board ON labels(board_id);
+CREATE INDEX IF NOT EXISTS idx_labels_project ON labels(project_id);
+
+-- Task labels junction table to link tasks with labels
+CREATE TABLE IF NOT EXISTS task_labels (
+  id TEXT PRIMARY KEY,
+  task_id TEXT NOT NULL,
+  label_id TEXT NOT NULL,
+  created_at BIGINT NOT NULL,
+  FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+  FOREIGN KEY (label_id) REFERENCES labels(id) ON DELETE CASCADE,
+  UNIQUE(task_id, label_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_labels_task ON task_labels(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_labels_label ON task_labels(label_id);
+
+-- Task attachments table for file uploads
+CREATE TABLE IF NOT EXISTS task_attachments (
+  id TEXT PRIMARY KEY,
+  task_id TEXT NOT NULL,
+  filename TEXT NOT NULL,
+  original_filename TEXT NOT NULL,
+  file_size INTEGER NOT NULL,
+  mime_type TEXT NOT NULL,
+  file_url TEXT NOT NULL,
+  storage_key TEXT NOT NULL,
+  uploaded_by TEXT,
+  created_at BIGINT NOT NULL,
+  FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+  FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_attachments_task ON task_attachments(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_attachments_uploaded_by ON task_attachments(uploaded_by);

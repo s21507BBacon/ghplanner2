@@ -34,6 +34,7 @@ interface Company {
 interface Enterprise {
   id: string;
   name: string;
+  ownerUserId?: string;
   companies: Company[];
 }
 
@@ -51,10 +52,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [showCreateEnterpriseModal, setShowCreateEnterpriseModal] = useState(false);
   const [newEnterpriseName, setNewEnterpriseName] = useState('');
   const [creatingEnterprise, setCreatingEnterprise] = useState(false);
+  const [userRole, setUserRole] = useState<string>('member');
 
   useEffect(() => {
     if ((session as any)?.userId) {
-      fetchEnterprises();
+      // Sync memberships for users who were assigned before the fix
+      const syncMemberships = async () => {
+        try {
+          const response = await fetch('/api/users/sync-memberships', { method: 'POST' });
+          const data = await response.json();
+          console.log('Membership sync result:', data);
+        } catch (err) {
+          console.error('Failed to sync memberships:', err);
+        }
+      };
+      
+      syncMemberships().then(() => {
+        // Small delay to ensure database updates are complete
+        setTimeout(() => {
+          fetchEnterprises();
+        }, 100);
+      });
     }
   }, [session]);
 
@@ -71,10 +89,39 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     try {
       setLoading(true);
 
-      const enterprisesRes = await fetch('/api/enterprises');
+      const enterprisesRes = await fetch('/api/enterprises', {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' }
+      });
       if (enterprisesRes.ok) {
         const data = await enterprisesRes.json();
+        console.log('Fetched enterprises:', data.enterprises);
         const fetchedEnterprises = data.enterprises || [];
+        
+        // Get user's role in the first enterprise for role-based UI
+        if (fetchedEnterprises.length > 0 && (session as any)?.userId) {
+          const userId = (session as any).userId;
+          const firstEnterprise = fetchedEnterprises[0];
+          
+          // Check if user is owner
+          if (userId === firstEnterprise.ownerUserId) {
+            setUserRole('owner');
+          } else {
+            // Check membership role from API
+            try {
+              const memberRes = await fetch(`/api/enterprises/${firstEnterprise.id}/members`);
+              if (memberRes.ok) {
+                const memberData = await memberRes.json();
+                const userMember = memberData.members?.find((m: any) => m.userId === userId);
+                if (userMember) {
+                  setUserRole(userMember.role);
+                }
+              }
+            } catch (err) {
+              console.error('Failed to fetch user role:', err);
+            }
+          }
+        }
 
         const enterprisesWithCompanies = await Promise.all(
           fetchedEnterprises.map(async (enterprise: Enterprise) => {
@@ -171,6 +218,31 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const selectedEnterprise = enterprises.find(e => e.id === selectedEnterpriseId);
   const companiesInSelectedEnterprise = selectedEnterprise?.companies || [];
+  
+  // Check if user is owner or admin of the selected enterprise
+  const isOwnerOrAdmin = selectedEnterprise && session && 
+    ((session as any).userId === selectedEnterprise.ownerUserId ||
+     userRole === 'owner' || userRole === 'admin' || userRole === 'company_admin');
+
+  // Redirect non-owners away from management pages
+  useEffect(() => {
+    if (!loading && !isOwnerOrAdmin && session) {
+      const managementPaths = ['/dashboard', '/companies', '/settings'];
+      const isManagementPage = managementPaths.some(path => 
+        pathname === path || pathname?.startsWith(`${path}/`)
+      );
+      
+      if (isManagementPage) {
+        // Redirect to their first project planner or home
+        if (companiesInSelectedEnterprise.length > 0 && companiesInSelectedEnterprise[0].projects.length > 0) {
+          const firstProject = companiesInSelectedEnterprise[0].projects[0];
+          router.push(`/planner?companyId=${companiesInSelectedEnterprise[0].id}&projectId=${firstProject.id}`);
+        } else {
+          router.push('/');
+        }
+      }
+    }
+  }, [loading, isOwnerOrAdmin, pathname, session, companiesInSelectedEnterprise, router]);
 
   if (!(session as any)?.userId) return null;
 
@@ -196,10 +268,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <span className="text-3xl font-bold text-white">Gh Planner</span>
             </div>
 
-            {/* Desktop Top Nav - Enterprise Selector */}
-            <div className="hidden md:flex items-center space-x-4">
-              {/* Enterprise Selector */}
-              <div className="relative">
+            {/* Desktop Top Nav - Enterprise Selector (Only for owners/admins) */}
+            {isOwnerOrAdmin && (
+              <div className="hidden md:flex items-center space-x-4">
+                {/* Enterprise Selector */}
+                <div className="relative">
                 <select
                   value={selectedEnterpriseId}
                   onChange={(e) => {
@@ -236,6 +309,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
               </div>
             </div>
+            )}
 
             {/* User Menu */}
             <div className="flex items-center space-x-4">
@@ -288,7 +362,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {showMobileMenu && (
         <div className="md:hidden fixed top-24 left-0 right-0 bg-[#1a2332] border-b border-white/10 z-40 max-h-[calc(100vh-6rem)] overflow-y-auto">
           <div className="px-4 py-4 space-y-4">
-            {/* Mobile Enterprise Selector */}
+            {/* Mobile Enterprise Selector (Only for owners/admins) */}
+            {isOwnerOrAdmin && (
             <div>
               <label className="text-xs text-slate-400 mb-1 block">Enterprise</label>
               <select
@@ -324,8 +399,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 )}
               </select>
             </div>
+            )}
 
-            {/* Mobile Navigation Links */}
+            {/* Mobile Navigation Links (Only for owners/admins) */}
+            {isOwnerOrAdmin && (
             <div className="border-t border-white/10 pt-4 space-y-2">
               <div className="text-xs font-semibold text-slate-400 uppercase px-3 mb-2">
                 Management
@@ -382,8 +459,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <FolderKanban className="w-4 h-4 mr-3" />
                 Projects
               </a>
+            </div>
+            )}
 
-              <div className="border-t border-white/10 my-4"></div>
+            <div className="border-t border-white/10 my-4"></div>
 
               <button
                 onClick={handleSignOut}
@@ -392,7 +471,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <LogOut className="w-4 h-4 mr-3" />
                 Sign Out
               </button>
-            </div>
           </div>
         </div>
       )}
@@ -402,7 +480,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* Left Sidebar */}
         <aside className="hidden md:block w-80 fixed left-0 top-24 bottom-0 bg-[#0f1729] border-r border-white/10 overflow-y-auto" style={{ fontSize: '1.1rem' }}>
           <div className="p-4 space-y-2">
-            {/* Management Section */}
+            {/* Management Section (Only for owners/admins) */}
+            {isOwnerOrAdmin && (
             <div className="space-y-1">
               <div className="text-sm font-semibold text-slate-400 uppercase px-4 mb-3">
                 Management
@@ -460,9 +539,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 Projects
               </a>
             </div>
+            )}
 
             {/* Divider */}
-            <div className="border-t border-white/10 my-4"></div>
+            {isOwnerOrAdmin && <div className="border-t border-white/10 my-4"></div>}
 
             {/* Company & Project Boards Section */}
             <div className="space-y-1">

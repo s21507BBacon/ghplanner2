@@ -70,6 +70,30 @@ export async function GET(
       }
     }
 
+    // Fetch labels for this task
+    const labelObjects: any[] = [];
+    try {
+      const query = `
+        SELECT l.id, l.name, l.color
+        FROM task_labels tl
+        JOIN labels l ON tl.label_id = l.id
+        WHERE tl.task_id = $1
+      `;
+      const stmt = db.prepare(query).bind(id);
+      const result = await stmt.all();
+      const rows = (result as any).results || [];
+      
+      for (const row of rows) {
+        labelObjects.push({
+          id: row.id,
+          name: row.name,
+          color: row.color,
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to fetch task labels:', e);
+    }
+
     return NextResponse.json({
       id: task.id,
       title: task.title,
@@ -77,6 +101,7 @@ export async function GET(
       columnId: task.column_id,
       status: task.status,
       labels: safeJsonParse(task.labels, []),
+      labelObjects,
       prUrl: task.pr_url || undefined,
       assignee: task.assignee || undefined,
       assignees: safeJsonParse(task.assignees, task.assignee ? [task.assignee] : []),

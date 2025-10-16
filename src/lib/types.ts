@@ -7,7 +7,8 @@ export interface Task {
   description?: string;
   columnId: string;
   status: 'pending' | 'in_progress' | 'completed' | 'blocked' | 'approved' | 'merged' | 'changes_requested';
-  labels: string[];
+  labels: string[]; // For backwards compatibility - kept as label IDs
+  labelObjects?: Label[]; // Populated labels with full details
   prUrl?: string;
   prNumber?: number; // optional shortcut when project repo configured
   assignee?: string; // deprecated - kept for backwards compatibility
@@ -24,6 +25,21 @@ export interface Task {
   // Task locking
   isLocked?: boolean;
   lockedByUserId?: string;
+  // File attachments
+  attachments?: Attachment[];
+}
+
+export interface Attachment {
+  id: string;
+  taskId: string;
+  filename: string;
+  originalFilename: string;
+  fileSize: number;
+  mimeType: string;
+  fileUrl: string;
+  storageKey: string;
+  uploadedBy?: string;
+  createdAt: Date;
 }
 
 export interface ChecklistItem {
@@ -39,6 +55,7 @@ export interface Board {
   id: string;
   name: string;
   description?: string;
+  viewMode?: 'free-form' | 'traditional' | 'grid';
   createdAt: Date;
   updatedAt: Date;
   // Optional scoping
@@ -75,74 +92,74 @@ export interface TaskUpdate {
 export const COLUMN_COLORS = [
   {
     name: 'Slate',
-    bg: 'bg-slate-500/20',
+    bg: 'bg-slate-500/40',
     border: 'border-slate-500',
     text: 'text-white',
-    header: 'bg-slate-500/30',
+    header: 'bg-slate-500/60',
     value: 'slate'
   },
   {
     name: 'Blue',
-    bg: 'bg-blue-500/20',
+    bg: 'bg-blue-500/40',
     border: 'border-blue-500',
     text: 'text-white',
-    header: 'bg-blue-500/30',
+    header: 'bg-blue-500/60',
     value: 'blue'
   },
   {
     name: 'Green',
-    bg: 'bg-green-500/20',
+    bg: 'bg-green-500/40',
     border: 'border-green-500',
     text: 'text-white',
-    header: 'bg-green-500/30',
+    header: 'bg-green-500/60',
     value: 'green'
   },
   {
     name: 'Amber',
-    bg: 'bg-amber-500/20',
+    bg: 'bg-amber-500/40',
     border: 'border-amber-500',
     text: 'text-white',
-    header: 'bg-amber-500/30',
+    header: 'bg-amber-500/60',
     value: 'amber'
   },
   {
     name: 'Red',
-    bg: 'bg-red-500/20',
+    bg: 'bg-red-500/40',
     border: 'border-red-500',
     text: 'text-white',
-    header: 'bg-red-500/30',
+    header: 'bg-red-500/60',
     value: 'red'
   },
   {
     name: 'Purple',
-    bg: 'bg-purple-500/20',
+    bg: 'bg-purple-500/40',
     border: 'border-purple-500',
     text: 'text-white',
-    header: 'bg-purple-500/30',
+    header: 'bg-purple-500/60',
     value: 'purple'
   },
   {
     name: 'Indigo',
-    bg: 'bg-indigo-500/20',
+    bg: 'bg-indigo-500/40',
     border: 'border-indigo-500',
     text: 'text-white',
-    header: 'bg-indigo-500/30',
+    header: 'bg-indigo-500/60',
     value: 'indigo'
   },
   {
     name: 'Pink',
-    bg: 'bg-pink-500/20',
+    bg: 'bg-pink-500/40',
     border: 'border-pink-500',
     text: 'text-white',
-    header: 'bg-pink-500/30',
+    header: 'bg-pink-500/60',
     value: 'pink'
   },
   {
     name: 'Zinc',
-    bg: 'bg-zinc-500/20',
+    bg: 'bg-zinc-500/40',
     border: 'border-zinc-500',
     text: 'text-white',
-    header: 'bg-zinc-500/30',
+    header: 'bg-zinc-500/60',
     value: 'zinc'
   }
 ] as const;
@@ -300,6 +317,8 @@ export interface Connection {
   targetColumnId: string;
   label?: string;
   color?: string;
+  style?: 'solid' | 'dashed' | 'dotted';
+  arrowType?: 'single' | 'double' | 'none';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -319,9 +338,46 @@ export interface Note {
   boardId: string;
   x: number;
   y: number;
+  width?: number;
+  height?: number;
   color: string; // e.g. 'yellow' | 'pink' | 'blue' | 'green' | 'purple'
   content: string;
   style?: NoteStyle;
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface Label {
+  _id?: string;
+  id: string;
+  name: string;
+  color: string; // hex color code
+  boardId: string;
+  projectId?: string;
+  companyId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export const LABEL_COLORS = [
+  { name: 'Red', value: '#ef4444' },
+  { name: 'Orange', value: '#f97316' },
+  { name: 'Amber', value: '#f59e0b' },
+  { name: 'Yellow', value: '#eab308' },
+  { name: 'Lime', value: '#84cc16' },
+  { name: 'Green', value: '#22c55e' },
+  { name: 'Emerald', value: '#10b981' },
+  { name: 'Teal', value: '#14b8a6' },
+  { name: 'Cyan', value: '#06b6d4' },
+  { name: 'Sky', value: '#0ea5e9' },
+  { name: 'Blue', value: '#3b82f6' },
+  { name: 'Indigo', value: '#6366f1' },
+  { name: 'Violet', value: '#8b5cf6' },
+  { name: 'Purple', value: '#a855f7' },
+  { name: 'Fuchsia', value: '#d946ef' },
+  { name: 'Pink', value: '#ec4899' },
+  { name: 'Rose', value: '#f43f5e' },
+  { name: 'Gray', value: '#6b7280' },
+  { name: 'Slate', value: '#64748b' },
+  { name: 'White', value: '#ffffff' },
+] as const;
