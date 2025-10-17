@@ -355,6 +355,35 @@ CREATE TABLE IF NOT EXISTS notes (
 
 CREATE INDEX IF NOT EXISTS idx_notes_board ON notes(board_id);
 
+-- Shapes table for freeform board shapes and text elements
+CREATE TABLE IF NOT EXISTS shapes (
+  id TEXT PRIMARY KEY,
+  board_id TEXT NOT NULL,
+  type TEXT NOT NULL CHECK(type IN ('circle', 'oval', 'triangle', 'rectangle', 'square', 'diamond', 'text')),
+  x INTEGER NOT NULL,
+  y INTEGER NOT NULL,
+  width INTEGER NOT NULL,
+  height INTEGER NOT NULL,
+  fill_color TEXT NOT NULL DEFAULT '#60a5fa',
+  stroke_color TEXT DEFAULT '#1e293b',
+  stroke_width INTEGER DEFAULT 2,
+  text_content TEXT,
+  font_family TEXT DEFAULT 'Inter, system-ui, sans-serif',
+  font_size INTEGER DEFAULT 16,
+  font_weight TEXT DEFAULT 'normal',
+  text_color TEXT DEFAULT '#ffffff',
+  text_align TEXT DEFAULT 'left',
+  rotation INTEGER DEFAULT 0,
+  opacity REAL DEFAULT 1.0,
+  z_index INTEGER DEFAULT 0,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
+  FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_shapes_board ON shapes(board_id);
+CREATE INDEX IF NOT EXISTS idx_shapes_type ON shapes(type);
+
 -- Migration: Add free-position coordinates to columns (x, y) if not exists
 DO $$
 BEGIN

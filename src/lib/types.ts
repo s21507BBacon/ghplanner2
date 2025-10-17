@@ -319,6 +319,12 @@ export interface Connection {
   color?: string;
   style?: 'solid' | 'dashed' | 'dotted';
   arrowType?: 'single' | 'double' | 'none';
+  // Custom control points for bezier curve (offsets from auto-calculated positions)
+  controlPoint1?: { x: number; y: number };
+  controlPoint2?: { x: number; y: number };
+  // Manual anchor side preferences (if not set, auto-calculate)
+  sourceAnchorSide?: 'top' | 'right' | 'bottom' | 'left';
+  targetAnchorSide?: 'top' | 'right' | 'bottom' | 'left';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -343,6 +349,35 @@ export interface Note {
   color: string; // e.g. 'yellow' | 'pink' | 'blue' | 'green' | 'purple'
   content: string;
   style?: NoteStyle;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type ShapeType = 'circle' | 'oval' | 'triangle' | 'rectangle' | 'square' | 'diamond' | 'text';
+
+export interface Shape {
+  _id?: string;
+  id: string;
+  boardId: string;
+  type: ShapeType;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fillColor: string;
+  strokeColor?: string;
+  strokeWidth?: number;
+  // Text-specific properties
+  textContent?: string;
+  fontFamily?: string;
+  fontSize?: number;
+  fontWeight?: string;
+  textColor?: string;
+  textAlign?: string;
+  // Common properties
+  rotation?: number;
+  opacity?: number;
+  zIndex?: number;
   createdAt: Date;
   updatedAt: Date;
 }

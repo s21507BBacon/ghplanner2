@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useMemo, Suspense, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Plus, MoreHorizontal, ExternalLink, Calendar, User, X, Edit3, Trash2, Trash, GitMerge, AlertCircle, XCircle, Pin, Filter, Layout, Grid3x3, Maximize, Search, Lock, Upload, File, Download } from 'lucide-react';
+import { Plus, MoreHorizontal, ExternalLink, Calendar, User, X, Edit3, Trash2, Trash, GitMerge, AlertCircle, XCircle, Pin, Filter, Layout, Grid3x3, Maximize, Search, Lock, Upload, File, Download, MousePointer2, Link2, StickyNote, Shapes, Type, Hand } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { Task, Board, type Column, type Connection, type Note, type Label, type Attachment, STATUS_COLORS, getColumnColorClasses, COLUMN_COLORS, LABEL_COLORS } from '@/lib/types';
+import { Task, Board, type Column, type Connection, type Note, type Label, type Attachment, type Shape, type ShapeType, STATUS_COLORS, getColumnColorClasses, COLUMN_COLORS, LABEL_COLORS } from '@/lib/types';
 
 // Add project interface
 interface Project {
@@ -185,6 +185,7 @@ function Column({
   onEditTask,
   isDragging = false,
   onDragHandlePointerDown,
+  isFreeFormMode = false,
 }: {
   column: Column;
   tasks: Task[];
@@ -194,11 +195,12 @@ function Column({
   onEditTask: (task: Task) => void;
   isDragging?: boolean;
   onDragHandlePointerDown?: (e: any) => void;
+  isFreeFormMode?: boolean;
 }) {
   const colors = getColumnColorClasses(column.color);
 
   return (
-    <div className={`flex flex-col h-full min-w-80 ${colors.bg} ${colors.border} border rounded-lg ${
+    <div className={`flex flex-col ${isFreeFormMode ? 'h-full' : ''} min-w-80 ${colors.bg} ${colors.border} border rounded-lg ${
       isDragging ? 'opacity-50 shadow-2xl' : ''
     }`}>
       <div className={`${colors.header} ${colors.text} p-4 rounded-t-lg border-b ${colors.border} cursor-move`} onPointerDown={onDragHandlePointerDown}>
@@ -262,7 +264,10 @@ function Column({
         </div>
       </div>
 
-      <div className="flex-1 p-3 space-y-3 overflow-y-auto max-h-96">
+      <div className={`flex-1 p-3 space-y-3 ${isFreeFormMode ? 'overflow-y-auto scrollbar-hide' : ''}`} style={isFreeFormMode ? {
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none',
+      } : undefined}>
         <Droppable droppableId={column.id} type="task">
           {(provided, snapshot) => (
             <div
@@ -352,6 +357,8 @@ function NewTaskModal({
   const [endDate, setEndDate] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const assigneeDropdownRef = useRef<HTMLDivElement>(null);
+  const labelDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen && projectId) {
@@ -364,6 +371,25 @@ function NewTaskModal({
       })();
     }
   }, [isOpen, projectId]);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (assigneeDropdownRef.current && !assigneeDropdownRef.current.contains(event.target as Node)) {
+        setShowAssigneeDropdown(false);
+      }
+      if (labelDropdownRef.current && !labelDropdownRef.current.contains(event.target as Node)) {
+        setShowLabelDropdown(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isOpen]);
 
   const toggleAssignee = (userId: string) => {
     setAssignees(prev =>
@@ -442,7 +468,7 @@ function NewTaskModal({
 
           {/* Assignment / Lock row */}
           <div className="flex items-center gap-4">
-            <div className="relative flex-1">
+            <div className="relative flex-1" ref={assigneeDropdownRef}>
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 Assignees
               </label>
@@ -513,7 +539,7 @@ function NewTaskModal({
                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-slate-400 cursor-not-allowed"
               />
             </div>
-            <div className="relative">
+            <div className="relative" ref={labelDropdownRef}>
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 Labels
               </label>
@@ -848,6 +874,7 @@ function PlannerBoard() {
 
   // Connection edit state
   const [draggingConn, setDraggingConn] = useState<{ id: string; end: 'source' | 'target' } | null>(null);
+  const [draggingControlPoint, setDraggingControlPoint] = useState<{ id: string; point: 1 | 2 } | null>(null);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
 
   // Notes state
@@ -861,9 +888,32 @@ function PlannerBoard() {
   const [resizingColumnId, setResizingColumnId] = useState<string | null>(null);
   const [resizingNoteId, setResizingNoteId] = useState<string | null>(null);
   const [resizeStart, setResizeStart] = useState<{ width: number; height: number; x: number; y: number } | null>(null);
+  
+  // Board panning state (right mouse button drag)
+  // Start with offset to provide space above and to the left
+  const [isPanning, setIsPanning] = useState(false);
+  const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 400 });
+  const [panStart, setPanStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Shapes state
+  const [shapes, setShapes] = useState<Shape[]>([]);
+  const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
+  const [draggingShapeId, setDraggingShapeId] = useState<string | null>(null);
+  const [shapeDragOffset, setShapeDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [selectedShapeType, setSelectedShapeType] = useState<ShapeType | null>(null);
+  const [shapeFillColor, setShapeFillColor] = useState<string>('#60a5fa');
+  const [shapeStrokeColor, setShapeStrokeColor] = useState<string>('#1e293b');
+  const [shapeNoFill, setShapeNoFill] = useState<boolean>(false);
+  // Defaults for new text items
+  const [textColorDefault, setTextColorDefault] = useState<string>('#ffffff');
+  const [textFontSizeDefault, setTextFontSizeDefault] = useState<number>(20);
+  const [textFontFamilyDefault, setTextFontFamilyDefault] = useState<string>('Inter, system-ui, sans-serif');
+  const [editingTextShapeId, setEditingTextShapeId] = useState<string | null>(null);
+  const [editingTextContent, setEditingTextContent] = useState<string>('');
 
   // View mode and filter state
   const [viewMode, setViewMode] = useState<'free-form' | 'traditional' | 'grid'>('free-form');
+  const [toolbarMode, setToolbarMode] = useState<'normal' | 'connect' | 'note' | 'shape' | 'pan'>('normal');
   const [filterSearch, setFilterSearch] = useState('');
   const [filterPRNumber, setFilterPRNumber] = useState('');
   const [filterLabels, setFilterLabels] = useState<string[]>([]);
@@ -1041,6 +1091,7 @@ function PlannerBoard() {
       fetchConnections();
       fetchNotes();
       fetchLabels();
+      fetchShapes();
     }
   }, [selectedBoard]);
 
@@ -1077,7 +1128,7 @@ function PlannerBoard() {
         }),
       });
       const data = await response.json();
-      setBoards([data]);
+      setBoards(prev => [...prev, data]); // Add new board to existing boards, don't replace
       setSelectedBoard(data.id);
     } catch (error) {
       console.error('Failed to create board:', error);
@@ -1146,6 +1197,15 @@ function PlannerBoard() {
       setViewMode(currentBoard.viewMode);
     }
   }, [selectedBoard, boards]);
+
+  // Reset toolbar mode when leaving free-form view
+  useEffect(() => {
+    if (viewMode !== 'free-form') {
+      setToolbarMode('normal');
+      setConnectMode(false);
+      setConnectSource(null);
+    }
+  }, [viewMode]);
 
   const fetchColumns = async () => {
     if (!selectedBoard) return;
@@ -1436,6 +1496,63 @@ function PlannerBoard() {
     }
   };
 
+  // Shapes CRUD
+  const fetchShapes = async () => {
+    if (!selectedBoard) return;
+    try {
+      const res = await fetch(`/api/planner/shapes?boardId=${selectedBoard}`);
+      const data = await res.json();
+      setShapes(data.shapes || []);
+    } catch (e) {
+      console.error('Failed to fetch shapes:', e);
+    }
+  };
+
+  const createShape = async (shape: Partial<Shape>) => {
+    if (!selectedBoard) return;
+    try {
+      const res = await fetch('/api/planner/shapes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...shape, boardId: selectedBoard })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error('Failed to create shape:', err.error);
+        return null;
+      }
+      const savedShape = await res.json();
+      return savedShape;
+    } catch (e) {
+      console.error('Failed to create shape:', e);
+      return null;
+    }
+  };
+
+  const updateShapeInDb = async (id: string, updates: Partial<Shape>) => {
+    try {
+      await fetch('/api/planner/shapes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...updates })
+      });
+    } catch (e) {
+      console.error('Failed to update shape:', e);
+    }
+  };
+
+  const deleteShape = async (id: string) => {
+    setShapes(prev => prev.filter(s => s.id !== id));
+    setSelectedShapeId(null);
+    try {
+      await fetch(`/api/planner/shapes?id=${id}`, {
+        method: 'DELETE'
+      });
+    } catch (e) {
+      console.error('Failed to delete shape:', e);
+    }
+  };
+
   const createConnection = async (sourceColumnId: string, targetColumnId: string, label?: string, color?: string) => {
     try {
       const res = await fetch('/api/planner/connections', {
@@ -1455,7 +1572,18 @@ function PlannerBoard() {
     }
   };
 
-  const updateConnection = async (id: string, updates: { sourceColumnId?: string; targetColumnId?: string; label?: string; color?: string; style?: 'solid' | 'dashed' | 'dotted'; arrowType?: 'single' | 'double' | 'none' }) => {
+  const updateConnection = async (id: string, updates: { 
+    sourceColumnId?: string; 
+    targetColumnId?: string; 
+    label?: string; 
+    color?: string; 
+    style?: 'solid' | 'dashed' | 'dotted'; 
+    arrowType?: 'single' | 'double' | 'none';
+    controlPoint1?: { x: number; y: number };
+    controlPoint2?: { x: number; y: number };
+    sourceAnchorSide?: 'top' | 'right' | 'bottom' | 'left';
+    targetAnchorSide?: 'top' | 'right' | 'bottom' | 'left';
+  }) => {
     try {
       const res = await fetch('/api/planner/connections', {
         method: 'PUT',
@@ -1883,6 +2011,7 @@ function PlannerBoard() {
   }, [projectIdFromQuery]);
 
   const handleColumnHandlePointerDown = (colId: string) => (e: any) => {
+    // If in connect mode, handle connection logic
     if (connectMode) {
       e.preventDefault();
       e.stopPropagation();
@@ -1896,6 +2025,8 @@ function PlannerBoard() {
       }
       return;
     }
+    
+    // Allow dragging the column (removed auto-activation of connect mode)
     const boardEl = boardRef.current;
     if (!boardEl) return;
     const rect = boardEl.getBoundingClientRect();
@@ -1952,6 +2083,42 @@ function PlannerBoard() {
       x: e.clientX,
       y: e.clientY,
     });
+  };
+
+  // Shape drag start
+  const handleShapePointerDown = (shapeId: string) => (e: any) => {
+    e.stopPropagation();
+    const boardEl = boardRef.current;
+    if (!boardEl) return;
+    const rect = boardEl.getBoundingClientRect();
+    const shape = shapes.find(s => s.id === shapeId);
+    if (!shape) return;
+    const offsetX = e.clientX - rect.left - shape.x;
+    const offsetY = e.clientY - rect.top - shape.y;
+    setDraggingShapeId(shapeId);
+    setShapeDragOffset({ x: offsetX, y: offsetY });
+    setSelectedShapeId(shapeId);
+  };
+
+  // Shape resize start
+  const handleShapeResizeStart = (shapeId: string) => (e: any) => {
+    e.stopPropagation();
+    const shape = shapes.find(s => s.id === shapeId);
+    if (!shape) return;
+    setResizeStart({
+      width: shape.width,
+      height: shape.height,
+      x: e.clientX,
+      y: e.clientY,
+    });
+    // Use a different state for resizing vs dragging
+    setDraggingShapeId(`resize-${shapeId}`);
+  };
+
+  // Update shape properties
+  const updateShape = (shapeId: string, updates: Partial<Shape>) => {
+    setShapes(prev => prev.map(s => s.id === shapeId ? { ...s, ...updates } : s));
+    updateShapeInDb(shapeId, updates);
   };
 
   useEffect(() => {
@@ -2064,6 +2231,99 @@ function PlannerBoard() {
     };
   }, [resizingNoteId, resizeStart, notes]);
 
+  // Window-level event listeners for shape dragging
+  useEffect(() => {
+    if (!draggingShapeId || draggingShapeId.startsWith('resize-')) return;
+    const onMove = (e: PointerEvent) => {
+      const boardEl = boardRef.current;
+      if (!boardEl) return;
+      const rect = boardEl.getBoundingClientRect();
+      let x = Math.round(e.clientX - rect.left - shapeDragOffset.x);
+      let y = Math.round(e.clientY - rect.top - shapeDragOffset.y);
+      x = Math.max(0, x);
+      y = Math.max(0, y);
+      setShapes(prev => prev.map(s => (s.id === draggingShapeId ? { ...s, x, y } : s)));
+    };
+    const onUp = () => {
+      const shape = shapes.find(s => s.id === draggingShapeId);
+      if (shape) {
+        // Round to integers for database (INTEGER columns)
+        updateShapeInDb(draggingShapeId, { x: Math.round(shape.x), y: Math.round(shape.y) });
+      }
+      setDraggingShapeId(null);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+  }, [draggingShapeId, shapeDragOffset, shapes]);
+
+  // Window-level event listeners for shape resizing
+  useEffect(() => {
+    if (!draggingShapeId || !draggingShapeId.startsWith('resize-') || !resizeStart) return;
+    const shapeId = draggingShapeId.replace('resize-', '');
+    let finalWidth = resizeStart.width;
+    let finalHeight = resizeStart.height;
+    
+    const onMove = (e: PointerEvent) => {
+      const deltaX = e.clientX - resizeStart.x;
+      const deltaY = e.clientY - resizeStart.y;
+      const newWidth = Math.max(50, resizeStart.width + deltaX);
+      const newHeight = Math.max(50, resizeStart.height + deltaY);
+      finalWidth = newWidth;
+      finalHeight = newHeight;
+      setShapes(prev => prev.map(s => (s.id === shapeId ? { ...s, width: newWidth, height: newHeight } : s)));
+    };
+    const onUp = () => {
+      // Round to integers before saving to database (database columns are INTEGER type)
+      updateShapeInDb(shapeId, { width: Math.round(finalWidth), height: Math.round(finalHeight) });
+      setDraggingShapeId(null);
+      setResizeStart(null);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+  }, [draggingShapeId, resizeStart]);
+
+  // Keyboard event listener for deleting shapes and notes
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check if Delete or Backspace key is pressed
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        // Prevent default behavior (like browser back navigation)
+        // Only if we're not typing in an input field
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+          return; // Don't interfere with typing in input fields
+        }
+        
+        e.preventDefault();
+        
+        // Delete selected shape
+        if (selectedShapeId) {
+          deleteShape(selectedShapeId);
+          return;
+        }
+        
+        // Delete selected note
+        if (selectedNoteId) {
+          deleteNote(selectedNoteId);
+          return;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedShapeId, selectedNoteId]);
+
   const getApproxRect = (colId: string) => {
     const rect = columnRects[colId];
     if (rect) return rect;
@@ -2077,6 +2337,24 @@ function PlannerBoard() {
   };
 
   type AnchorSide = 'left' | 'right' | 'top' | 'bottom';
+
+  // Get anchor point for a specific side of a column
+  const getAnchorForSide = (colId: string, side: AnchorSide): { side: AnchorSide; x: number; y: number } => {
+    const r = getApproxRect(colId);
+    const cx = r.x + r.width / 2;
+    const cy = r.y + r.height / 2;
+    
+    switch (side) {
+      case 'left':
+        return { side: 'left', x: r.x, y: cy };
+      case 'right':
+        return { side: 'right', x: r.x + r.width, y: cy };
+      case 'top':
+        return { side: 'top', x: cx, y: r.y };
+      case 'bottom':
+        return { side: 'bottom', x: cx, y: r.y + r.height };
+    }
+  };
 
   const chooseAnchor = (colId: string, toward: { x: number; y: number }) => {
     const r = getApproxRect(colId);
@@ -2104,8 +2382,52 @@ function PlannerBoard() {
     return { x: p.x, y: p.y + delta };
   };
 
-  const makeBezierPath = (a0: { x: number; y: number }, sideA: AnchorSide, b0: { x: number; y: number }, sideB: AnchorSide) => {
+  const makeBezierPath = (
+    a0: { x: number; y: number }, 
+    sideA: AnchorSide, 
+    b0: { x: number; y: number }, 
+    sideB: AnchorSide,
+    customCP1?: { x: number; y: number },
+    customCP2?: { x: number; y: number }
+  ) => {
     // Nudge start slightly outside; keep end exactly at edge so tip touches column
+    const start = offsetAlongSide(a0, sideA, 6);
+    const end = offsetAlongSide(b0, sideB, 0);
+    
+    // Calculate default control points
+    const dx = Math.abs(end.x - start.x);
+    const dy = Math.abs(end.y - start.y);
+    const k = Math.max(40, Math.max(dx, dy) / 2);
+    let c1 = { x: start.x, y: start.y };
+    let c2 = { x: end.x, y: end.y };
+    if (sideA === 'left') c1.x -= k;
+    if (sideA === 'right') c1.x += k;
+    if (sideA === 'top') c1.y -= k;
+    if (sideA === 'bottom') c1.y += k;
+
+    if (sideB === 'left') c2.x -= k;
+    if (sideB === 'right') c2.x += k;
+    if (sideB === 'top') c2.y -= k;
+    if (sideB === 'bottom') c2.y += k;
+
+    // Use custom control points if provided
+    if (customCP1) c1 = customCP1;
+    if (customCP2) c2 = customCP2;
+
+    return `M ${start.x},${start.y} C ${c1.x},${c1.y} ${c2.x},${c2.y} ${end.x},${end.y}`;
+  };
+
+  // Calculate point on cubic bezier curve at t (0 to 1)
+  const getBezierPoint = (p0: {x: number, y: number}, c1: {x: number, y: number}, c2: {x: number, y: number}, p1: {x: number, y: number}, t: number) => {
+    const t1 = 1 - t;
+    return {
+      x: t1*t1*t1*p0.x + 3*t1*t1*t*c1.x + 3*t1*t*t*c2.x + t*t*t*p1.x,
+      y: t1*t1*t1*p0.y + 3*t1*t1*t*c1.y + 3*t1*t*t*c2.y + t*t*t*p1.y
+    };
+  };
+
+  // Get bezier midpoint and control points for positioning
+  const getBezierMidpoint = (a0: { x: number; y: number }, sideA: AnchorSide, b0: { x: number; y: number }, sideB: AnchorSide) => {
     const start = offsetAlongSide(a0, sideA, 6);
     const end = offsetAlongSide(b0, sideB, 0);
     const dx = Math.abs(end.x - start.x);
@@ -2123,7 +2445,43 @@ function PlannerBoard() {
     if (sideB === 'top') c2.y -= k;
     if (sideB === 'bottom') c2.y += k;
 
-    return `M ${start.x},${start.y} C ${c1.x},${c1.y} ${c2.x},${c2.y} ${end.x},${end.y}`;
+    return getBezierPoint(start, c1, c2, end, 0.5);
+  };
+
+  // Helper to cycle through anchor sides
+  const cycleAnchorSide = (currentSide: AnchorSide): AnchorSide => {
+    const sides: AnchorSide[] = ['top', 'right', 'bottom', 'left'];
+    const currentIndex = sides.indexOf(currentSide);
+    return sides[(currentIndex + 1) % sides.length];
+  };
+
+  // Get control points for a connection (either custom or default)
+  const getConnectionControlPoints = (conn: Connection, src: { x: number; y: number; side: AnchorSide }, dst: { x: number; y: number; side: AnchorSide }) => {
+    const start = offsetAlongSide({ x: src.x, y: src.y }, src.side, 6);
+    const end = offsetAlongSide({ x: dst.x, y: dst.y }, dst.side, 0);
+    
+    // If custom control points exist, use them
+    if (conn.controlPoint1 && conn.controlPoint2) {
+      return { c1: conn.controlPoint1, c2: conn.controlPoint2, start, end };
+    }
+    
+    // Otherwise calculate default control points
+    const dx = Math.abs(end.x - start.x);
+    const dy = Math.abs(end.y - start.y);
+    const k = Math.max(40, Math.max(dx, dy) / 2);
+    const c1 = { x: start.x, y: start.y };
+    const c2 = { x: end.x, y: end.y };
+    if (src.side === 'left') c1.x -= k;
+    if (src.side === 'right') c1.x += k;
+    if (src.side === 'top') c1.y -= k;
+    if (src.side === 'bottom') c1.y += k;
+
+    if (dst.side === 'left') c2.x -= k;
+    if (dst.side === 'right') c2.x += k;
+    if (dst.side === 'top') c2.y -= k;
+    if (dst.side === 'bottom') c2.y += k;
+    
+    return { c1, c2, start, end };
   };
 
   // Render traditional planner board view (fixed row, reorderable columns, no arrows/notes)
@@ -2161,6 +2519,15 @@ function PlannerBoard() {
               </Draggable>
             ))}
             {provided.placeholder}
+            {/* Add Column Button */}
+            <button
+              onClick={() => setIsNewColumnModalOpen(true)}
+              className="flex-shrink-0 w-80 border-2 border-dashed border-white/20 rounded-lg text-slate-400 hover:border-orange-500/50 hover:text-orange-400 transition-colors flex flex-col items-center justify-center gap-2 py-8"
+              title="Add new column"
+            >
+              <Plus className="w-5 h-5" />
+              <span className="text-xs">Add Column</span>
+            </button>
           </div>
         )}
       </Droppable>
@@ -2190,6 +2557,26 @@ function PlannerBoard() {
               </option>
             ))}
           </select>
+          <button
+            onClick={() => {
+              if (selectedGridColumn) {
+                handleAddTask(selectedGridColumn);
+              } else {
+                alert('Please select a column first to add a task.');
+              }
+            }}
+            className="p-2 text-slate-300 hover:bg-white/10 rounded-lg transition-colors hover:text-white"
+            title="Add New Task"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setIsNewColumnModalOpen(true)}
+            className="p-2 text-slate-300 hover:bg-white/10 rounded-lg transition-colors hover:text-white"
+            title="Create New Column"
+          >
+            <Layout className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Task Grid */}
@@ -2229,6 +2616,17 @@ function PlannerBoard() {
               )}
             </div>
             <div className="flex items-center gap-3 relative">
+              <button 
+                onClick={() => {
+                  const boardName = prompt('Enter board name:');
+                  if (boardName?.trim()) {
+                    createBoard(boardName.trim());
+                  }
+                }}
+                className="gh-cta-button px-5 py-2 rounded-lg text-white font-semibold"
+              >
+                New Board
+              </button>
               <div className="flex items-center gap-2">
                 <select
                   value={selectedBoard}
@@ -2256,7 +2654,6 @@ function PlannerBoard() {
                   </button>
                 )}
               </div>
-              
               {/* View Mode Selector */}
               <div className="flex items-center gap-1 border border-white/10 rounded-lg p-1 bg-white/5">
                 <button
@@ -2292,73 +2689,16 @@ function PlannerBoard() {
                 Filters
               </button>
 
-              {viewMode !== 'grid' && (
-                <>
-                  <button
-                    onClick={() => setIsNewColumnModalOpen(true)}
-                    className="gh-cta-button-secondary px-5 py-2 rounded-lg font-semibold bg-transparent"
-                  >
-                    New Column
-                  </button>
-                  <button
-                    onClick={() => setIsLabelModalOpen(true)}
-                    className="gh-cta-button-secondary px-5 py-2 rounded-lg font-semibold bg-transparent"
-                  >
-                    Manage Labels
-                  </button>
-                </>
-              )}
-              {viewMode === 'free-form' && (
-                <>
-                  <button
-                    onClick={() => {
-                      setConnectMode((prev) => {
-                        const next = !prev;
-                        if (!next) setConnectSource(null);
-                        return next;
-                      });
-                    }}
-                    className={connectMode ? "gh-cta-button px-5 py-2 rounded-lg text-white font-semibold" : "gh-cta-button-secondary px-5 py-2 rounded-lg font-semibold bg-transparent"}
-                    title="Connect columns: click a source column header, then a target column header"
-                  >
-                    {connectMode ? 'Connecting… (click two columns)' : 'Connect Columns'}
-                  </button>
-                  <div className="relative">
-                    <button
-                      onClick={() => setIsNotePaletteOpen(v => !v)}
-                      className="gh-cta-button-secondary px-5 py-2 rounded-lg font-semibold bg-transparent"
-                    >
-                      New Note
-                    </button>
-                    {isNotePaletteOpen && (
-                      <div className="absolute right-0 mt-2 bg-[#1a2332] border border-white/10 rounded-lg p-2 flex gap-2 z-40">
-                        {['yellow','pink','blue','green','purple','orange'].map(c => (
-                          <button key={c} onClick={() => { createNote(c); setIsNotePaletteOpen(false); }}
-                            className="w-6 h-6 rounded shadow border border-black/20" 
-                            style={{ backgroundColor: c === 'yellow' ? '#fde047' : c === 'pink' ? '#f9a8d4' : c === 'blue' ? '#7dd3fc' : c === 'green' ? '#86efac' : c === 'purple' ? '#c4b5fd' : '#fdba74' }}
-                            title={`Add ${c} note`}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-              <button 
-                onClick={() => {
-                  const boardName = prompt('Enter board name:');
-                  if (boardName?.trim()) {
-                    createBoard(boardName.trim());
-                  }
-                }}
-                className="gh-cta-button px-5 py-2 rounded-lg text-white font-semibold"
+              <button
+                onClick={() => setIsLabelModalOpen(true)}
+                className="gh-cta-button-secondary px-5 py-2 rounded-lg font-semibold bg-transparent"
               >
-                New Board
+                Manage Labels
               </button>
             </div>
           </div>
-          {/* Connection styling toolbar (visible when a connection is selected) */}
-          {selectedConnectionId && (() => {
+          {/* Connection styling toolbar (visible when a connection is selected) - Only for non-freeform modes */}
+          {viewMode !== 'free-form' && selectedConnectionId && (() => {
               const conn = connections.find(c => c.id === selectedConnectionId);
               if (!conn) return null;
               return (
@@ -2462,90 +2802,6 @@ function PlannerBoard() {
                 </div>
               );
             })()}
-          {/* Note formatting toolbar (visible when a note is selected) */}
-          {selectedNoteId && (() => {
-              const n = notes.find(nn => nn.id === selectedNoteId);
-              if (!n) return null;
-              const st = n.style || {};
-              const setStyle = (partial: Partial<NonNullable<Note['style']>>) => {
-                updateNote(n.id, { style: { ...(n.style || {}), ...partial } });
-              };
-              const noteColors = ['yellow','pink','blue','green','purple','orange'];
-              return (
-                <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
-                  <span className="text-slate-300 text-sm mr-2">Note style:</span>
-                  <div className="flex flex-wrap items-center gap-2 p-2 bg-white/5 border border-white/10 rounded-lg">
-                  <select
-                    value={st.fontFamily || ''}
-                    onChange={(e) => setStyle({ fontFamily: e.target.value || undefined })}
-                    className="px-2 py-1 bg-white/5 border border-white/10 rounded text-white text-sm"
-                    title="Font family"
-                  >
-                    <option className="bg-[#1a2332]" value="">Default</option>
-                    <option className="bg-[#1a2332]" value="Inter, system-ui, sans-serif">Inter</option>
-                    <option className="bg-[#1a2332]" value="Georgia, serif">Georgia</option>
-                    <option className="bg-[#1a2332]" value="'Times New Roman', serif">Times</option>
-                    <option className="bg-[#1a2332]" value="'Courier New', monospace">Courier</option>
-                    <option className="bg-[#1a2332]" value="Monaco, monospace">Monaco</option>
-                  </select>
-                  <select
-                    value={st.fontSize || 14}
-                    onChange={(e) => setStyle({ fontSize: Number(e.target.value) })}
-                    className="px-2 py-1 bg-white/5 border border-white/10 rounded text-white text-sm"
-                    title="Font size"
-                  >
-                    {[12,14,16,18,20,24,28].map(sz => (
-                      <option key={sz} className="bg-[#1a2332]" value={sz}>{sz}px</option>
-                    ))}
-                  </select>
-                  <button
-                    className={`px-2 py-1 rounded text-sm border ${st.bold ? 'bg-white/10 border-white/20 text-white' : 'bg-transparent border-white/10 text-slate-300'}`}
-                    onClick={() => setStyle({ bold: !st.bold })}
-                    title="Bold"
-                  >
-                    B
-                  </button>
-                  <button
-                    className={`px-2 py-1 rounded text-sm border italic ${st.italic ? 'bg-white/10 border-white/20 text-white' : 'bg-transparent border-white/10 text-slate-300'}`}
-                    onClick={() => setStyle({ italic: !st.italic })}
-                    title="Italic"
-                  >
-                    I
-                  </button>
-                  <button
-                    className={`px-2 py-1 rounded text-sm border underline ${st.underline ? 'bg-white/10 border-white/20 text-white' : 'bg-transparent border-white/10 text-slate-300'}`}
-                    onClick={() => setStyle({ underline: !st.underline })}
-                    title="Underline"
-                  >
-                    U
-                  </button>
-                  <div className="flex items-center gap-2 ml-2">
-                    <span className="text-slate-300 text-xs">Text</span>
-                    <input
-                      type="color"
-                      value={st.textColor || '#111827'}
-                      onChange={(e) => setStyle({ textColor: e.target.value })}
-                      className="w-8 h-8 p-0 border border-white/10 rounded"
-                      title="Text color"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2 ml-2">
-                    <span className="text-slate-300 text-xs">Note</span>
-                    <div className="flex gap-1">
-                      {noteColors.map(c => (
-                        <button key={c}
-                          onClick={() => updateNote(n.id, { color: c })}
-                          className={`w-6 h-6 rounded border ${n.color === c ? 'border-white/70' : 'border-black/20'}`}
-                          style={{ backgroundColor: c === 'yellow' ? '#fde047' : c === 'pink' ? '#f9a8d4' : c === 'blue' ? '#7dd3fc' : c === 'green' ? '#86efac' : c === 'purple' ? '#c4b5fd' : '#fdba74' }}
-                          title={`Set ${c} note`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  </div>
-                </div>
-              );
-            })()}
 
           {/* Filter Panel */}
           {showFilters && (
@@ -2644,20 +2900,67 @@ function PlannerBoard() {
           renderGridView()
         ) : (
           <DragDropContext onDragEnd={onDragEnd}>
-            <div className="relative overflow-auto pb-6" style={{ minHeight: '60vh' }}>
-              <div ref={boardRef} className="relative" style={{ width: 2400, height: 1400 }}
-                   onPointerMove={(e) => {
-                     if (!((connectMode && connectSource) || draggingConn)) return;
-                     const el = boardRef.current; if (!el) return;
-                     const rect = el.getBoundingClientRect();
-                     setPointerPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+            <div className="relative overflow-auto pb-6 scrollbar-hide" style={{ minHeight: '60vh' }}>
+              <div 
+                   ref={boardRef} 
+                   className="relative" 
+                   style={{ 
+                     width: 4800, 
+                     height: 2800,
+                     transform: `translate(${panOffset.x}px, ${panOffset.y}px)`,
+                     cursor: toolbarMode === 'pan' ? 'grab' : isPanning ? 'grabbing' : undefined,
                    }}
-                   onPointerUp={(e) => {
-                     if (!draggingConn) return;
+                   onPointerDown={(e) => {
+                     // Start panning with Ctrl/Cmd + left click OR if in pan mode
+                     if ((e.metaKey || e.ctrlKey || toolbarMode === 'pan') && e.button === 0) {
+                       e.preventDefault();
+                       setIsPanning(true);
+                       setPanStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
+                       e.currentTarget.style.cursor = 'grabbing';
+                     }
+                   }}
+                   onPointerMove={(e) => {
+                     // Handle panning
+                     if (isPanning) {
+                       setPanOffset({
+                         x: e.clientX - panStart.x,
+                         y: e.clientY - panStart.y
+                       });
+                       return;
+                     }
+                     
+                     if (!((connectMode && connectSource) || draggingConn || draggingControlPoint)) return;
                      const el = boardRef.current; if (!el) return;
                      const rect = el.getBoundingClientRect();
-                     const x = e.clientX - rect.left;
-                     const y = e.clientY - rect.top;
+                     // Compute in board coordinates (rect already includes CSS transform)
+                    const pos = { 
+                      x: e.clientX - rect.left, 
+                      y: e.clientY - rect.top 
+                    };
+                    setPointerPos(pos);
+                     
+                     // Handle control point dragging
+                     if (draggingControlPoint) {
+                       const conn = connections.find(c => c.id === draggingControlPoint.id);
+                       if (conn) {
+                         const update: Partial<Connection> = {};
+                         if (draggingControlPoint.point === 1) {
+                           update.controlPoint1 = pos;
+                         } else {
+                           update.controlPoint2 = pos;
+                         }
+                         // Update locally for smooth dragging
+                         setConnections(prev => prev.map(c => 
+                           c.id === draggingControlPoint.id ? { ...c, ...update } : c
+                         ));
+                       }
+                     }
+                     
+                     if (!draggingConn) return;
+                    // Reuse rect computed above
+                    // Compute in board coordinates (rect already includes CSS transform)
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
                      const dropColId = columnIdAtPoint(x, y);
                      const conn = connections.find(c => c.id === draggingConn.id);
                      if (dropColId && conn) {
@@ -2670,9 +2973,115 @@ function PlannerBoard() {
                      setDraggingConn(null);
                      setPointerPos(null);
                    }}
-                   onClick={(e) => { if (e.target === e.currentTarget) { setSelectedNoteId(null); setSelectedConnectionId(null); } }}
+                   onPointerUp={(e) => {
+                     // Stop panning
+                     if (isPanning) {
+                       setIsPanning(false);
+                       e.currentTarget.style.cursor = toolbarMode === 'pan' ? 'grab' : '';
+                       return;
+                     }
+                     
+                     // Handle control point drag end
+                     if (draggingControlPoint) {
+                       const conn = connections.find(c => c.id === draggingControlPoint.id);
+                       if (conn) {
+                         const update: Partial<Connection> = {
+                           controlPoint1: conn.controlPoint1,
+                           controlPoint2: conn.controlPoint2
+                         };
+                         updateConnection(conn.id, update);
+                       }
+                       setDraggingControlPoint(null);
+                       return;
+                     }
+                     
+                     if (!draggingConn) return;
+                     const el = boardRef.current; if (!el) return;
+                     const rect = el.getBoundingClientRect();
+                     // Compute in board coordinates (rect already includes CSS transform)
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                     const dropColId = columnIdAtPoint(x, y);
+                     const conn = connections.find(c => c.id === draggingConn.id);
+                     if (dropColId && conn) {
+                       if (draggingConn.end === 'source' && conn.sourceColumnId !== dropColId) {
+                         updateConnection(conn.id, { sourceColumnId: dropColId });
+                       } else if (draggingConn.end === 'target' && conn.targetColumnId !== dropColId) {
+                         updateConnection(conn.id, { targetColumnId: dropColId });
+                       }
+                     }
+                     setDraggingConn(null);
+                     setPointerPos(null);
+                   }}
+                   onClick={(e) => { 
+                     if (e.target === e.currentTarget) {
+                       // If a shape is selected, deselect it instead of creating a new one
+                       if (selectedShapeId) {
+                         setSelectedShapeId(null);
+                         return;
+                       }
+                       
+                       // Handle shape creation (only if no shape is selected)
+                       if (toolbarMode === 'shape' && selectedShapeType) {
+                         const el = boardRef.current;
+                         if (!el) return;
+                         const rect = el.getBoundingClientRect();
+                         const x = Math.round(e.clientX - rect.left);
+                         const y = Math.round(e.clientY - rect.top);
+                         
+                         // Create shape with default size
+                         const defaultWidth = selectedShapeType === 'square' ? 100 : selectedShapeType === 'circle' ? 100 : selectedShapeType === 'text' ? 200 : 150;
+                         const defaultHeight = selectedShapeType === 'square' ? 100 : selectedShapeType === 'circle' ? 100 : selectedShapeType === 'rectangle' ? 80 : selectedShapeType === 'text' ? 50 : 120;
+                         
+                         // For text type, use transparent fill and stroke
+                        const isTextType = selectedShapeType === 'text';
+                        
+                        const newShape: Partial<Shape> = {
+                          type: selectedShapeType,
+                          x: Math.round(x - defaultWidth / 2),
+                          y: Math.round(y - defaultHeight / 2),
+                          width: defaultWidth,
+                          height: defaultHeight,
+                          fillColor: isTextType ? 'transparent' : (shapeNoFill ? 'transparent' : shapeFillColor),
+                          strokeColor: isTextType ? 'transparent' : shapeStrokeColor,
+                          strokeWidth: isTextType ? 0 : 2,
+                          textContent: isTextType ? '' : undefined,
+                          fontSize: isTextType ? textFontSizeDefault : 16,
+                          textColor: isTextType ? textColorDefault : '#ffffff',
+                          fontFamily: isTextType ? textFontFamilyDefault : undefined,
+                          opacity: 1.0,
+                          rotation: 0,
+                        };
+                         
+                         // Save to database
+                        createShape(newShape).then((savedShape) => {
+                          if (savedShape) {
+                            setShapes(prev => [...prev, savedShape]);
+                            // Auto-select and enter edit mode for text
+                            if (savedShape.type === 'text') {
+                              setSelectedShapeId(savedShape.id);
+                              setEditingTextShapeId(savedShape.id);
+                              setEditingTextContent(savedShape.textContent || '');
+                            }
+                          }
+                        });
+                        return;
+                      }
+                       
+                       // Clear all selections
+                       setSelectedNoteId(null); 
+                       setSelectedConnectionId(null);
+                       setSelectedShapeId(null);
+                       // Return to normal mode when clicking away
+                       if (toolbarMode === 'connect' && selectedConnectionId) {
+                         setToolbarMode('normal');
+                         setConnectMode(false);
+                         setConnectSource(null);
+                       }
+                     } 
+                   }}
               >
-                <svg className="absolute inset-0 w-full h-full pointer-events-none z-20">
+                <svg className={`absolute inset-0 w-full h-full pointer-events-none ${selectedConnectionId ? 'z-50' : 'z-20'}`}>
                   <defs>
                     {/* Create unique markers for each color */}
                     {Array.from(new Set(connections.map(c => c.color || '#f59e0b'))).map(color => [
@@ -2715,12 +3124,25 @@ function PlannerBoard() {
                     ]).flat()}
                   </defs>
                   {connections.map((c) => {
+                    // Use stored anchor sides if available, otherwise auto-calculate
                     const targetRect = getApproxRect(c.targetColumnId);
-                    const src = chooseAnchor(c.sourceColumnId, { x: targetRect.x + targetRect.width / 2, y: targetRect.y + targetRect.height / 2 });
-                    const dst = chooseAnchor(c.targetColumnId, { x: src.x, y: src.y });
-                    const path = makeBezierPath({ x: src.x, y: src.y }, src.side, { x: dst.x, y: dst.y }, dst.side);
-                    const midX = (src.x + dst.x) / 2;
-                    const midY = (src.y + dst.y) / 2;
+                    const src = c.sourceAnchorSide 
+                      ? getAnchorForSide(c.sourceColumnId, c.sourceAnchorSide)
+                      : chooseAnchor(c.sourceColumnId, { x: targetRect.x + targetRect.width / 2, y: targetRect.y + targetRect.height / 2 });
+                    const dst = c.targetAnchorSide
+                      ? getAnchorForSide(c.targetColumnId, c.targetAnchorSide)
+                      : chooseAnchor(c.targetColumnId, { x: src.x, y: src.y });
+                    
+                    // Get control points (custom or default)
+                    const { c1, c2, start, end } = getConnectionControlPoints(c, src, dst);
+                    
+                    // Create path with custom control points
+                    const path = makeBezierPath({ x: src.x, y: src.y }, src.side, { x: dst.x, y: dst.y }, dst.side, c1, c2);
+                    
+                    // Calculate midpoint using actual control points (so X button moves with curve adjustments)
+                    const midpoint = getBezierPoint(start, c1, c2, end, 0.5);
+                    const midX = midpoint.x;
+                    const midY = midpoint.y;
                     const isSelected = selectedConnectionId === c.id;
                     return (
                       <g key={c.id}>
@@ -2734,17 +3156,22 @@ function PlannerBoard() {
                           markerEnd={c.arrowType === 'none' ? undefined : (c.arrowType === 'double' ? `url(#arrowhead-double-${(c.color || '#f59e0b').replace('#', '')})` : `url(#arrowhead-${(c.color || '#f59e0b').replace('#', '')})`)} 
                           markerStart={c.arrowType === 'double' ? `url(#arrowhead-double-start-${(c.color || '#f59e0b').replace('#', '')})` : undefined}
                         />
-                        {/* Click to select (only when NOT in connect mode) */}
-                        {!connectMode && (
-                          <path
-                            d={path}
-                            stroke="transparent"
-                            strokeWidth={16}
-                            fill="none"
-                            style={{ cursor: 'pointer', pointerEvents: 'auto' }}
-                            onClick={(e) => { e.stopPropagation(); setSelectedConnectionId(c.id); }}
-                          />
-                        )}
+                        {/* Click to select - always available */}
+                        <path
+                          d={path}
+                          stroke="transparent"
+                          strokeWidth={16}
+                          fill="none"
+                          style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            setSelectedConnectionId(c.id);
+                            setToolbarMode('connect');
+                            // Don't set connectMode to true - we want to edit, not create
+                            // Clear any active connection source when selecting an existing connection
+                            setConnectSource(null);
+                          }}
+                        />
                         {c.label && (
                           <text x={midX} y={midY - 6} fill="#fff" fontSize="12" textAnchor="middle">{c.label}</text>
                         )}
@@ -2753,14 +3180,36 @@ function PlannerBoard() {
                           <>
                             <circle cx={src.x} cy={src.y} r={6} fill="#1f2937" stroke="#94a3b8" strokeWidth={2}
                               style={{ pointerEvents: 'auto', cursor: 'grab' }}
-                              onPointerDown={(e) => { e.stopPropagation(); setSelectedConnectionId(c.id); setDraggingConn({ id: c.id, end: 'source' }); }} />
+                              onPointerDown={(e) => { e.stopPropagation(); setSelectedConnectionId(c.id); setDraggingConn({ id: c.id, end: 'source' }); }}
+                              onDoubleClick={(e) => {
+                                e.stopPropagation();
+                                const newSide = cycleAnchorSide(src.side);
+                                updateConnection(c.id, { sourceAnchorSide: newSide });
+                              }} />
                             <circle cx={dst.x} cy={dst.y} r={6} fill="#1f2937" stroke="#94a3b8" strokeWidth={2}
                               style={{ pointerEvents: 'auto', cursor: 'grab' }}
-                              onPointerDown={(e) => { e.stopPropagation(); setSelectedConnectionId(c.id); setDraggingConn({ id: c.id, end: 'target' }); }} />
+                              onPointerDown={(e) => { e.stopPropagation(); setSelectedConnectionId(c.id); setDraggingConn({ id: c.id, end: 'target' }); }}
+                              onDoubleClick={(e) => {
+                                e.stopPropagation();
+                                const newSide = cycleAnchorSide(dst.side);
+                                updateConnection(c.id, { targetAnchorSide: newSide });
+                              }} />
+                            
+                            {/* Control point handles */}
+                            <circle cx={c1.x} cy={c1.y} r={5} fill="#f59e0b" stroke="#fff" strokeWidth={2}
+                              style={{ pointerEvents: 'auto', cursor: 'grab' }}
+                              onPointerDown={(e) => { e.stopPropagation(); setDraggingControlPoint({ id: c.id, point: 1 }); }} />
+                            <circle cx={c2.x} cy={c2.y} r={5} fill="#f59e0b" stroke="#fff" strokeWidth={2}
+                              style={{ pointerEvents: 'auto', cursor: 'grab' }}
+                              onPointerDown={(e) => { e.stopPropagation(); setDraggingControlPoint({ id: c.id, point: 2 }); }} />
+                            
+                            {/* Visual guide lines to control points */}
+                            <line x1={src.x} y1={src.y} x2={c1.x} y2={c1.y} stroke="#94a3b8" strokeWidth={1} strokeDasharray="4 2" opacity={0.5} />
+                            <line x1={dst.x} y1={dst.y} x2={c2.x} y2={c2.y} stroke="#94a3b8" strokeWidth={1} strokeDasharray="4 2" opacity={0.5} />
                           </>
                         )}
-                        {/* Delete control at midpoint (only when selected and NOT in connect mode) */}
-                        {!connectMode && isSelected && (
+                        {/* Delete control at midpoint (only when selected) */}
+                        {isSelected && (
                           <g onClick={(e) => { e.stopPropagation(); deleteConnection(c.id); }} style={{ cursor: 'pointer', pointerEvents: 'auto' }}>
                             <circle cx={midX} cy={midY} r={10} fill="#1f2937" stroke="#f87171" strokeWidth={2} />
                             <text x={midX} y={midY + 4} fill="#f87171" fontSize="12" textAnchor="middle">×</text>
@@ -2798,6 +3247,82 @@ function PlannerBoard() {
                     const path = makeBezierPath({ x: src.x, y: src.y }, src.side, { x: pointerPos.x, y: pointerPos.y }, sideB);
                     return <path d={path} stroke="#94a3b8" strokeDasharray="6 4" strokeWidth={2} fill="none" />;
                   })()}
+                  
+                  {/* Anchor points on columns - only visible when a connection is selected */}
+                  {selectedConnectionId && !connectMode && columns.map((column) => {
+                    const colRect = getApproxRect(column.id);
+                    const cx = colRect.x + colRect.width / 2;
+                    const cy = colRect.y + colRect.height / 2;
+                    
+                    const anchors = [
+                      { side: 'top' as AnchorSide, x: cx, y: colRect.y },
+                      { side: 'right' as AnchorSide, x: colRect.x + colRect.width, y: cy },
+                      { side: 'bottom' as AnchorSide, x: cx, y: colRect.y + colRect.height },
+                      { side: 'left' as AnchorSide, x: colRect.x, y: cy },
+                    ];
+                    
+                    return (
+                      <g key={`anchors-${column.id}`}>
+                        {anchors.map((anchor) => (
+                          <circle
+                            key={`${column.id}-${anchor.side}`}
+                            cx={anchor.x}
+                            cy={anchor.y}
+                            r={4}
+                            fill="#f59e0b"
+                            stroke="#fff"
+                            strokeWidth={1.5}
+                            opacity={0.6}
+                            style={{ 
+                              pointerEvents: 'auto', 
+                              cursor: 'pointer',
+                              transition: 'opacity 0.2s'
+                            }}
+                            className="hover:opacity-100"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              
+                              // Snap connection endpoint to this anchor
+                              const conn = connections.find(c => c.id === selectedConnectionId);
+                              if (conn) {
+                                // Determine which endpoint to update based on which column was clicked
+                                if (column.id === conn.sourceColumnId) {
+                                  // Update source side only
+                                  updateConnection(selectedConnectionId, { 
+                                    sourceAnchorSide: anchor.side 
+                                  });
+                                } else if (column.id === conn.targetColumnId) {
+                                  // Update target side only
+                                  updateConnection(selectedConnectionId, { 
+                                    targetAnchorSide: anchor.side 
+                                  });
+                                } else {
+                                  // Clicking a different column - decide which endpoint to move
+                                  const sourceRect = getApproxRect(conn.sourceColumnId);
+                                  const targetRect = getApproxRect(conn.targetColumnId);
+                                  const sourceDist = Math.hypot(anchor.x - (sourceRect.x + sourceRect.width/2), anchor.y - (sourceRect.y + sourceRect.height/2));
+                                  const targetDist = Math.hypot(anchor.x - (targetRect.x + targetRect.width/2), anchor.y - (targetRect.y + targetRect.height/2));
+                                  
+                                  // Move the closer endpoint
+                                  if (sourceDist < targetDist) {
+                                    updateConnection(selectedConnectionId, { 
+                                      sourceColumnId: column.id,
+                                      sourceAnchorSide: anchor.side 
+                                    });
+                                  } else {
+                                    updateConnection(selectedConnectionId, { 
+                                      targetColumnId: column.id,
+                                      targetAnchorSide: anchor.side 
+                                    });
+                                  }
+                                }
+                              }
+                            }}
+                          />
+                        ))}
+                      </g>
+                    );
+                  })}
                 </svg>
                 {columns.map((column) => {
                   const posX = (column as any).x ?? ((column as any).order || 0) * 320;
@@ -2805,7 +3330,11 @@ function PlannerBoard() {
                   const colWidth = (column as any).width || 320;
                   const colHeight = (column as any).height || 260;
                   return (
-                    <div key={column.id} className="absolute" style={{ left: posX, top: posY, width: colWidth, height: colHeight }} ref={setColumnRef(column.id)}>
+                    <div 
+                      key={column.id} 
+                      className={`absolute z-30 transition-opacity duration-200 ${selectedConnectionId ? 'opacity-30 pointer-events-none' : ''}`} 
+                      style={{ left: posX, top: posY, width: colWidth, height: colHeight }} 
+                      ref={setColumnRef(column.id)}>
                       <Column
                         column={column}
                         tasks={tasksByColumn[column.id] || []}
@@ -2815,6 +3344,7 @@ function PlannerBoard() {
                         onEditTask={handleEditTask}
                         isDragging={draggingColumnId === column.id}
                         onDragHandlePointerDown={handleColumnHandlePointerDown(column.id)}
+                        isFreeFormMode={true}
                       />
                       {/* Resize handle */}
                       <div
@@ -2827,16 +3357,16 @@ function PlannerBoard() {
                   );
                 })}
                 {(() => {
-                  const colorClass = (c: string) => {
+                  const getColorHex = (c: string) => {
                     const map: Record<string, string> = {
-                      yellow: 'bg-yellow-300',
-                      pink: 'bg-pink-300',
-                      blue: 'bg-sky-300',
-                      green: 'bg-green-300',
-                      purple: 'bg-purple-300',
-                      orange: 'bg-orange-300',
+                      orange: '#fb923c',
+                      blue: '#60a5fa',
+                      green: '#4ade80',
+                      pink: '#f472b6',
+                      gray: '#9ca3af',
+                      yellow: '#fde047',
                     };
-                    return map[c] || 'bg-yellow-300';
+                    return map[c] || '#fde047';
                   };
                   return notes.map((note) => {
                     const st = note.style || {};
@@ -2852,12 +3382,16 @@ function PlannerBoard() {
                     const noteWidth = (note as any).width || 224;
                     const noteHeight = (note as any).height || 150;
                     return (
-                      <div key={note.id} className="absolute z-[5]" style={{ left: note.x || 0, top: note.y || 0, width: noteWidth }} onClick={(e) => { e.stopPropagation(); setSelectedNoteId(note.id); }}>
+                      <div 
+                        key={note.id} 
+                        className={`absolute z-[2] transition-opacity duration-200 ${selectedConnectionId ? 'opacity-30 pointer-events-none' : ''}`} 
+                        style={{ left: note.x || 0, top: note.y || 0, width: noteWidth }} 
+                        onClick={(e) => { e.stopPropagation(); setSelectedNoteId(note.id); }}>
                         {/* Pin icon at top center */}
                         <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
                           <Pin className="w-7 h-7 text-red-600 fill-red-600" style={{ transform: 'rotate(45deg)' }} />
                         </div>
-                        <div className={`rounded shadow-lg border ${isSelected ? 'border-orange-400 ring-2 ring-orange-400/50' : 'border-black/20'} ${colorClass(note.color)} text-slate-900`} style={{ width: noteWidth, minHeight: noteHeight }}> 
+                        <div className={`rounded shadow-lg border ${isSelected ? 'border-orange-400 ring-2 ring-orange-400/50' : 'border-black/20'} text-slate-900`} style={{ width: noteWidth, minHeight: noteHeight, backgroundColor: getColorHex(note.color) }}> 
                           <div className="px-2 py-1 cursor-move bg-black/10 rounded-t flex items-center justify-between" onPointerDown={handleNotePointerDown(note.id)}>
                             <div className="flex-1" />
                             {isSelected && (
@@ -2900,6 +3434,836 @@ function PlannerBoard() {
                     );
                   });
                 })()}
+                {/* Render shapes */}
+                {shapes.map((shape) => {
+                  const isSelected = selectedShapeId === shape.id;
+                  const fillColor = shape.fillColor === 'transparent' ? 'none' : shape.fillColor;
+                  
+                  return (
+                    <div 
+                      key={shape.id} 
+                      className={`absolute z-[1] cursor-move transition-opacity duration-200 ${selectedConnectionId ? 'opacity-30 pointer-events-none' : ''}`}
+                      style={{ left: shape.x, top: shape.y, width: shape.width, height: shape.height }}
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        setSelectedShapeId(shape.id); 
+                      }}
+                      onPointerDown={(e) => {
+                        // For text shapes: don't start drag here so double-click works reliably
+                        if (shape.type === 'text') return;
+                        // If any text is being edited, do not start dragging any shape
+                        if (editingTextShapeId) return;
+                        handleShapePointerDown(shape.id)(e);
+                      }}
+                    >
+                      <svg width={shape.width} height={shape.height} className={`overflow-visible ${shape.type === 'text' ? 'pointer-events-auto' : 'pointer-events-none'}`}>
+                        {shape.type === 'rectangle' && (
+                          <rect
+                            x="0"
+                            y="0"
+                            width={shape.width}
+                            height={shape.height}
+                            fill={fillColor}
+                            stroke={shape.strokeColor}
+                            strokeWidth={shape.strokeWidth || 2}
+                            className={isSelected ? 'stroke-orange-500' : ''}
+                          />
+                        )}
+                        {shape.type === 'square' && (
+                          <rect
+                            x="0"
+                            y="0"
+                            width={shape.width}
+                            height={shape.width}
+                            fill={fillColor}
+                            stroke={shape.strokeColor}
+                            strokeWidth={shape.strokeWidth || 2}
+                            className={isSelected ? 'stroke-orange-500' : ''}
+                          />
+                        )}
+                        {shape.type === 'circle' && (
+                          <circle
+                            cx={shape.width / 2}
+                            cy={shape.width / 2}
+                            r={shape.width / 2 - (shape.strokeWidth || 2)}
+                            fill={fillColor}
+                            stroke={shape.strokeColor}
+                            strokeWidth={shape.strokeWidth || 2}
+                            className={isSelected ? 'stroke-orange-500' : ''}
+                          />
+                        )}
+                        {shape.type === 'oval' && (
+                          <ellipse
+                            cx={shape.width / 2}
+                            cy={shape.height / 2}
+                            rx={shape.width / 2 - (shape.strokeWidth || 2)}
+                            ry={shape.height / 2 - (shape.strokeWidth || 2)}
+                            fill={fillColor}
+                            stroke={shape.strokeColor}
+                            strokeWidth={shape.strokeWidth || 2}
+                            className={isSelected ? 'stroke-orange-500' : ''}
+                          />
+                        )}
+                        {shape.type === 'triangle' && (
+                          <polygon
+                            points={`${shape.width / 2},${(shape.strokeWidth || 2)} ${shape.width - (shape.strokeWidth || 2)},${shape.height - (shape.strokeWidth || 2)} ${(shape.strokeWidth || 2)},${shape.height - (shape.strokeWidth || 2)}`}
+                            fill={fillColor}
+                            stroke={shape.strokeColor}
+                            strokeWidth={shape.strokeWidth || 2}
+                            className={isSelected ? 'stroke-orange-500' : ''}
+                          />
+                        )}
+                        {shape.type === 'diamond' && (
+                          <polygon
+                            points={`${shape.width / 2},${(shape.strokeWidth || 2)} ${shape.width - (shape.strokeWidth || 2)},${shape.height / 2} ${shape.width / 2},${shape.height - (shape.strokeWidth || 2)} ${(shape.strokeWidth || 2)},${shape.height / 2}`}
+                            fill={fillColor}
+                            stroke={shape.strokeColor}
+                            strokeWidth={shape.strokeWidth || 2}
+                            className={isSelected ? 'stroke-orange-500' : ''}
+                          />
+                        )}
+                        {shape.type === 'text' && editingTextShapeId !== shape.id && (
+                          <text
+                            x={shape.width / 2}
+                            y={shape.height / 2}
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                            fill={shape.textColor || '#ffffff'}
+                            fontSize={shape.fontSize || 20}
+                            fontFamily={shape.fontFamily || 'Inter, system-ui, sans-serif'}
+                            fontWeight={shape.fontWeight || 'normal'}
+                            className={isSelected ? 'outline-none' : ''}
+                            style={{ pointerEvents: 'none' }}
+                          >
+                            {shape.textContent || 'Text'}
+                          </text>
+                        )}
+                      </svg>
+                      {/* Text editing input */}
+                      {editingTextShapeId === shape.id && shape.type === 'text' && (
+                        <textarea
+                          autoFocus
+                          value={editingTextContent}
+                          onChange={(e) => setEditingTextContent(e.target.value)}
+                          onBlur={() => {
+                            updateShape(shape.id, { textContent: editingTextContent });
+                            setEditingTextShapeId(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              updateShape(shape.id, { textContent: editingTextContent });
+                              setEditingTextShapeId(null);
+                            } else if (e.key === 'Escape') {
+                              setEditingTextShapeId(null);
+                              setEditingTextContent(shape.textContent || '');
+                            }
+                          }}
+                          className="absolute inset-0 w-full h-full bg-transparent text-center resize-none pointer-events-auto"
+                          style={{
+                            color: shape.textColor || '#ffffff',
+                            fontSize: `${shape.fontSize || 20}px`,
+                            fontFamily: shape.fontFamily || 'Inter, system-ui, sans-serif',
+                            fontWeight: shape.fontWeight || 'normal',
+                            border: '2px solid #f59e0b',
+                            borderRadius: '4px',
+                            padding: '4px',
+                            outline: 'none',
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          onPointerDown={(e) => e.stopPropagation()}
+                        />
+                      )}
+                      {isSelected && (
+                        <>
+                          {/* Top-center controls: Edit (for text) + Delete */}
+                          <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center gap-1 z-10 pointer-events-auto">
+                            {shape.type === 'text' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingTextShapeId(shape.id);
+                                  setEditingTextContent(shape.textContent || '');
+                                }}
+                                onPointerDown={(e) => e.stopPropagation()}
+                                className="bg-slate-600 text-white rounded-full p-1 hover:bg-slate-500"
+                                title="Edit text"
+                              >
+                                <Edit3 className="w-3 h-3" />
+                              </button>
+                            )}
+                            <button
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                deleteShape(shape.id);
+                              }}
+                              onPointerDown={(e) => e.stopPropagation()}
+                              className="bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                              title="Delete"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                          {/* Resize handle */}
+                          <div
+                            className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize z-50 pointer-events-auto"
+                            style={{ background: 'linear-gradient(135deg, transparent 50%, rgba(249, 115, 22, 0.7) 50%)' }}
+                            onPointerDown={handleShapeResizeStart(shape.id)}
+                            title="Resize shape"
+                          />
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Floating Toolbar - Only in free-form mode */}
+              <div className="fixed right-6 top-1/2 -translate-y-1/2 z-50">
+                <div className="bg-[#1a2332] border border-white/10 rounded-lg shadow-2xl p-2 flex flex-col gap-2 max-h-[80vh] overflow-y-auto">
+                  {/* Color palette - shown when in note mode and NO note is selected */}
+                  {toolbarMode === 'note' && !selectedNoteId && (
+                    <>
+                      <div className="flex flex-col gap-2 pb-2 border-b border-white/10">
+                        {[
+                          { color: '#fb923c', name: 'orange' },
+                          { color: '#60a5fa', name: 'blue' },
+                          { color: '#4ade80', name: 'green' },
+                          { color: '#f472b6', name: 'pink' },
+                          { color: '#9ca3af', name: 'gray' },
+                          { color: '#fde047', name: 'yellow' }
+                        ].map(({ color, name }) => (
+                          <button
+                            key={color}
+                            onClick={() => createNote(name)}
+                            className="w-10 h-10 rounded border-2 border-white/20 hover:border-white/50 transition-colors"
+                            style={{ backgroundColor: color }}
+                            title={`Add ${name} note`}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {/* Shape palette - shown when in shape mode (non-text) */}
+                  {toolbarMode === 'shape' && selectedShapeType !== 'text' && !selectedShapeId && (
+                    <div className="flex flex-col gap-2 pb-2 border-b border-white/10 min-w-[200px]">
+                      <div className="text-xs text-slate-400 px-1">Shape Type</div>
+                      <div className="grid grid-cols-3 gap-1">
+                        {[
+                          { type: 'rectangle' as ShapeType, label: 'Rectangle' },
+                          { type: 'square' as ShapeType, label: 'Square' },
+                          { type: 'circle' as ShapeType, label: 'Circle' },
+                          { type: 'oval' as ShapeType, label: 'Oval' },
+                          { type: 'triangle' as ShapeType, label: 'Triangle' },
+                          { type: 'diamond' as ShapeType, label: 'Diamond' },
+                        ].map(({ type, label }) => (
+                          <button
+                            key={type}
+                            onClick={() => setSelectedShapeType(type)}
+                            className={`px-2 py-2 rounded text-xs border ${
+                              selectedShapeType === type
+                                ? 'bg-orange-500 border-orange-500 text-white'
+                                : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                            }`}
+                            title={label}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      
+                      <div className="text-xs text-slate-400 px-1 mt-2">Fill Color</div>
+                      <div className="grid grid-cols-4 gap-1">
+                        {['#60a5fa', '#ef4444', '#22c55e', '#f59e0b', '#a855f7', '#ec4899', '#6b7280', '#ffffff'].map(color => (
+                          <button
+                            key={color}
+                            onClick={() => {
+                              setShapeFillColor(color);
+                              setShapeNoFill(false);
+                            }}
+                            className={`w-10 h-10 rounded border-2 ${
+                              shapeFillColor === color && !shapeNoFill ? 'border-orange-500' : 'border-white/20'
+                            } hover:border-white/50 transition-colors`}
+                            style={{ backgroundColor: color }}
+                            title="Fill color"
+                          />
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => setShapeNoFill(!shapeNoFill)}
+                        className={`px-2 py-1.5 rounded text-xs border ${
+                          shapeNoFill
+                            ? 'bg-orange-500 border-orange-500 text-white'
+                            : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                        }`}
+                      >
+                        No Fill
+                      </button>
+                      
+                      <div className="text-xs text-slate-400 px-1 mt-2">Border Color</div>
+                      <div className="grid grid-cols-4 gap-1">
+                        {['#1e293b', '#ef4444', '#22c55e', '#f59e0b', '#a855f7', '#ec4899', '#6b7280', '#ffffff'].map(color => (
+                          <button
+                            key={color}
+                            onClick={() => setShapeStrokeColor(color)}
+                            className={`w-10 h-10 rounded border-2 ${
+                              shapeStrokeColor === color ? 'border-orange-500' : 'border-white/20'
+                            } hover:border-white/50 transition-colors`}
+                            style={{ backgroundColor: color }}
+                            title="Border color"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Text defaults palette - shown when Text tool is active and nothing selected */}
+                  {toolbarMode === 'shape' && selectedShapeType === 'text' && !selectedShapeId && (
+                    <div className="flex flex-col gap-2 pb-2 border-b border-white/10 min-w-[220px]">
+                      <div className="text-xs text-slate-400 px-1">New Text Defaults</div>
+                      
+                      <div className="text-xs text-slate-400 px-1 mt-1">Text Color</div>
+                      <div className="grid grid-cols-4 gap-1">
+                        {['#ffffff', '#000000', '#ef4444', '#22c55e', '#f59e0b', '#3b82f6', '#a855f7', '#ec4899'].map(color => (
+                          <button
+                            key={color}
+                            onClick={() => setTextColorDefault(color)}
+                            className={`w-10 h-10 rounded border-2 ${
+                              textColorDefault === color ? 'border-orange-500' : 'border-white/20'
+                            } hover:border-white/50 transition-colors`}
+                            style={{ backgroundColor: color }}
+                            title="Default text color"
+                          />
+                        ))}
+                      </div>
+
+                      <div className="text-xs text-slate-400 px-1 mt-2">Font Size</div>
+                      <div className="grid grid-cols-4 gap-1">
+                        {[12, 14, 16, 18, 20, 24, 32, 40].map(size => (
+                          <button
+                            key={size}
+                            onClick={() => setTextFontSizeDefault(size)}
+                            className={`px-2 py-2 rounded text-xs border ${
+                              textFontSizeDefault === size
+                                ? 'bg-orange-500 border-orange-500 text-white'
+                                : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                            }`}
+                          >
+                            {size}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="text-xs text-slate-400 px-1 mt-2">Font Family</div>
+                      <div className="flex flex-col gap-1">
+                        {[
+                          { value: 'Inter, system-ui, sans-serif', label: 'Inter' },
+                          { value: 'Georgia, serif', label: 'Georgia' },
+                          { value: 'Courier New, monospace', label: 'Courier' },
+                          { value: 'Arial, sans-serif', label: 'Arial' },
+                        ].map(({ value, label }) => (
+                          <button
+                            key={value}
+                            onClick={() => setTextFontFamilyDefault(value)}
+                            className={`px-2 py-1.5 rounded text-xs border ${
+                              textFontFamilyDefault === value
+                                ? 'bg-orange-500 border-orange-500 text-white'
+                                : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                            }`}
+                            style={{ fontFamily: value }}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Shape/Text editing - shown when a shape is selected */}
+                  {selectedShapeId && (() => {
+                    const shape = shapes.find(s => s.id === selectedShapeId);
+                    if (!shape) return null;
+                    
+                    // Show text formatting options for text shapes
+                    if (shape.type === 'text') {
+                      return (
+                        <div className="flex flex-col gap-2 pb-2 border-b border-white/10 min-w-[200px]">
+                          <div className="text-xs text-slate-400 px-1">Edit Text</div>
+                          
+                          <div className="text-xs text-slate-400 px-1 mt-2">Text Color</div>
+                          <div className="grid grid-cols-4 gap-1">
+                            {['#ffffff', '#000000', '#ef4444', '#22c55e', '#f59e0b', '#3b82f6', '#a855f7', '#ec4899'].map(color => (
+                              <button
+                                key={color}
+                                onClick={() => updateShape(shape.id, { textColor: color })}
+                                className={`w-10 h-10 rounded border-2 ${
+                                  shape.textColor === color ? 'border-orange-500' : 'border-white/20'
+                                } hover:border-white/50 transition-colors`}
+                                style={{ backgroundColor: color }}
+                                title="Text color"
+                              />
+                            ))}
+                          </div>
+                          
+                          <div className="text-xs text-slate-400 px-1 mt-2">Font Size</div>
+                          <div className="grid grid-cols-4 gap-1">
+                            {[12, 16, 20, 24, 32, 40, 48, 64].map(size => (
+                              <button
+                                key={size}
+                                onClick={() => updateShape(shape.id, { fontSize: size })}
+                                className={`px-2 py-2 rounded text-xs border ${
+                                  shape.fontSize === size
+                                    ? 'bg-orange-500 border-orange-500 text-white'
+                                    : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                                }`}
+                              >
+                                {size}
+                              </button>
+                            ))}
+                          </div>
+                          
+                          <div className="text-xs text-slate-400 px-1 mt-2">Font Family</div>
+                          <div className="flex flex-col gap-1">
+                            {[
+                              { value: 'Inter, system-ui, sans-serif', label: 'Inter' },
+                              { value: 'Georgia, serif', label: 'Georgia' },
+                              { value: 'Courier New, monospace', label: 'Courier' },
+                              { value: 'Arial, sans-serif', label: 'Arial' },
+                            ].map(({ value, label }) => (
+                              <button
+                                key={value}
+                                onClick={() => updateShape(shape.id, { fontFamily: value })}
+                                className={`px-2 py-1.5 rounded text-xs border ${
+                                  shape.fontFamily === value
+                                    ? 'bg-orange-500 border-orange-500 text-white'
+                                    : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                                }`}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }
+                    
+                    // Show fill/border options for regular shapes
+                    return (
+                      <div className="flex flex-col gap-2 pb-2 border-b border-white/10 min-w-[200px]">
+                        <div className="text-xs text-slate-400 px-1">Edit Shape</div>
+                        
+                        <div className="text-xs text-slate-400 px-1 mt-2">Fill Color</div>
+                        <div className="grid grid-cols-4 gap-1">
+                          {['#60a5fa', '#ef4444', '#22c55e', '#f59e0b', '#a855f7', '#ec4899', '#6b7280', '#ffffff'].map(color => (
+                            <button
+                              key={color}
+                              onClick={() => updateShape(shape.id, { fillColor: color })}
+                              className={`w-10 h-10 rounded border-2 ${
+                                shape.fillColor === color ? 'border-orange-500' : 'border-white/20'
+                              } hover:border-white/50 transition-colors`}
+                              style={{ backgroundColor: color }}
+                              title="Fill color"
+                            />
+                          ))}
+                        </div>
+                        <button
+                          onClick={() => updateShape(shape.id, { fillColor: 'transparent' })}
+                          className={`px-2 py-1.5 rounded text-xs border ${
+                            shape.fillColor === 'transparent'
+                              ? 'bg-orange-500 border-orange-500 text-white'
+                              : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                          }`}
+                        >
+                          No Fill
+                        </button>
+                        
+                        <div className="text-xs text-slate-400 px-1 mt-2">Border Color</div>
+                        <div className="grid grid-cols-4 gap-1">
+                          {['#1e293b', '#ef4444', '#22c55e', '#f59e0b', '#a855f7', '#ec4899', '#6b7280', '#ffffff'].map(color => (
+                            <button
+                              key={color}
+                              onClick={() => updateShape(shape.id, { strokeColor: color })}
+                              className={`w-10 h-10 rounded border-2 ${
+                                shape.strokeColor === color ? 'border-orange-500' : 'border-white/20'
+                              } hover:border-white/50 transition-colors`}
+                              style={{ backgroundColor: color }}
+                              title="Border color"
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Connection styling - shown when a connection is selected */}
+                  {selectedConnectionId && (() => {
+                    const conn = connections.find(c => c.id === selectedConnectionId);
+                    if (!conn) return null;
+                    return (
+                      <div className="flex flex-col gap-2 pb-2 border-b border-white/10 min-w-[200px]">
+                        <div className="text-xs text-slate-400 px-1">Connection Style</div>
+                        {/* Arrow colors */}
+                        <div className="grid grid-cols-4 gap-1">
+                          {['#f59e0b', '#ef4444', '#3b82f6', '#10b981', '#a855f7', '#ec4899', '#6b7280', '#ffffff'].map(color => (
+                            <button
+                              key={color}
+                              className={`w-10 h-10 rounded border-2 ${
+                                conn.color === color ? 'border-orange-500' : 'border-white/20'
+                              } hover:border-white/50 transition-colors`}
+                              style={{ backgroundColor: color }}
+                              onClick={() => updateConnection(conn.id, { color })}
+                              title="Arrow color"
+                            />
+                          ))}
+                        </div>
+                        {/* Line styles */}
+                        <div className="flex flex-col gap-1">
+                          <button
+                            className={`px-2 py-1.5 rounded text-sm border ${
+                              conn.style === 'solid' || !conn.style
+                                ? 'bg-white/10 border-white/20 text-white'
+                                : 'bg-transparent border-white/10 text-slate-300'
+                            }`}
+                            onClick={() => updateConnection(conn.id, { style: 'solid' })}
+                            title="Solid line"
+                          >
+                            ——
+                          </button>
+                          <button
+                            className={`px-2 py-1.5 rounded text-sm border ${
+                              conn.style === 'dashed'
+                                ? 'bg-white/10 border-white/20 text-white'
+                                : 'bg-transparent border-white/10 text-slate-300'
+                            }`}
+                            onClick={() => updateConnection(conn.id, { style: 'dashed' })}
+                            title="Dashed line"
+                          >
+                            - - -
+                          </button>
+                          <button
+                            className={`px-2 py-1.5 rounded text-sm border ${
+                              conn.style === 'dotted'
+                                ? 'bg-white/10 border-white/20 text-white'
+                                : 'bg-transparent border-white/10 text-slate-300'
+                            }`}
+                            onClick={() => updateConnection(conn.id, { style: 'dotted' })}
+                            title="Dotted line"
+                          >
+                            · · ·
+                          </button>
+                        </div>
+                        {/* Arrow types */}
+                        <div className="flex flex-col gap-1">
+                          <button
+                            className={`px-2 py-1.5 rounded text-sm border ${
+                              conn.arrowType === 'single' || !conn.arrowType
+                                ? 'bg-white/10 border-white/20 text-white'
+                                : 'bg-transparent border-white/10 text-slate-300'
+                            }`}
+                            onClick={() => updateConnection(conn.id, { arrowType: 'single' })}
+                            title="Single arrow"
+                          >
+                            →
+                          </button>
+                          <button
+                            className={`px-2 py-1.5 rounded text-sm border ${
+                              conn.arrowType === 'double'
+                                ? 'bg-white/10 border-white/20 text-white'
+                                : 'bg-transparent border-white/10 text-slate-300'
+                            }`}
+                            onClick={() => updateConnection(conn.id, { arrowType: 'double' })}
+                            title="Double arrow"
+                          >
+                            ↔
+                          </button>
+                          <button
+                            className={`px-2 py-1.5 rounded text-sm border ${
+                              conn.arrowType === 'none'
+                                ? 'bg-white/10 border-white/20 text-white'
+                                : 'bg-transparent border-white/10 text-slate-300'
+                            }`}
+                            onClick={() => updateConnection(conn.id, { arrowType: 'none' })}
+                            title="No arrows"
+                          >
+                            —
+                          </button>
+                        </div>
+                        {/* Connection label */}
+                        <input
+                          type="text"
+                          value={conn.label || ''}
+                          onChange={(e) => updateConnection(conn.id, { label: e.target.value })}
+                          placeholder="Label..."
+                          className="px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-sm w-full"
+                        />
+                      </div>
+                    );
+                  })()}
+
+                  {/* Note styling - shown when a note is selected */}
+                  {selectedNoteId && (() => {
+                    const n = notes.find(nn => nn.id === selectedNoteId);
+                    if (!n) return null;
+                    const st = n.style || {};
+                    const setStyle = (partial: Partial<NonNullable<Note['style']>>) => {
+                      updateNote(n.id, { style: { ...(n.style || {}), ...partial } });
+                    };
+                    const noteColors = [
+                      { name: 'orange', hex: '#fb923c' },
+                      { name: 'blue', hex: '#60a5fa' },
+                      { name: 'green', hex: '#4ade80' },
+                      { name: 'pink', hex: '#f472b6' },
+                      { name: 'gray', hex: '#9ca3af' },
+                      { name: 'yellow', hex: '#fde047' }
+                    ];
+                    return (
+                      <div className="flex flex-col gap-2 pb-2 border-b border-white/10 min-w-[200px]">
+                        <div className="text-xs text-slate-400 px-1">Note Style</div>
+                        
+                        {/* Font Family */}
+                        <select
+                          value={st.fontFamily || ''}
+                          onChange={(e) => setStyle({ fontFamily: e.target.value || undefined })}
+                          className="px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs"
+                          title="Font family"
+                        >
+                          <option className="bg-[#1a2332]" value="">Default</option>
+                          <option className="bg-[#1a2332]" value="Inter, system-ui, sans-serif">Inter</option>
+                          <option className="bg-[#1a2332]" value="Georgia, serif">Georgia</option>
+                          <option className="bg-[#1a2332]" value="'Times New Roman', serif">Times</option>
+                          <option className="bg-[#1a2332]" value="'Courier New', monospace">Courier</option>
+                          <option className="bg-[#1a2332]" value="Monaco, monospace">Monaco</option>
+                        </select>
+
+                        {/* Font Size */}
+                        <select
+                          value={st.fontSize || 14}
+                          onChange={(e) => setStyle({ fontSize: Number(e.target.value) })}
+                          className="px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs"
+                          title="Font size"
+                        >
+                          {[12,14,16,18,20,24,28].map(sz => (
+                            <option key={sz} className="bg-[#1a2332]" value={sz}>{sz}px</option>
+                          ))}
+                        </select>
+
+                        {/* Text formatting buttons */}
+                        <div className="flex flex-col gap-1">
+                          <button
+                            className={`px-2 py-1.5 rounded text-sm border font-bold ${st.bold ? 'bg-white/10 border-white/20 text-white' : 'bg-transparent border-white/10 text-slate-300'}`}
+                            onClick={() => setStyle({ bold: !st.bold })}
+                            title="Bold"
+                          >
+                            B
+                          </button>
+                          <button
+                            className={`px-2 py-1.5 rounded text-sm border italic ${st.italic ? 'bg-white/10 border-white/20 text-white' : 'bg-transparent border-white/10 text-slate-300'}`}
+                            onClick={() => setStyle({ italic: !st.italic })}
+                            title="Italic"
+                          >
+                            I
+                          </button>
+                          <button
+                            className={`px-2 py-1.5 rounded text-sm border underline ${st.underline ? 'bg-white/10 border-white/20 text-white' : 'bg-transparent border-white/10 text-slate-300'}`}
+                            onClick={() => setStyle({ underline: !st.underline })}
+                            title="Underline"
+                          >
+                            U
+                          </button>
+                        </div>
+
+                        {/* Text Color */}
+                        <div className="flex flex-col gap-1">
+                          <span className="text-slate-300 text-xs">Text Color</span>
+                          <input
+                            type="color"
+                            value={st.textColor || '#111827'}
+                            onChange={(e) => setStyle({ textColor: e.target.value })}
+                            className="w-full h-10 p-0 border border-white/10 rounded cursor-pointer"
+                            title="Text color"
+                          />
+                        </div>
+
+                        {/* Note Background Colors */}
+                        <div className="flex flex-col gap-1">
+                          <span className="text-slate-300 text-xs">Note Color</span>
+                          <div className="grid grid-cols-3 gap-1">
+                            {noteColors.map(({ name, hex }) => (
+                              <button key={name}
+                                onClick={() => updateNote(n.id, { color: name })}
+                                className={`w-full h-10 rounded border-2 ${n.color === name ? 'border-orange-500' : 'border-white/20'}`}
+                                style={{ backgroundColor: hex }}
+                                title={`Set ${name} note`}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Mode buttons */}
+                  <div className="flex flex-col gap-2">
+                    {/* Normal Mode */}
+                    <button
+                      onClick={() => {
+                        setToolbarMode('normal');
+                        setConnectMode(false);
+                        setConnectSource(null);
+                        setSelectedConnectionId(null);
+                        setSelectedNoteId(null);
+                      }}
+                      className={`p-2.5 rounded transition-colors ${
+                        toolbarMode === 'normal' 
+                          ? 'bg-white/20 text-white border-2 border-orange-500' 
+                          : 'text-slate-300 hover:bg-white/10 border-2 border-transparent'
+                      }`}
+                      title="Normal Mode"
+                    >
+                      <MousePointer2 className="w-6 h-6" />
+                    </button>
+
+                    {/* Pan/Move Board Mode */}
+                    <button
+                      onClick={() => {
+                        const newMode = toolbarMode === 'pan' ? 'normal' : 'pan';
+                        setToolbarMode(newMode);
+                        setConnectMode(false);
+                        setConnectSource(null);
+                        setSelectedConnectionId(null);
+                        setSelectedNoteId(null);
+                      }}
+                      className={`p-2.5 rounded transition-colors ${
+                        toolbarMode === 'pan' 
+                          ? 'bg-white/20 text-white border-2 border-orange-500' 
+                          : 'text-slate-300 hover:bg-white/10 border-2 border-transparent'
+                      }`}
+                      title="Pan Board (or hold Ctrl/Cmd + Click)"
+                    >
+                      <Hand className="w-6 h-6" />
+                    </button>
+
+                    {/* Add New Task Button */}
+                    <button
+                      onClick={() => {
+                        // Prompt user to select a column or use first column
+                        if (columns.length > 0) {
+                          // Use first column by default or could show a selector
+                          handleAddTask(columns[0].id);
+                        } else {
+                          alert('Please create a column first.');
+                        }
+                      }}
+                      className="p-2.5 rounded transition-colors text-slate-300 hover:bg-white/10 border-2 border-transparent"
+                      title="Add New Task"
+                    >
+                      <Plus className="w-6 h-6" />
+                    </button>
+
+                    {/* Add Column Button */}
+                    <button
+                      onClick={() => setIsNewColumnModalOpen(true)}
+                      className="p-2.5 rounded transition-colors text-slate-300 hover:bg-white/10 border-2 border-transparent"
+                      title="Add Column"
+                    >
+                      <Layout className="w-6 h-6" />
+                    </button>
+
+                    {/* Connect Columns Mode */}
+                    <button
+                      onClick={() => {
+                        const newMode = toolbarMode === 'connect' ? 'normal' : 'connect';
+                        setToolbarMode(newMode);
+                        setConnectMode(newMode === 'connect');
+                        if (newMode !== 'connect') {
+                          setConnectSource(null);
+                        }
+                        setSelectedNoteId(null);
+                      }}
+                      className={`p-2.5 rounded transition-colors ${
+                        toolbarMode === 'connect' 
+                          ? 'bg-white/20 text-white border-2 border-orange-500' 
+                          : 'text-slate-300 hover:bg-white/10 border-2 border-transparent'
+                      }`}
+                      title="Connect Columns"
+                    >
+                      <Link2 className="w-6 h-6" />
+                    </button>
+
+                    {/* New Notes Mode */}
+                    <button
+                      onClick={() => {
+                        const newMode = toolbarMode === 'note' ? 'normal' : 'note';
+                        setToolbarMode(newMode);
+                        setConnectMode(false);
+                        setConnectSource(null);
+                        setSelectedConnectionId(null);
+                      }}
+                      className={`p-2.5 rounded transition-colors ${
+                        toolbarMode === 'note' 
+                          ? 'bg-white/20 text-white border-2 border-orange-500' 
+                          : 'text-slate-300 hover:bg-white/10 border-2 border-transparent'
+                      }`}
+                      title="New Notes"
+                    >
+                      <StickyNote className="w-6 h-6" />
+                    </button>
+
+                    {/* Shapes Mode */}
+                    <button
+                      onClick={() => {
+                        const newMode = toolbarMode === 'shape' && selectedShapeType !== 'text' ? 'normal' : 'shape';
+                        setToolbarMode(newMode);
+                        setConnectMode(false);
+                        setConnectSource(null);
+                        setSelectedConnectionId(null);
+                        setSelectedNoteId(null);
+                        setSelectedShapeId(null);
+                        // Default to rectangle shape
+                        if (newMode === 'shape') {
+                          setSelectedShapeType('rectangle');
+                        } else {
+                          setSelectedShapeType(null);
+                        }
+                      }}
+                      className={`p-2.5 rounded transition-colors ${
+                        toolbarMode === 'shape' && selectedShapeType !== 'text'
+                          ? 'bg-white/20 text-white border-2 border-orange-500' 
+                          : 'text-slate-300 hover:bg-white/10 border-2 border-transparent'
+                      }`}
+                      title="Add Shapes"
+                    >
+                      <Shapes className="w-6 h-6" />
+                    </button>
+
+                    {/* Text Mode */}
+                    <button
+                      onClick={() => {
+                        const newMode = toolbarMode === 'shape' && selectedShapeType === 'text' ? 'normal' : 'shape';
+                        setToolbarMode(newMode);
+                        setConnectMode(false);
+                        setConnectSource(null);
+                        setSelectedConnectionId(null);
+                        setSelectedNoteId(null);
+                        setSelectedShapeId(null);
+                        if (newMode === 'shape') {
+                          setSelectedShapeType('text');
+                        } else {
+                          setSelectedShapeType(null);
+                        }
+                      }}
+                      className={`p-2.5 rounded transition-colors ${
+                        toolbarMode === 'shape' && selectedShapeType === 'text'
+                          ? 'bg-white/20 text-white border-2 border-orange-500' 
+                          : 'text-slate-300 hover:bg-white/10 border-2 border-transparent'
+                      }`}
+                      title="Add Text"
+                    >
+                      <Type className="w-6 h-6" />
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </DragDropContext>
@@ -3289,6 +4653,8 @@ function EditTaskModal({
   const [showLabelDropdown, setShowLabelDropdown] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const assigneeDropdownRef = useRef<HTMLDivElement>(null);
+  const labelDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen && projectId) {
@@ -3301,6 +4667,25 @@ function EditTaskModal({
       })();
     }
   }, [isOpen, projectId]);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (assigneeDropdownRef.current && !assigneeDropdownRef.current.contains(event.target as Node)) {
+        setShowAssigneeDropdown(false);
+      }
+      if (labelDropdownRef.current && !labelDropdownRef.current.contains(event.target as Node)) {
+        setShowLabelDropdown(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (task) {
@@ -3377,7 +4762,7 @@ function EditTaskModal({
 
           {/* Assignment / Lock row */}
           <div className="flex items-center gap-4">
-            <div className="relative flex-1">
+            <div className="relative flex-1" ref={assigneeDropdownRef}>
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 Assignees
               </label>
@@ -3454,7 +4839,7 @@ function EditTaskModal({
                 ))}
               </select>
             </div>
-            <div className="relative">
+            <div className="relative" ref={labelDropdownRef}>
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 Labels
               </label>

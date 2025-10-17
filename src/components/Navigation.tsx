@@ -28,7 +28,6 @@ export default function Navigation() {
   const [expandedCompanyId, setExpandedCompanyId] = useState<string | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const [isOwnerOrAdmin, setIsOwnerOrAdmin] = useState(false);
 
   // Refs for click-outside detection
   const companiesRef = useRef<HTMLDivElement>(null);
@@ -80,7 +79,6 @@ export default function Navigation() {
       if (assignmentsRes.ok) {
         const data = await assignmentsRes.json();
         const canAccessDashboard = data.hasCreatedEnterprise || data.isOwnerOrAdmin;
-        setIsOwnerOrAdmin(canAccessDashboard);
         
         if (!canAccessDashboard && data.hasAssignments) {
           const assignedCompanies = data.assignments.map((c: any) => ({
@@ -151,7 +149,7 @@ export default function Navigation() {
                 unoptimized
               />
             </div>
-            <span className="text-3xl font-bold text-white">Gh Planner</span>
+            <span className="text-3xl font-bold bg-gradient-to-r from-orange-500 to-green-500 bg-clip-text text-transparent">Gh Planner</span>
           </div>
 
           <div className="flex items-center space-x-5">
@@ -178,15 +176,13 @@ export default function Navigation() {
               <>
                 {/* Desktop Navigation */}
                 <div className="hidden md:flex items-center space-x-12">
-                  {isOwnerOrAdmin && (
-                    <a
-                      href="/dashboard"
-                      className={`flex items-center text-2xl font-medium ${pathname === '/dashboard' ? 'text-orange-400' : 'text-slate-300 hover:text-white'}`}
-                    >
-                      <LayoutDashboard className="w-8 h-8 mr-3" />
-                      Dashboard
-                    </a>
-                  )}
+                  <a
+                    href="/dashboard"
+                    className={`flex items-center text-2xl font-medium ${pathname === '/dashboard' ? 'text-orange-400' : 'text-slate-300 hover:text-white'}`}
+                  >
+                    <LayoutDashboard className="w-8 h-8 mr-3" />
+                    Dashboard
+                  </a>
 
                   <div className="relative" ref={companiesRef}>
                     <button
@@ -203,42 +199,64 @@ export default function Navigation() {
                         {loading ? (
                           <div className="px-6 py-3 text-xl text-slate-400">Loading...</div>
                         ) : companies.length > 0 ? (
-                          companies.map((company) => (
-                            <div key={company.id} className="border-b border-white/10 last:border-b-0">
-                              <button
-                                onClick={(e) => toggleCompany(company.id, e)}
-                                className="flex items-center justify-between w-full px-6 py-3 text-xl font-medium text-white hover:bg-white/5"
-                              >
-                                <div className="flex items-center">
-                                  <Building2 className="w-6 h-6 mr-3 text-green-400" />
-                                  {company.name}
-                                </div>
-                                <ChevronRight
-                                  className={`w-6 h-6 transition-transform ${expandedCompanyId === company.id ? 'rotate-90' : ''}`}
-                                />
-                              </button>
+                          <>
+                            {companies.map((company) => (
+                              <div key={company.id} className="border-b border-white/10 last:border-b-0">
+                                <button
+                                  onClick={(e) => toggleCompany(company.id, e)}
+                                  className="flex items-center justify-between w-full px-6 py-3 text-xl font-medium text-white hover:bg-white/5"
+                                >
+                                  <div className="flex items-center">
+                                    <Building2 className="w-6 h-6 mr-3 text-green-400" />
+                                    {company.name}
+                                  </div>
+                                  <ChevronRight
+                                    className={`w-6 h-6 transition-transform ${expandedCompanyId === company.id ? 'rotate-90' : ''}`}
+                                  />
+                                </button>
 
-                              {expandedCompanyId === company.id && (
-                                <div className="bg-white/5">
-                                  {company.projects.length > 0 ? (
-                                    company.projects.map((project) => (
-                                      <button
-                                        key={project.id}
-                                        onClick={() => handleProjectClick(company.id, project.id)}
-                                        className="block w-full text-left px-12 py-3 text-xl text-slate-300 hover:bg-white/10 hover:text-white"
-                                      >
-                                        {project.name}
-                                      </button>
-                                    ))
-                                  ) : (
-                                    <div className="px-12 py-3 text-xl text-slate-400">No projects</div>
-                                  )}
-                                </div>
-                              )}
+                                {expandedCompanyId === company.id && (
+                                  <div className="bg-white/5">
+                                    {company.projects.length > 0 ? (
+                                      company.projects.map((project) => (
+                                        <button
+                                          key={project.id}
+                                          onClick={() => handleProjectClick(company.id, project.id)}
+                                          className="block w-full text-left px-12 py-3 text-xl text-slate-300 hover:bg-white/10 hover:text-white"
+                                        >
+                                          {project.name}
+                                        </button>
+                                      ))
+                                    ) : (
+                                      <div className="px-12 py-3 text-xl text-slate-400">No projects</div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                            <div className="border-t border-white/10 mt-2">
+                              <a
+                                href="/dashboard"
+                                onClick={() => setShowCompanies(false)}
+                                className="flex items-center w-full px-6 py-3 text-xl font-medium text-orange-400 hover:bg-white/5"
+                              >
+                                + Join or Create
+                              </a>
                             </div>
-                          ))
+                          </>
                         ) : (
-                          <div className="px-6 py-3 text-xl text-slate-400">No companies found</div>
+                          <div>
+                            <div className="px-6 py-3 text-xl text-slate-400">No companies found</div>
+                            <div className="border-t border-white/10 mt-2">
+                              <a
+                                href="/dashboard"
+                                onClick={() => setShowCompanies(false)}
+                                className="flex items-center w-full px-6 py-3 text-xl font-medium text-orange-400 hover:bg-white/5"
+                              >
+                                + Join or Create Enterprise
+                              </a>
+                            </div>
+                          </div>
                         )}
                       </div>
                     )}
@@ -315,60 +333,80 @@ export default function Navigation() {
             {/* Authenticated User Mobile Menu */}
             {session?.userId && (
               <>
-                {isOwnerOrAdmin && (
-                  <a
-                    href="/dashboard"
-                    onClick={() => setShowMobileMenu(false)}
-                    className={`flex items-center px-6 py-3 text-xl font-medium ${pathname === '/dashboard' ? 'text-orange-400 bg-white/5' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}
-                  >
-                    <LayoutDashboard className="w-6 h-6 mr-3" />
-                    Dashboard
-                  </a>
-                )}
+                <a
+                  href="/dashboard"
+                  onClick={() => setShowMobileMenu(false)}
+                  className={`flex items-center px-6 py-3 text-xl font-medium ${pathname === '/dashboard' ? 'text-orange-400 bg-white/5' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}
+                >
+                  <LayoutDashboard className="w-6 h-6 mr-3" />
+                  Dashboard
+                </a>
                 <div className="border-t border-white/10 mt-3 pt-3">
                   <div className="px-6 py-3 text-lg font-semibold text-slate-400 uppercase">Companies</div>
                   {loading ? (
                     <div className="px-6 py-3 text-xl text-slate-400">Loading...</div>
                   ) : companies.length > 0 ? (
-                    companies.map((company) => (
-                      <div key={company.id} className="mb-3">
-                        <button
-                          onClick={(e) => toggleCompany(company.id, e)}
-                          className="flex items-center justify-between w-full px-6 py-3 text-xl font-medium text-white hover:bg-white/5"
-                        >
-                          <div className="flex items-center">
-                            <Building2 className="w-6 h-6 mr-3 text-green-400" />
-                            {company.name}
-                          </div>
-                          <ChevronRight
-                            className={`w-6 h-6 transition-transform ${expandedCompanyId === company.id ? 'rotate-90' : ''}`}
-                          />
-                        </button>
+                    <>
+                      {companies.map((company) => (
+                        <div key={company.id} className="mb-3">
+                          <button
+                            onClick={(e) => toggleCompany(company.id, e)}
+                            className="flex items-center justify-between w-full px-6 py-3 text-xl font-medium text-white hover:bg-white/5"
+                          >
+                            <div className="flex items-center">
+                              <Building2 className="w-6 h-6 mr-3 text-green-400" />
+                              {company.name}
+                            </div>
+                            <ChevronRight
+                              className={`w-6 h-6 transition-transform ${expandedCompanyId === company.id ? 'rotate-90' : ''}`}
+                            />
+                          </button>
 
-                        {expandedCompanyId === company.id && (
-                          <div className="bg-white/5">
-                            {company.projects.length > 0 ? (
-                              company.projects.map((project) => (
-                                <button
-                                  key={project.id}
-                                  onClick={() => {
-                                    handleProjectClick(company.id, project.id);
-                                    setShowMobileMenu(false);
-                                  }}
-                                  className="block w-full text-left px-12 py-3 text-xl text-slate-300 hover:bg-white/10 hover:text-white"
-                                >
-                                  {project.name}
-                                </button>
-                              ))
-                            ) : (
-                              <div className="px-12 py-3 text-xl text-slate-400">No projects</div>
-                            )}
-                          </div>
-                        )}
+                          {expandedCompanyId === company.id && (
+                            <div className="bg-white/5">
+                              {company.projects.length > 0 ? (
+                                company.projects.map((project) => (
+                                  <button
+                                    key={project.id}
+                                    onClick={() => {
+                                      handleProjectClick(company.id, project.id);
+                                      setShowMobileMenu(false);
+                                    }}
+                                    className="block w-full text-left px-12 py-3 text-xl text-slate-300 hover:bg-white/10 hover:text-white"
+                                  >
+                                    {project.name}
+                                  </button>
+                                ))
+                              ) : (
+                                <div className="px-12 py-3 text-xl text-slate-400">No projects</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      <div className="border-t border-white/10 mt-2">
+                        <a
+                          href="/dashboard"
+                          onClick={() => setShowMobileMenu(false)}
+                          className="flex items-center w-full px-6 py-3 text-xl font-medium text-orange-400 hover:bg-white/5"
+                        >
+                          + Join or Create
+                        </a>
                       </div>
-                    ))
+                    </>
                   ) : (
-                    <div className="px-6 py-3 text-xl text-slate-400">No companies found</div>
+                    <>
+                      <div className="px-6 py-3 text-xl text-slate-400">No companies found</div>
+                      <div className="border-t border-white/10 mt-2">
+                        <a
+                          href="/dashboard"
+                          onClick={() => setShowMobileMenu(false)}
+                          className="flex items-center w-full px-6 py-3 text-xl font-medium text-orange-400 hover:bg-white/5"
+                        >
+                          + Join or Create Enterprise
+                        </a>
+                      </div>
+                    </>
                   )}
                 </div>
               </>
