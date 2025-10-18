@@ -30,11 +30,13 @@ export default function Navigation() {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [enterprises, setEnterprises] = useState<Array<{ id: string; name: string }>>([]);
   const [selectedEnterpriseId, setSelectedEnterpriseId] = useState<string>('');
+  const [showEnterpriseMenu, setShowEnterpriseMenu] = useState(false);
 
   // Refs for click-outside detection
   const companiesRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const enterpriseMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if ((session as any)?.userId) {
@@ -81,6 +83,11 @@ export default function Navigation() {
         setShowUserMenu(false);
       }
       
+      // Close enterprise menu if clicked outside
+      if (enterpriseMenuRef.current && !enterpriseMenuRef.current.contains(event.target as Node)) {
+        setShowEnterpriseMenu(false);
+      }
+      
       // Close mobile menu if clicked outside
       if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target as Node)) {
         setShowMobileMenu(false);
@@ -88,7 +95,7 @@ export default function Navigation() {
     };
 
     // Add event listener when any menu is open
-    if (showCompanies || showUserMenu || showMobileMenu) {
+    if (showCompanies || showUserMenu || showMobileMenu || showEnterpriseMenu) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
@@ -96,7 +103,7 @@ export default function Navigation() {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showCompanies, showUserMenu, showMobileMenu]);
+  }, [showCompanies, showUserMenu, showMobileMenu, showEnterpriseMenu]);
 
   // Sync selectedEnterpriseId if changed elsewhere
   useEffect(() => {
@@ -241,30 +248,65 @@ export default function Navigation() {
                     Dashboard
                   </a>
 
-                  {/* Enterprise Switcher */}
-                  <div className="relative">
-                    <select
-                      value={selectedEnterpriseId}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setSelectedEnterpriseId(v);
-                        if (typeof window !== 'undefined') {
-                          localStorage.setItem('selectedEnterpriseId', v);
-                          window.dispatchEvent(new Event('enterpriseChanged'));
-                        }
-                      }}
-                      className="bg-white/5 border border-white/10 rounded-lg px-5 py-3.5 text-white text-base focus:outline-none focus:ring-2 focus:ring-orange-500 pr-10 appearance-none cursor-pointer h-14"
-                    >
-                      {enterprises.length === 0 ? (
-                        <option value="">No enterprises</option>
-                      ) : (
-                        enterprises.map((ent) => (
-                          <option key={ent.id} value={ent.id}>{ent.name}</option>
-                        ))
+                  {/* Enterprise Switcher - Hidden on planner page */}
+                  {!pathname.startsWith('/planner') && (
+                    <div className="relative" ref={enterpriseMenuRef}>
+                      <button
+                        onClick={() => setShowEnterpriseMenu(!showEnterpriseMenu)}
+                        className="flex items-center gap-2 bg-[#1a1a1a] border border-white/10 rounded-md px-4 py-2.5 text-white text-base hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors min-w-[200px] justify-between"
+                      >
+                        <span className="font-medium">{enterprises.find(e => e.id === selectedEnterpriseId)?.name || 'Select Enterprise'}</span>
+                        <ChevronDown className="w-4 h-4 text-slate-400" />
+                      </button>
+
+                      {showEnterpriseMenu && (
+                        <div className="absolute right-0 mt-2 w-80 bg-[#1a1a1a] rounded-md shadow-xl border border-white/10 py-2 z-[100] overflow-hidden">
+                          <div className="px-4 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                            Enterprises
+                          </div>
+                          <div className="max-h-80 overflow-y-auto">
+                            {enterprises.length === 0 ? (
+                              <div className="px-4 py-3 text-sm text-slate-400">No enterprises</div>
+                            ) : (
+                              enterprises.map((ent) => (
+                                <button
+                                  key={ent.id}
+                                  onClick={() => {
+                                    setSelectedEnterpriseId(ent.id);
+                                    if (typeof window !== 'undefined') {
+                                      localStorage.setItem('selectedEnterpriseId', ent.id);
+                                      window.dispatchEvent(new Event('enterpriseChanged'));
+                                    }
+                                    setShowEnterpriseMenu(false);
+                                  }}
+                                  className="w-full flex items-center justify-between px-4 py-2.5 text-base text-white hover:bg-white/5 transition-colors"
+                                >
+                                  <span className="font-medium">{ent.name}</span>
+                                  {selectedEnterpriseId === ent.id && (
+                                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  )}
+                                </button>
+                              ))
+                            )}
+                          </div>
+                          <div className="border-t border-white/10 mt-2">
+                            <a
+                              href="/dashboard"
+                              onClick={() => setShowEnterpriseMenu(false)}
+                              className="w-full flex items-center gap-3 px-4 py-3 text-base text-white hover:bg-white/5 transition-colors"
+                            >
+                              <div className="w-5 h-5 rounded-full border border-white/30 flex items-center justify-center">
+                                <span className="text-white text-sm">+</span>
+                              </div>
+                              <span className="font-medium">Create enterprise</span>
+                            </a>
+                          </div>
+                        </div>
                       )}
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
-                  </div>
+                    </div>
+                  )}
 
                   <div className="relative" ref={companiesRef}>
                     <button

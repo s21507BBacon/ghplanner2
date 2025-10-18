@@ -925,6 +925,7 @@ function PlannerBoard() {
   const [draggingConn, setDraggingConn] = useState<{ id: string; end: 'source' | 'target' } | null>(null);
   const [draggingControlPoint, setDraggingControlPoint] = useState<{ id: string; point: 1 | 2 } | null>(null);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
+  const [editingConnectionEnd, setEditingConnectionEnd] = useState<'source' | 'target' | null>(null);
 
   // Notes state
   const [notes, setNotes] = useState<Note[]>([]);
@@ -939,9 +940,9 @@ function PlannerBoard() {
   const [resizeStart, setResizeStart] = useState<{ width: number; height: number; x: number; y: number } | null>(null);
   
   // Board panning state (right mouse button drag)
-  // Start with offset to provide space above and to the left
+  // Start with offset at top of screen
   const [isPanning, setIsPanning] = useState(false);
-  const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 400 });
+  const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [panStart, setPanStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Shapes state
@@ -1030,6 +1031,7 @@ function PlannerBoard() {
     if (connectMode) {
       setSelectedConnectionId(null);
       setDraggingConn(null);
+      setEditingConnectionEnd(null);
     }
   }, [connectMode]);
 
@@ -1654,7 +1656,10 @@ function PlannerBoard() {
   const deleteConnection = async (id: string) => {
     // First, optimistically remove from state to prevent multiple delete attempts
     setConnections(prev => prev.filter(c => c.id !== id));
-    if (selectedConnectionId === id) setSelectedConnectionId(null);
+    if (selectedConnectionId === id) {
+      setSelectedConnectionId(null);
+      setEditingConnectionEnd(null);
+    }
     if (draggingConn?.id === id) setDraggingConn(null);
     
     try {
@@ -3150,6 +3155,7 @@ function PlannerBoard() {
                        // Clear all selections
                        setSelectedNoteId(null); 
                        setSelectedConnectionId(null);
+                       setEditingConnectionEnd(null);
                        setSelectedShapeId(null);
                        // Return to normal mode when clicking away
                        if (toolbarMode === 'connect' && selectedConnectionId) {
@@ -3342,63 +3348,110 @@ function PlannerBoard() {
                     
                     return (
                       <g key={`anchors-${column.id}`}>
-                        {anchors.map((anchor) => (
-                          <circle
-                            key={`${column.id}-${anchor.side}`}
-                            cx={anchor.x}
-                            cy={anchor.y}
-                            r={4}
-                            fill="#f59e0b"
-                            stroke="#fff"
-                            strokeWidth={1.5}
-                            opacity={0.6}
-                            style={{ 
-                              pointerEvents: 'auto', 
-                              cursor: 'pointer',
-                              transition: 'opacity 0.2s'
-                            }}
-                            className="hover:opacity-100"
-                            onClick={(e) => {
+                        {anchors.map((anchor) => {
+                          const conn = connections.find(c => c.id === selectedConnectionId);
+                          const isSourceAnchor = conn && column.id === conn.sourceColumnId && conn.sourceAnchorSide === anchor.side;
+                          const isTargetAnchor = conn && column.id === conn.targetColumnId && conn.targetAnchorSide === anchor.side;
+                          const isEditingThis = (isSourceAnchor && editingConnectionEnd === 'source') || (isTargetAnchor && editingConnectionEnd === 'target');
+                          
+                          return (
+                            <g key={`${column.id}-${anchor.side}`}>
+                              {/* Invisible larger circle for easier clicking */}
+                              <circle
+                                cx={anchor.x}
+                                cy={anchor.y}
+                                r={12}
+                                fill="transparent"
+                                style={{ 
+                                  pointerEvents: 'auto', 
+                                  cursor: 'pointer'
+                                }}
+                                onClick={(e) => {
                               e.stopPropagation();
                               
                               // Snap connection endpoint to this anchor
                               const conn = connections.find(c => c.id === selectedConnectionId);
                               if (conn) {
-                                // Determine which endpoint to update based on which column was clicked
-                                if (column.id === conn.sourceColumnId) {
-                                  // Update source side only
+                                // Check if clicking on the current connection's anchor points
+                                if (column.id === conn.sourceColumnId && conn.sourceAnchorSide === anchor.side) {
+                                  // Clicked on source anchor - set mode to edit source end
+                                  setEditingConnectionEnd('source');
+                                  return;
+                                } else if (column.id === conn.targetColumnId && conn.targetAnchorSide === anchor.side) {
+                                  // Clicked on target anchor - set mode to edit target end
+                                  setEditingConnectionEnd('target');
+                                  return;
+                                }
+                                
+                                // Clicking a different anchor point - update the connection
+                                if (editingConnectionEnd === 'source') {
+                                  // User previously clicked source anchor, now moving it
                                   updateConnection(selectedConnectionId, { 
+                                    sourceColumnId: column.id,
                                     sourceAnchorSide: anchor.side 
                                   });
-                                } else if (column.id === conn.targetColumnId) {
-                                  // Update target side only
+                                  setEditingConnectionEnd(null);
+                                } else if (editingConnectionEnd === 'target') {
+                                  // User previously clicked target anchor, now moving it
                                   updateConnection(selectedConnectionId, { 
+                                    targetColumnId: column.id,
                                     targetAnchorSide: anchor.side 
                                   });
+                                  setEditingConnectionEnd(null);
                                 } else {
-                                  // Clicking a different column - decide which endpoint to move
-                                  const sourceRect = getApproxRect(conn.sourceColumnId);
-                                  const targetRect = getApproxRect(conn.targetColumnId);
-                                  const sourceDist = Math.hypot(anchor.x - (sourceRect.x + sourceRect.width/2), anchor.y - (sourceRect.y + sourceRect.height/2));
-                                  const targetDist = Math.hypot(anchor.x - (targetRect.x + targetRect.width/2), anchor.y - (targetRect.y + targetRect.height/2));
-                                  
-                                  // Move the closer endpoint
-                                  if (sourceDist < targetDist) {
+                                  // No end selected yet - determine which endpoint to update based on which column was clicked
+                                  if (column.id === conn.sourceColumnId) {
+                                    // Update source side only
                                     updateConnection(selectedConnectionId, { 
-                                      sourceColumnId: column.id,
                                       sourceAnchorSide: anchor.side 
                                     });
-                                  } else {
+                                  } else if (column.id === conn.targetColumnId) {
+                                    // Update target side only
                                     updateConnection(selectedConnectionId, { 
-                                      targetColumnId: column.id,
                                       targetAnchorSide: anchor.side 
                                     });
+                                  } else {
+                                    // Clicking a different column - decide which endpoint to move based on distance
+                                    const sourceRect = getApproxRect(conn.sourceColumnId);
+                                    const targetRect = getApproxRect(conn.targetColumnId);
+                                    const sourceDist = Math.hypot(anchor.x - (sourceRect.x + sourceRect.width/2), anchor.y - (sourceRect.y + sourceRect.height/2));
+                                    const targetDist = Math.hypot(anchor.x - (targetRect.x + targetRect.width/2), anchor.y - (targetRect.y + targetRect.height/2));
+                                    
+                                    // Move the closer endpoint
+                                    if (sourceDist < targetDist) {
+                                      updateConnection(selectedConnectionId, { 
+                                        sourceColumnId: column.id,
+                                        sourceAnchorSide: anchor.side 
+                                      });
+                                    } else {
+                                      updateConnection(selectedConnectionId, { 
+                                        targetColumnId: column.id,
+                                        targetAnchorSide: anchor.side 
+                                      });
+                                    }
                                   }
                                 }
                               }
                             }}
                           />
-                        ))}
+                          {/* Visible anchor point */}
+                          <circle
+                            cx={anchor.x}
+                            cy={anchor.y}
+                            r={isEditingThis ? 6 : 4}
+                            fill={isEditingThis ? "#22c55e" : "#f59e0b"}
+                            stroke="#fff"
+                            strokeWidth={isEditingThis ? 2 : 1.5}
+                            opacity={isEditingThis ? 1 : 0.6}
+                            style={{ 
+                              pointerEvents: 'none',
+                              transition: 'all 0.2s'
+                            }}
+                            className="hover:opacity-100"
+                          />
+                        </g>
+                          );
+                        })}
                       </g>
                     );
                   })}
@@ -4194,6 +4247,7 @@ function PlannerBoard() {
                         setConnectMode(false);
                         setConnectSource(null);
                         setSelectedConnectionId(null);
+                        setEditingConnectionEnd(null);
                         setSelectedNoteId(null);
                       }}
                       className={`p-2.5 rounded transition-colors ${
@@ -4214,6 +4268,7 @@ function PlannerBoard() {
                         setConnectMode(false);
                         setConnectSource(null);
                         setSelectedConnectionId(null);
+                        setEditingConnectionEnd(null);
                         setSelectedNoteId(null);
                       }}
                       className={`p-2.5 rounded transition-colors ${
