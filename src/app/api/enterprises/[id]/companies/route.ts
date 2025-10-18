@@ -20,10 +20,10 @@ export async function GET(
   const db = getDatabase();
   const helpers = new DbHelpers(db);
 
+  // Check membership - allow if user is a member OR if they have any pending/active membership
   const membership = await helpers.findOne<any>('enterprise_memberships', {
     user_id: userId,
-    enterprise_id: enterpriseId,
-    status: 'active'
+    enterprise_id: enterpriseId
   });
 
   if (!membership) {
@@ -34,6 +34,7 @@ export async function GET(
   const allCompanies = await helpers.findMany<any>('companies', { 
     enterprise_id: enterpriseId 
   });
+  const companyIds = allCompanies.map((c: any) => c.id);
 
   // For owners and admins, return all companies
   const isOwnerOrAdmin = membership.role === 'owner' || membership.role === 'admin' || membership.role === 'company_admin';
@@ -54,13 +55,16 @@ export async function GET(
   });
 
   const assignedCompanyIds = Array.from(new Set(assignments.map((a: any) => a.company_id)));
+  // Only consider assignments that belong to this enterprise's companies
+  const assignedInThisEnterprise = assignedCompanyIds.filter((id: string) => companyIds.includes(id));
   
-  const assignedCompanies = allCompanies.filter((c: any) => 
-    assignedCompanyIds.includes(c.id)
-  );
+  // Onboarding fallback: if the member has no assignments yet, show all companies
+  const visibleCompanies = assignedInThisEnterprise.length === 0
+    ? allCompanies
+    : allCompanies.filter((c: any) => assignedInThisEnterprise.includes(c.id));
 
   return NextResponse.json({ 
-    companies: assignedCompanies.map((c: any) => ({ 
+    companies: visibleCompanies.map((c: any) => ({ 
       id: c.id, 
       name: c.name,
       description: c.description 

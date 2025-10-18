@@ -32,6 +32,7 @@ export default function DashboardPage() {
   const [assignError, setAssignError] = useState('');
   const [hasAssignments, setHasAssignments] = useState(false);
   const [userProjects, setUserProjects] = useState<any[]>([]);
+  const [showJoinModal, setShowJoinModal] = useState(false);
 
   // Listen for enterprise changes from AdminLayout
   useEffect(() => {
@@ -80,40 +81,63 @@ export default function DashboardPage() {
             const foundEnterprise = enterprises.find((e: Enterprise) => e.id === enterpriseId);
             setEnterprise(foundEnterprise || enterprises[0]);
             
-            // Check if user is owner or admin
+            // Check if user is owner or admin for the SELECTED enterprise only
             const userId = (session as any)?.userId;
             let userIsOwnerOrAdmin = false;
-            
             if (userId && foundEnterprise) {
-              const isOwner = foundEnterprise.ownerUserId === userId;
-              userIsOwnerOrAdmin = isOwner;
+              if (foundEnterprise.ownerUserId === userId) {
+                userIsOwnerOrAdmin = true;
+              } else {
+                try {
+                  const memberRes = await fetch(`/api/enterprises/${enterpriseId}/members`);
+                  if (memberRes.ok) {
+                    const memberData = await memberRes.json();
+                    const userMember = memberData.members?.find((m: any) => m.userId === userId);
+                    userIsOwnerOrAdmin = ['owner', 'admin', 'company_admin'].includes(userMember?.role);
+                  }
+                } catch (err) {
+                  console.error('Failed to check enterprise membership', err);
+                }
+              }
             }
             
-            // Check user assignments and roles
+            // Fetch assignments for project lists (do not flip admin flag globally)
             const assignmentsRes = await fetch('/api/user/assignments');
             if (assignmentsRes.ok) {
               const assignData = await assignmentsRes.json();
               console.log('Assignment data:', assignData);
               setHasAssignments(assignData.hasAssignments);
-              
-              // Store user's assigned projects
-              if (assignData.assignments && assignData.assignments.length > 0) {
-                const allProjects = assignData.assignments.flatMap((company: any) => 
+
+              // Build the full list of user's assigned projects
+              let projectsAll: any[] = [];
+              if (Array.isArray((assignData as any).assignedProjects)) {
+                projectsAll = (assignData as any).assignedProjects;
+              } else if (assignData.assignments && assignData.assignments.length > 0) {
+                projectsAll = assignData.assignments.flatMap((company: any) =>
                   company.projects.map((project: any) => ({
                     ...project,
                     companyId: company.id,
-                    companyName: company.name
+                    companyName: company.name,
                   }))
                 );
-                console.log('Extracted projects:', allProjects);
-                setUserProjects(allProjects);
               } else {
                 console.log('No assignments found or empty array');
               }
-              
-              // Update isOwnerOrAdmin based on API response
-              if (assignData.isOwnerOrAdmin || assignData.hasCreatedEnterprise) {
-                userIsOwnerOrAdmin = true;
+
+              // Filter projects to the currently selected enterprise
+              try {
+                const companiesResForFilter = await fetch(`/api/enterprises/${enterpriseId}/companies`);
+                if (companiesResForFilter.ok) {
+                  const companiesDataForFilter = await companiesResForFilter.json();
+                  const companyIdsInEnterprise = (companiesDataForFilter.companies || []).map((c: any) => c.id);
+                  const filtered = projectsAll.filter((p: any) => companyIdsInEnterprise.includes(p.companyId));
+                  setUserProjects(filtered);
+                } else {
+                  setUserProjects(projectsAll);
+                }
+              } catch (err) {
+                console.error('Failed to filter projects by enterprise', err);
+                setUserProjects(projectsAll);
               }
               
               setIsOwnerOrAdmin(userIsOwnerOrAdmin);
@@ -159,7 +183,7 @@ export default function DashboardPage() {
     if (session) {
       loadEnterpriseData();
     }
-  }, [session]);
+  }, [session, selectedEnterpriseId]);
 
   const handleAssignToProject = async () => {
     if (!selectedCompanyId || !selectedProjectId) {
@@ -205,22 +229,55 @@ export default function DashboardPage() {
     setJoinError('');
     
     try {
+      console.log('[JOIN] Attempting to join enterprise with code:', inviteCode.trim());
       const response = await fetch('/api/enterprises/join', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ inviteCode: inviteCode.trim() }),
       });
       
+      console.log('[JOIN] Response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
-        router.push(`/enterprises/${data.enterpriseId}/select-project`);
+        console.log('[JOIN] Enterprise join response:', data);
+        
+        // Use either enterpriseId or id field for compatibility
+        const entId = data.enterpriseId || data.id;
+        if (!entId) {
+          console.error('[JOIN] No enterprise ID in response:', data);
+          setJoinError('Failed to get enterprise ID from server');
+          setJoiningEnterprise(false);
+          return;
+        }
+        
+        console.log('[JOIN] Enterprise ID:', entId);
+        
+        // Persist selection for nav bar and admin layout
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('selectedEnterpriseId', entId);
+          window.dispatchEvent(new Event('enterpriseChanged'));
+        }
+        
+        // Close modal
+        setShowJoinModal(false);
+        setInviteCode('');
+        setJoinError('');
+        
+        // Small delay to ensure localStorage is persisted before navigation
+        console.log('[JOIN] Redirecting to:', `/enterprises/${entId}/select-project`);
+        setTimeout(() => {
+          router.push(`/enterprises/${entId}/select-project`);
+        }, 100);
       } else {
         const error = await response.json();
+        console.error('[JOIN] Join failed:', error);
         setJoinError(error.error || 'Failed to join enterprise');
+        setJoiningEnterprise(false);
       }
-    } catch (error) {
-      setJoinError('An error occurred while joining the enterprise');
-    } finally {
+    } catch (error: any) {
+      console.error('[JOIN] Exception occurred:', error);
+      setJoinError(error?.message || 'An error occurred while joining the enterprise');
       setJoiningEnterprise(false);
     }
   };
@@ -276,8 +333,10 @@ export default function DashboardPage() {
                       onClick={() => {
                         setSelectedEnterpriseId(ent.id);
                         setEnterprise(ent);
-                        localStorage.setItem('selectedEnterpriseId', ent.id);
-                        window.location.reload();
+                        if (typeof window !== 'undefined') {
+                          localStorage.setItem('selectedEnterpriseId', ent.id);
+                          window.dispatchEvent(new Event('enterpriseChanged'));
+                        }
                       }}
                       className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
                         ent.id === selectedEnterpriseId
@@ -309,13 +368,7 @@ export default function DashboardPage() {
                   Create New Enterprise
                 </button>
                 <button
-                  onClick={() => {
-                    const code = prompt('Enter enterprise invite code:');
-                    if (code) {
-                      setInviteCode(code);
-                      handleJoinEnterprise();
-                    }
-                  }}
+                  onClick={() => setShowJoinModal(true)}
                   className="flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg text-white font-semibold hover:opacity-90 transition-opacity"
                 >
                   <Building2 className="w-5 h-5" />
@@ -325,6 +378,66 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* Join Enterprise Modal */}
+        {showJoinModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowJoinModal(false)}>
+            <div className="bg-[#1a2332] border border-white/10 rounded-lg p-8 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-white">Join Enterprise</h2>
+                <button
+                  onClick={() => setShowJoinModal(false)}
+                  className="text-slate-400 hover:text-white transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {joinError && (
+                <div className="mb-4 text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-sm">
+                  {joinError}
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Enterprise Invite Code</label>
+                  <input
+                    type="text"
+                    value={inviteCode}
+                    onChange={(e) => setInviteCode(e.target.value)}
+                    placeholder="Enter invite code"
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && inviteCode.trim()) {
+                        handleJoinEnterprise();
+                      }
+                    }}
+                    autoFocus
+                  />
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowJoinModal(false)}
+                    className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-slate-300 font-semibold hover:bg-white/10 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleJoinEnterprise}
+                    disabled={!inviteCode.trim() || joiningEnterprise}
+                    className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg text-white font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {joiningEnterprise ? 'Joining...' : 'Join Enterprise'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </AdminLayout>
     );
   }
@@ -483,38 +596,6 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Show additional join/create options for users with enterprises but as members */}
-          {hasEnterprises && !isOwnerOrAdmin && (
-            <div className="gh-feature-card rounded-lg p-6 mb-8">
-              <h2 className="text-xl font-semibold text-white mb-4">Want More Control?</h2>
-              <p className="text-slate-300 mb-4">
-                You can create your own enterprise or join additional ones.
-              </p>
-              <div className="grid md:grid-cols-2 gap-4">
-                <button
-                  onClick={() => router.push('/enterprises/create')}
-                  className="flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-orange-500 to-green-500 rounded-lg text-white font-semibold hover:opacity-90 transition-opacity"
-                >
-                  <Plus className="w-5 h-5" />
-                  Create New Enterprise
-                </button>
-                <button
-                  onClick={() => {
-                    const code = prompt('Enter enterprise invite code:');
-                    if (code) {
-                      setInviteCode(code);
-                      handleJoinEnterprise();
-                    }
-                  }}
-                  className="flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg text-white font-semibold hover:opacity-90 transition-opacity"
-                >
-                  <Building2 className="w-5 h-5" />
-                  Join Another Enterprise
-                </button>
-              </div>
-            </div>
-          )}
-
           {hasEnterprises && hasAssignments && (
             <div className="gh-feature-card rounded-lg p-8">
               <h2 className="text-2xl font-bold text-white mb-4">Your Projects</h2>
@@ -536,9 +617,10 @@ export default function DashboardPage() {
                   </button>
                 ))}
               </div>
-              {userProjects.length === 0 && (
+              {userProjects.length === 0 && selectedEnterpriseId && (
                 <div className="text-center py-8">
-                  <p className="text-slate-400">No projects assigned yet.</p>
+                  <p className="text-slate-400 mb-4">No projects assigned yet.</p>
+                  <p className="text-sm text-slate-500">Select a company and project above to get started.</p>
                 </div>
               )}
             </div>

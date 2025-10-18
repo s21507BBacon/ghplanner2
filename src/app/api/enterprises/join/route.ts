@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       { id: existingMembership.id },
       { status: 'active', updated_at: dateToTimestamp(now) }
     );
-    return NextResponse.json({ id: enterprise.id, name: enterprise.name });
+    return NextResponse.json({ enterpriseId: enterprise.id, id: enterprise.id, name: enterprise.name });
   }
 
   // Create new membership
@@ -57,5 +57,5 @@ export async function POST(request: NextRequest) {
     updated_at: dateToTimestamp(now),
   });
   
-  return NextResponse.json({ id: enterprise.id, name: enterprise.name });
+  return NextResponse.json({ enterpriseId: enterprise.id, id: enterprise.id, name: enterprise.name });
 }

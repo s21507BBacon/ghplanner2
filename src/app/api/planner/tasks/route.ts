@@ -318,8 +318,65 @@ export async function PATCH(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions as any);
     const userId = (session as any)?.userId as string | undefined;
-    const body = await request.json();
-    const { id, ...updates } = body;
+    // Prefer request.json() when content-type is JSON, else fall back to text parsing
+    const contentType = request.headers.get('content-type') || '';
+    let body: any = {};
+    if (contentType.includes('application/json')) {
+      try {
+        body = await request.json();
+      } catch (e) {
+        // Do not fail hard; allow fallback to URL query params
+        console.warn('[PATCH Task] JSON parse failed, falling back to URL params');
+        body = {};
+      }
+    } else if (contentType.includes('application/x-www-form-urlencoded')) {
+      const raw = await request.text();
+      const params = new URLSearchParams(raw);
+      const tmp: Record<string, any> = {};
+      params.forEach((v, k) => {
+        if (k === 'order') {
+          const num = Number(v);
+          tmp[k] = Number.isFinite(num) ? num : v;
+        } else {
+          tmp[k] = v;
+        }
+      });
+      body = tmp;
+    } else {
+      const raw = await request.text();
+      if (raw) {
+        try {
+          body = JSON.parse(raw);
+        } catch (e) {
+          // Try URL-encoded as last resort
+          const params = new URLSearchParams(raw);
+          const tmp: Record<string, any> = {};
+          params.forEach((v, k) => (tmp[k] = v));
+          if (Object.keys(tmp).length > 0) {
+            body = tmp;
+          } else {
+            console.error('[PATCH Task] Invalid request body (unknown content-type):', raw?.slice(0, 200));
+            return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
+          }
+        }
+      } else {
+        body = {};
+      }
+    }
+
+    // Merge URL search params as a fallback/override source
+    const sp = request.nextUrl.searchParams;
+    const fromParams: Record<string, any> = {};
+    sp.forEach((v, k) => {
+      if (k === 'order') {
+        const n = Number(v);
+        fromParams[k] = Number.isFinite(n) ? n : v;
+      } else {
+        fromParams[k] = v;
+      }
+    });
+    const merged = { ...fromParams, ...body };
+    const { id, ...updates } = merged;
 
     if (!id) {
       return NextResponse.json(
@@ -368,7 +425,7 @@ export async function PATCH(request: NextRequest) {
       }
 
       if (key === 'order') {
-        if (typeof value !== 'number' || value < 0) {
+        if (typeof value !== 'number' || Number.isNaN(value) || value < 0) {
           return NextResponse.json(
             { error: 'Order must be a non-negative number' },
             { status: 400 }
@@ -390,9 +447,27 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
     
-    // Check if user is an assignee
-    const taskAssignees = existing.assignees ? JSON.parse(existing.assignees) : (existing.assignee ? [existing.assignee] : []);
+    // Check if user is an assignee (robust parse for JSONB/string/null)
+    let taskAssignees: string[] = [];
+    try {
+      if (existing.assignees) {
+        if (typeof existing.assignees === 'string') {
+          taskAssignees = JSON.parse(existing.assignees);
+        } else if (Array.isArray(existing.assignees)) {
+          taskAssignees = existing.assignees;
+        }
+      } else if (existing.assignee) {
+        taskAssignees = [existing.assignee];
+      }
+      if (!Array.isArray(taskAssignees)) taskAssignees = [];
+    } catch (e) {
+      console.warn('[PATCH Task] Failed to parse assignees JSON, defaulting to empty array:', existing.assignees);
+      taskAssignees = [];
+    }
     const isAssignee = userId && taskAssignees.includes(userId);
+    
+    // Check if user is the creator
+    const isCreator = userId && existing.created_by_user_id === userId;
     
     // Check if user is admin/owner
     let isAdmin = false;
@@ -406,16 +481,29 @@ export async function PATCH(request: NextRequest) {
       } catch {}
     }
     
-    // If task is locked, only assignees (or admins) can edit
-    if (existing.is_locked === 1) {
-      if (!isAssignee && !isAdmin) {
-        return NextResponse.json({ error: 'This task is locked. Only assignees can edit it.' }, { status: 403 });
-      }
-    }
+    console.log('[PATCH Task Permission Check]', {
+      taskId: id,
+      isLocked: existing.is_locked === 1,
+      userId,
+      creatorId: existing.created_by_user_id,
+      isCreator,
+      taskAssignees,
+      isAssignee,
+      isAdmin,
+    });
     
-    // If task has assignees (and is not locked), only they (or admins) can edit
-    if (taskAssignees.length > 0 && !isAssignee && !isAdmin) {
-      return NextResponse.json({ error: 'Only assigned users can edit this task' }, { status: 403 });
+    // If task is locked, only creator, assignees, or admins can edit
+    if (existing.is_locked === 1) {
+      if (!isCreator && !isAssignee && !isAdmin) {
+        console.log('[PATCH] Permission denied - task is locked');
+        return NextResponse.json({ error: 'This task is locked. Only the creator, assignees, or admins can edit it.' }, { status: 403 });
+      }
+    } else {
+      // If task has assignees (and is not locked), only creator, assignees, or admins can edit
+      if (taskAssignees.length > 0 && !isCreator && !isAssignee && !isAdmin) {
+        console.log('[PATCH] Permission denied - not creator, assignee, or admin');
+        return NextResponse.json({ error: 'Only the creator, assigned users, or admins can edit this task' }, { status: 403 });
+      }
     }
 
     // Translate updateData
@@ -573,6 +661,9 @@ export async function DELETE(request: NextRequest) {
     const taskAssignees = existing.assignees ? JSON.parse(existing.assignees) : (existing.assignee ? [existing.assignee] : []);
     const isAssignee = userId && taskAssignees.includes(userId);
     
+    // Check if user is the creator
+    const isCreator = userId && existing.created_by_user_id === userId;
+    
     // Check if user is admin/owner
     let isAdmin = false;
     if (existing.company_id && userId) {
@@ -585,16 +676,29 @@ export async function DELETE(request: NextRequest) {
       } catch {}
     }
     
-    // If task is locked, only assignees (or admins) can delete
-    if (existing.is_locked === 1) {
-      if (!isAssignee && !isAdmin) {
-        return NextResponse.json({ error: 'This task is locked. Only assignees can delete it.' }, { status: 403 });
-      }
-    }
+    console.log('[DELETE Task Permission Check]', {
+      taskId: id,
+      isLocked: existing.is_locked === 1,
+      userId,
+      creatorId: existing.created_by_user_id,
+      isCreator,
+      taskAssignees,
+      isAssignee,
+      isAdmin,
+    });
     
-    // If task has assignees (and is not locked), only they (or admins) can delete
-    if (taskAssignees.length > 0 && !isAssignee && !isAdmin) {
-      return NextResponse.json({ error: 'Only assigned users can delete this task' }, { status: 403 });
+    // If task is locked, only creator, assignees, or admins can delete
+    if (existing.is_locked === 1) {
+      if (!isCreator && !isAssignee && !isAdmin) {
+        console.log('[DELETE] Permission denied - task is locked');
+        return NextResponse.json({ error: 'This task is locked. Only the creator, assignees, or admins can delete it.' }, { status: 403 });
+      }
+    } else {
+      // If task has assignees (and is not locked), only they (or admins) can delete
+      if (taskAssignees.length > 0 && !isAssignee && !isAdmin) {
+        console.log('[DELETE] Permission denied - not an assignee');
+        return NextResponse.json({ error: 'Only assigned users can delete this task' }, { status: 403 });
+      }
     }
 
     const check = await helpers.findOne('tasks', { id });

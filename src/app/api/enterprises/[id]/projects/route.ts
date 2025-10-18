@@ -19,11 +19,10 @@ export async function GET(
   const db = getDatabase();
   const helpers = new DbHelpers(db);
 
-  // Verify user is a member of this enterprise
+  // Verify user is a member of this enterprise (any status for onboarding flow)
   const membership = await helpers.findOne<any>('enterprise_memberships', {
     user_id: userId,
-    enterprise_id: enterpriseId,
-    status: 'active'
+    enterprise_id: enterpriseId
   });
 
   if (!membership) {

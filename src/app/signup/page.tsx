@@ -11,6 +11,7 @@ export default function SignUpPage() {
   const [showVerification, setShowVerification] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
+  const [devCode, setDevCode] = useState<string | null>(null);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,6 +31,10 @@ export default function SignUpPage() {
       if (res.ok) {
         setShowVerification(true);
         setError(null);
+        // Store dev code if provided (development mode)
+        if (data.devCode) {
+          setDevCode(data.devCode);
+        }
       } else {
         setError(data.error || 'Failed to sign up');
       }
@@ -83,7 +88,11 @@ export default function SignUpPage() {
       
       if (res.ok) {
         setError(null);
-        alert('New verification code sent to your email!');
+        // Update dev code if provided
+        if (data.devCode) {
+          setDevCode(data.devCode);
+        }
+        alert(data.devCode ? 'Dev code: ' + data.devCode : 'New verification code sent to your email!');
       } else {
         setError(data.error || 'Failed to resend code');
       }
@@ -140,7 +149,7 @@ export default function SignUpPage() {
                 placeholder="you@example.com"
                 required 
               />
-              <p className="text-xs text-slate-400 mt-2">We'll send a verification code to your email</p>
+              <p className="text-xs text-slate-400 mt-2">We&apos;ll send a verification code to your email</p>
             </div>
             <button
               type="submit"
@@ -158,13 +167,23 @@ export default function SignUpPage() {
           </form>
         ) : (
           <div className="space-y-5">
-            <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 text-sm text-green-400">
-              <p className="font-medium mb-1">
-                We've sent a verification code to
-              </p>
-              <p className="text-white font-semibold">{email}</p>
-              <p className="text-xs text-green-300 mt-2">Please enter it below to verify your account.</p>
-            </div>
+            {devCode ? (
+              <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-4 text-sm text-orange-400">
+                <p className="font-medium mb-2">
+                  🔧 Development Mode
+                </p>
+                <p className="text-xs text-orange-300 mb-2">Email sending is disabled. Use this code to verify:</p>
+                <p className="text-white font-mono text-2xl font-bold text-center py-2 bg-orange-500/20 rounded">{devCode}</p>
+              </div>
+            ) : (
+              <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 text-sm text-green-400">
+                <p className="font-medium mb-1">
+                  We&apos;ve sent a verification code to
+                </p>
+                <p className="text-white font-semibold">{email}</p>
+                <p className="text-xs text-green-300 mt-2">Please enter it below to verify your account.</p>
+              </div>
+            )}
 
             <form onSubmit={onVerifyCode} className="space-y-5">
               <div>

@@ -28,6 +28,8 @@ export default function Navigation() {
   const [expandedCompanyId, setExpandedCompanyId] = useState<string | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [enterprises, setEnterprises] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedEnterpriseId, setSelectedEnterpriseId] = useState<string>('');
 
   // Refs for click-outside detection
   const companiesRef = useRef<HTMLDivElement>(null);
@@ -35,10 +37,35 @@ export default function Navigation() {
   const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (session?.userId) {
-      fetchUserData();
+    if ((session as any)?.userId) {
+      fetchEnterprises();
     }
   }, [session]);
+
+  // Re-fetch companies when enterprise changes
+  useEffect(() => {
+    if ((session as any)?.userId && selectedEnterpriseId) {
+      fetchUserData();
+    }
+  }, [session, selectedEnterpriseId]);
+
+  // Load enterprises list for the enterprise switcher
+  const fetchEnterprises = async () => {
+    try {
+      const res = await fetch('/api/enterprises', { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json();
+      const list = (data.enterprises || []).map((e: any) => ({ id: e.id, name: e.name }));
+      setEnterprises(list);
+      if (list.length > 0) {
+        const stored = typeof window !== 'undefined' ? localStorage.getItem('selectedEnterpriseId') : null;
+        const pick = (stored && list.find(e => e.id === stored)) ? stored : list[0].id;
+        setSelectedEnterpriseId(pick as string);
+      }
+    } catch (e) {
+      console.error('Failed to fetch enterprises:', e);
+    }
+  };
 
   // Handle click outside to close dropdowns
   useEffect(() => {
@@ -71,9 +98,38 @@ export default function Navigation() {
     };
   }, [showCompanies, showUserMenu, showMobileMenu]);
 
+  // Sync selectedEnterpriseId if changed elsewhere
+  useEffect(() => {
+    const handler = () => {
+      try {
+        const stored = localStorage.getItem('selectedEnterpriseId');
+        if (stored && stored !== selectedEnterpriseId) {
+          setSelectedEnterpriseId(stored);
+        }
+      } catch {}
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('enterpriseChanged', handler);
+      window.addEventListener('storage', handler);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('enterpriseChanged', handler);
+        window.removeEventListener('storage', handler);
+      }
+    };
+  }, [selectedEnterpriseId]);
+
   const fetchUserData = async () => {
     try {
       setLoading(true);
+      
+      // Only fetch companies for the selected enterprise
+      if (!selectedEnterpriseId) {
+        setCompanies([]);
+        setLoading(false);
+        return;
+      }
       
       const assignmentsRes = await fetch('/api/user/assignments');
       if (assignmentsRes.ok) {
@@ -88,7 +144,8 @@ export default function Navigation() {
           }));
           setCompanies(assignedCompanies);
         } else {
-          const companiesResponse = await fetch('/api/companies');
+          // Fetch companies for the selected enterprise only
+          const companiesResponse = await fetch(`/api/enterprises/${selectedEnterpriseId}/companies`);
           const companiesData = await companiesResponse.json();
           const fetchedCompanies = companiesData.companies || [];
 
@@ -130,7 +187,7 @@ export default function Navigation() {
 
   const isHomePage = pathname === '/';
 
-  if (!session?.userId && !isHomePage) return <div className="h-0" />;
+  if (!(session as any)?.userId && !isHomePage) return <div className="h-0" />;
 
   return (
     <nav className="fixed top-0 left-0 right-0 bg-[#1a2332] border-b border-white/10 z-50 backdrop-blur-sm bg-opacity-95" ref={mobileMenuRef} style={{ fontSize: '1.4rem' }}>
@@ -154,7 +211,7 @@ export default function Navigation() {
 
           <div className="flex items-center space-x-5">
             {/* Home Page Authentication Buttons */}
-            {isHomePage && !session?.userId && (
+            {isHomePage && !(session as any)?.userId && (
               <div className="hidden md:flex items-center space-x-6">
                 <a
                   href="/signin"
@@ -172,7 +229,7 @@ export default function Navigation() {
             )}
 
             {/* Authenticated User Navigation */}
-            {session?.userId && (
+            {(session as any)?.userId && (
               <>
                 {/* Desktop Navigation */}
                 <div className="hidden md:flex items-center space-x-12">
@@ -184,13 +241,38 @@ export default function Navigation() {
                     Dashboard
                   </a>
 
+                  {/* Enterprise Switcher */}
+                  <div className="relative">
+                    <select
+                      value={selectedEnterpriseId}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setSelectedEnterpriseId(v);
+                        if (typeof window !== 'undefined') {
+                          localStorage.setItem('selectedEnterpriseId', v);
+                          window.dispatchEvent(new Event('enterpriseChanged'));
+                        }
+                      }}
+                      className="bg-white/5 border border-white/10 rounded-lg px-5 py-3.5 text-white text-base focus:outline-none focus:ring-2 focus:ring-orange-500 pr-10 appearance-none cursor-pointer h-14"
+                    >
+                      {enterprises.length === 0 ? (
+                        <option value="">No enterprises</option>
+                      ) : (
+                        enterprises.map((ent) => (
+                          <option key={ent.id} value={ent.id}>{ent.name}</option>
+                        ))
+                      )}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+                  </div>
+
                   <div className="relative" ref={companiesRef}>
                     <button
                       onClick={() => setShowCompanies(!showCompanies)}
                       className="flex items-center text-2xl font-medium text-slate-300 hover:text-white focus:outline-none"
                     >
                       <Building2 className="w-8 h-8 mr-3" />
-                      Companies
+                      Projects
                       <ChevronDown className="ml-3 w-8 h-8" />
                     </button>
 
@@ -246,7 +328,7 @@ export default function Navigation() {
                           </>
                         ) : (
                           <div>
-                            <div className="px-6 py-3 text-xl text-slate-400">No companies found</div>
+                            <div className="px-6 py-3 text-xl text-slate-400">No projects found</div>
                             <div className="border-t border-white/10 mt-2">
                               <a
                                 href="/dashboard"
@@ -342,7 +424,7 @@ export default function Navigation() {
                   Dashboard
                 </a>
                 <div className="border-t border-white/10 mt-3 pt-3">
-                  <div className="px-6 py-3 text-lg font-semibold text-slate-400 uppercase">Companies</div>
+                  <div className="px-6 py-3 text-lg font-semibold text-slate-400 uppercase">Projects</div>
                   {loading ? (
                     <div className="px-6 py-3 text-xl text-slate-400">Loading...</div>
                   ) : companies.length > 0 ? (
@@ -396,7 +478,7 @@ export default function Navigation() {
                     </>
                   ) : (
                     <>
-                      <div className="px-6 py-3 text-xl text-slate-400">No companies found</div>
+                      <div className="px-6 py-3 text-xl text-slate-400">No projects found</div>
                       <div className="border-t border-white/10 mt-2">
                         <a
                           href="/dashboard"

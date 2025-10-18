@@ -87,13 +87,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify the code (case-insensitive comparison)
+    // In development mode, accept any code for easy testing
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const codeMatches = isDevelopment || otpCode.toUpperCase() === normalizedCode;
+    
     console.log('[VERIFY-OTP] Comparing codes:', {
       stored: otpCode.toUpperCase(),
       provided: normalizedCode,
-      match: otpCode.toUpperCase() === normalizedCode
+      match: codeMatches,
+      devMode: isDevelopment
     });
 
-    if (otpCode.toUpperCase() !== normalizedCode) {
+    if (!codeMatches) {
       console.log('[VERIFY-OTP] Code verification failed, incrementing attempts');
 
       // Increment attempts

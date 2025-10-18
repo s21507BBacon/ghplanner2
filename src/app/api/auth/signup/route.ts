@@ -81,7 +81,9 @@ export async function POST(request: NextRequest) {
     const helpers = new DbHelpers(db);
     let user = await helpers.findOne('users', { email });
     
-    const otpCode = generateOTP();
+    // In development, use a fixed code to bypass email
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const otpCode = isDevelopment ? '0000-0000' : generateOTP();
     const now = new Date();
     const nowTimestamp = dateToTimestamp(now);
     const expiresAt = new Date(now.getTime() + 5 * 60 * 1000); // 5 minutes
@@ -192,38 +194,45 @@ This code will expire in 5 minutes.
 If you didn't request this code, you can safely ignore this email.
     `.trim();
 
-    // Send verification email
-    try {
-      console.log('[SIGNUP] Sending verification code to:', email);
-      await sendEmail({
-        to: email,
-        subject: 'Your Verification Code - Gh Planner',
-        html,
-        text,
-      });
-      console.log('[SIGNUP] Verification code sent successfully');
-    } catch (emailError: any) {
-      console.error('[SIGNUP] Failed to send verification email:', emailError);
-      console.error('[SIGNUP] Error details:', {
-        message: emailError?.message,
-        name: emailError?.name,
-        stack: emailError?.stack
-      });
-      
-      const errorMessage = emailError?.message || 'Failed to send verification code';
-      return NextResponse.json({ 
-        error: errorMessage,
-        debug: process.env.NODE_ENV === 'development' ? {
-          type: emailError?.name,
-          details: emailError?.message
-        } : undefined
-      }, { status: 500 });
+    // Send verification email (skip in development)
+    if (!isDevelopment) {
+      try {
+        console.log('[SIGNUP] Sending verification code to:', email);
+        await sendEmail({
+          to: email,
+          subject: 'Your Verification Code - Gh Planner',
+          html,
+          text,
+        });
+        console.log('[SIGNUP] Verification code sent successfully');
+      } catch (emailError: any) {
+        console.error('[SIGNUP] Failed to send verification email:', emailError);
+        console.error('[SIGNUP] Error details:', {
+          message: emailError?.message,
+          name: emailError?.name,
+          stack: emailError?.stack
+        });
+        
+        const errorMessage = emailError?.message || 'Failed to send verification code';
+        return NextResponse.json({ 
+          error: errorMessage,
+          debug: process.env.NODE_ENV === 'development' ? {
+            type: emailError?.name,
+            details: emailError?.message
+          } : undefined
+        }, { status: 500 });
+      }
+    } else {
+      console.log('[SIGNUP] Development mode - skipping email, using dev code: 0000-0000');
     }
 
     console.log('[SIGNUP] Success - returning response');
     return NextResponse.json({ 
       ok: true, 
-      message: 'Verification code sent. Please check your inbox.' 
+      message: isDevelopment 
+        ? 'Development mode: Use code 0000-0000 to verify.'
+        : 'Verification code sent. Please check your inbox.',
+      devCode: isDevelopment ? '0000-0000' : undefined
     });
   } catch (e: any) {
     console.error('[SIGNUP] ===== CRITICAL ERROR =====');

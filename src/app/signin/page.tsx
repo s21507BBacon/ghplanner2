@@ -41,7 +41,8 @@ export default function SignInPage() {
         return;
       }
     }
-    router.push('/onboarding');
+    // Default: send all users to dashboard
+    router.push('/dashboard');
   };
 
   const onSendOtp = async (e: React.FormEvent) => {

@@ -3,19 +3,15 @@
 import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter, usePathname } from 'next/navigation';
-import Image from 'next/image';
+import Navigation from '@/components/Navigation';
 import {
-  ChevronDown,
   ChevronRight,
   LogOut,
-  User,
   Building2,
   LayoutDashboard,
   FolderKanban,
   Users,
-  Menu,
   X,
-  Settings
 } from 'lucide-react';
 
 interface Project {
@@ -44,9 +40,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const [enterprises, setEnterprises] = useState<Enterprise[]>([]);
   const [selectedEnterpriseId, setSelectedEnterpriseId] = useState<string>('');
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
+  // Removed unused selectedCompanyId
   const [loading, setLoading] = useState(true);
-  const [showUserMenu, setShowUserMenu] = useState(false);
+  // Removed unused showUserMenu
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [expandedSidebarCompany, setExpandedSidebarCompany] = useState<string | null>(null);
   const [showCreateEnterpriseModal, setShowCreateEnterpriseModal] = useState(false);
@@ -85,6 +81,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [selectedEnterpriseId]);
 
+  // Listen for external enterprise selection changes (from Navigation)
+  useEffect(() => {
+    const handler = () => {
+      try {
+        const stored = localStorage.getItem('selectedEnterpriseId');
+        if (stored && stored !== selectedEnterpriseId) {
+          setSelectedEnterpriseId(stored);
+        }
+      } catch {}
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('enterpriseChanged', handler);
+      window.addEventListener('storage', handler);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('enterpriseChanged', handler);
+        window.removeEventListener('storage', handler);
+      }
+    };
+  }, [selectedEnterpriseId]);
+
   const fetchEnterprises = async () => {
     try {
       setLoading(true);
@@ -97,31 +115,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         const data = await enterprisesRes.json();
         console.log('Fetched enterprises:', data.enterprises);
         const fetchedEnterprises = data.enterprises || [];
-        
-        // Get user's role in the first enterprise for role-based UI
-        if (fetchedEnterprises.length > 0 && (session as any)?.userId) {
-          const userId = (session as any).userId;
-          const firstEnterprise = fetchedEnterprises[0];
-          
-          // Check if user is owner
-          if (userId === firstEnterprise.ownerUserId) {
-            setUserRole('owner');
-          } else {
-            // Check membership role from API
-            try {
-              const memberRes = await fetch(`/api/enterprises/${firstEnterprise.id}/members`);
-              if (memberRes.ok) {
-                const memberData = await memberRes.json();
-                const userMember = memberData.members?.find((m: any) => m.userId === userId);
-                if (userMember) {
-                  setUserRole(userMember.role);
-                }
-              }
-            } catch (err) {
-              console.error('Failed to fetch user role:', err);
-            }
-          }
-        }
 
         const enterprisesWithCompanies = await Promise.all(
           fetchedEnterprises.map(async (enterprise: Enterprise) => {
@@ -150,17 +143,45 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         setEnterprises(enterprisesWithCompanies);
         
         if (enterprisesWithCompanies.length > 0) {
-          // Try to restore from localStorage first
+          // Choose selected enterprise in this order:
+          // 1) stored selection if it still exists (honor explicit user choice)
+          // 2) an enterprise owned by the current user
+          // 3) fallback to the first in the list
           const storedEnterpriseId = localStorage.getItem('selectedEnterpriseId');
-          const enterpriseToSelect = storedEnterpriseId && enterprisesWithCompanies.find(e => e.id === storedEnterpriseId)
-            ? storedEnterpriseId
-            : enterprisesWithCompanies[0].id;
-          
-          setSelectedEnterpriseId(enterpriseToSelect);
-          
+          const userId = (session as any)?.userId;
+          const ownedEnterprise = userId
+            ? enterprisesWithCompanies.find(e => e.ownerUserId === userId)
+            : undefined;
+          const storedExists = storedEnterpriseId && enterprisesWithCompanies.find(e => e.id === storedEnterpriseId);
+          const enterpriseToSelect = (storedExists ? storedEnterpriseId : undefined)
+            || (ownedEnterprise ? ownedEnterprise.id : undefined)
+            || enterprisesWithCompanies[0].id;
+
+          setSelectedEnterpriseId(enterpriseToSelect as string);
+
           const selectedEnt = enterprisesWithCompanies.find(e => e.id === enterpriseToSelect);
-          if (selectedEnt && selectedEnt.companies.length > 0) {
-            setSelectedCompanyId(selectedEnt.companies[0].id);
+
+          // Compute role for the selected enterprise
+          if (userId && selectedEnt) {
+            if (userId === selectedEnt.ownerUserId) {
+              setUserRole('owner');
+            } else {
+              try {
+                const memberRes = await fetch(`/api/enterprises/${selectedEnt.id}/members`);
+                if (memberRes.ok) {
+                  const memberData = await memberRes.json();
+                  const userMember = memberData.members?.find((m: any) => m.userId === userId);
+                  setUserRole(userMember?.role || 'member');
+                } else {
+                  setUserRole('member');
+                }
+              } catch (err) {
+                console.error('Failed to fetch user role:', err);
+                setUserRole('member');
+              }
+            }
+          } else {
+            setUserRole('member');
           }
         }
       }
@@ -219,6 +240,34 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const selectedEnterprise = enterprises.find(e => e.id === selectedEnterpriseId);
   const companiesInSelectedEnterprise = selectedEnterprise?.companies || [];
   
+  // Recompute role whenever the selected enterprise changes
+  useEffect(() => {
+    const updateRole = async () => {
+      if (!selectedEnterpriseId || !(session as any)?.userId) return;
+      const ent = enterprises.find(e => e.id === selectedEnterpriseId);
+      const userId = (session as any).userId;
+      if (!ent) return;
+      if (userId === ent.ownerUserId) {
+        setUserRole('owner');
+        return;
+      }
+      try {
+        const memberRes = await fetch(`/api/enterprises/${ent.id}/members`);
+        if (memberRes.ok) {
+          const memberData = await memberRes.json();
+          const userMember = memberData.members?.find((m: any) => m.userId === userId);
+          setUserRole(userMember?.role || 'member');
+        } else {
+          setUserRole('member');
+        }
+      } catch (err) {
+        console.error('Failed to fetch user role:', err);
+        setUserRole('member');
+      }
+    };
+    updateRole();
+  }, [selectedEnterpriseId, enterprises, session]);
+  
   // Check if user is owner or admin of the selected enterprise
   const isOwnerOrAdmin = selectedEnterprise && session && 
     ((session as any).userId === selectedEnterprise.ownerUserId ||
@@ -248,115 +297,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="min-h-screen gh-hero-gradient">
-      {/* Top Navigation Bar */}
-      <nav className="fixed top-0 left-0 right-0 bg-[#1a2332] border-b border-white/10 z-50 h-24 backdrop-blur-sm bg-opacity-95" style={{ fontSize: '1.4rem' }}>
-        <div className="w-full px-5 sm:px-7 lg:px-10">
-          <div className="flex justify-between items-center h-24">
-            {/* Logo */}
-            <div className="flex items-center">
-              <div className="relative mr-5">
-                <div className="absolute -inset-1.5 bg-gradient-to-r from-orange-500 to-green-500 rounded-full blur-md opacity-35"></div>
-                <Image 
-                  src="/logo.png" 
-                  alt="Gh Planner Logo" 
-                  width={68} 
-                  height={68}
-                  className="relative"
-                  unoptimized
-                />
-              </div>
-              <span className="text-3xl font-bold text-white">Gh Planner</span>
-            </div>
-
-            {/* Desktop Top Nav - Enterprise Selector (Only for owners/admins) */}
-            {isOwnerOrAdmin && (
-              <div className="hidden md:flex items-center space-x-4">
-                {/* Enterprise Selector */}
-                <div className="relative">
-                <select
-                  value={selectedEnterpriseId}
-                  onChange={(e) => {
-                    if (e.target.value === '__create_new__') {
-                      setShowCreateEnterpriseModal(true);
-                      return;
-                    }
-                    setSelectedEnterpriseId(e.target.value);
-                    const newEnterprise = enterprises.find(ent => ent.id === e.target.value);
-                    if (newEnterprise && newEnterprise.companies.length > 0) {
-                      setSelectedCompanyId(newEnterprise.companies[0].id);
-                    }
-                  }}
-                  className="bg-white/5 border border-white/10 rounded-lg px-5 py-3.5 text-white text-base focus:outline-none focus:ring-2 focus:ring-orange-500 pr-10 appearance-none cursor-pointer h-14"
-                >
-                  {loading ? (
-                    <option>Loading enterprises...</option>
-                  ) : enterprises.length > 0 ? (
-                    <>
-                      {enterprises.map((enterprise) => (
-                        <option key={enterprise.id} value={enterprise.id}>
-                          {enterprise.name}
-                        </option>
-                      ))}
-                      <option value="__create_new__" className="bg-[#1a2332] text-orange-400">+ Create New Enterprise</option>
-                    </>
-                  ) : (
-                    <>
-                      <option>No enterprises</option>
-                      <option value="__create_new__" className="bg-[#1a2332] text-orange-400">+ Create New Enterprise</option>
-                    </>
-                  )}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
-              </div>
-            </div>
-            )}
-
-            {/* User Menu */}
-            <div className="flex items-center space-x-4">
-              <div className="relative hidden md:block">
-                <button
-                  onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="flex items-center px-5 py-3.5 text-base font-medium text-slate-300 hover:text-white focus:outline-none bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors h-14"
-                >
-                  <User className="w-5 h-5 mr-3" />
-                  {session.user?.name || session.user?.email || 'User'}
-                  <ChevronDown className="ml-2 w-5 h-5" />
-                </button>
-
-                {showUserMenu && (
-                  <div className="absolute right-0 mt-2 w-48 bg-[#1a2332] rounded-md shadow-lg border border-white/10 py-1 z-[100]">
-                    <button
-                      onClick={() => {
-                        router.push('/settings');
-                        setShowUserMenu(false);
-                      }}
-                      className="flex items-center w-full px-4 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white"
-                    >
-                      <Settings className="w-4 h-4 mr-2" />
-                      Settings
-                    </button>
-                    <button
-                      onClick={handleSignOut}
-                      className="flex items-center w-full px-4 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white"
-                    >
-                      <LogOut className="w-4 h-4 mr-2" />
-                      Sign Out
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Mobile Menu Button */}
-              <button
-                onClick={() => setShowMobileMenu(!showMobileMenu)}
-                className="md:hidden p-2 text-slate-300 hover:text-white"
-              >
-                {showMobileMenu ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      {/* Unified Top Navigation */}
+      <Navigation />
 
       {/* Mobile Menu */}
       {showMobileMenu && (
@@ -375,10 +317,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     return;
                   }
                   setSelectedEnterpriseId(e.target.value);
-                  const newEnterprise = enterprises.find(ent => ent.id === e.target.value);
-                  if (newEnterprise && newEnterprise.companies.length > 0) {
-                    setSelectedCompanyId(newEnterprise.companies[0].id);
-                  }
+                  // Companies will be loaded in contexts that need them
                 }}
                 className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
               >

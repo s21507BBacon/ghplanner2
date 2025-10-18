@@ -31,6 +31,7 @@ export default function SelectProjectPage() {
   const [selectedProject, setSelectedProject] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [enterpriseName, setEnterpriseName] = useState<string>('');
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -38,25 +39,103 @@ export default function SelectProjectPage() {
       return;
     }
 
+    // If no enterprise ID, redirect to dashboard
+    if (status === 'authenticated' && !enterpriseId) {
+      console.error('No enterprise ID provided in URL params:', params);
+      router.push('/dashboard');
+      return;
+    }
+
     if (status === 'authenticated' && enterpriseId) {
+      console.log('Loading data for enterprise:', enterpriseId);
       loadData();
     }
-  }, [status, enterpriseId, router]);
+  }, [status, enterpriseId, router, params]);
 
   const loadData = async () => {
     try {
+      console.log('loadData called with enterpriseId:', enterpriseId);
+      
+      // Fetch enterprise details
+      try {
+        const entRes = await fetch(`/api/enterprises`);
+        if (entRes.ok) {
+          const entData = await entRes.json();
+          const currentEnt = entData.enterprises?.find((e: any) => e.id === enterpriseId);
+          if (currentEnt) {
+            setEnterpriseName(currentEnt.name);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to fetch enterprise name:', e);
+      }
+      
+      // Ensure membership for the current session user in this enterprise (idempotent)
+      try {
+        const ensureRes = await fetch(`/api/enterprises/${enterpriseId}/membership/self`, { method: 'POST' });
+        console.log('Ensure membership status:', ensureRes.status);
+      } catch (e) {
+        console.warn('Failed to ensure membership (non-fatal):', e);
+      }
+      
       // Load companies in this enterprise
-      const companiesRes = await fetch(`/api/enterprises/${enterpriseId}/companies`);
+      const companiesUrl = `/api/enterprises/${enterpriseId}/companies`;
+      console.log('Fetching companies from:', companiesUrl);
+      let companiesRes = await fetch(companiesUrl);
+      console.log('Companies response status:', companiesRes.status);
+      
       if (companiesRes.ok) {
         const companiesData = await companiesRes.json();
+        console.log('Companies data:', companiesData);
         setCompanies(companiesData.companies || []);
+      } else {
+        if (companiesRes.status === 403) {
+          console.log('Retrying companies after ensuring membership...');
+          await fetch(`/api/enterprises/${enterpriseId}/membership/self`, { method: 'POST' });
+          companiesRes = await fetch(companiesUrl);
+          console.log('Companies retry status:', companiesRes.status);
+          if (companiesRes.ok) {
+            const companiesData = await companiesRes.json();
+            console.log('Companies data (retry):', companiesData);
+            setCompanies(companiesData.companies || []);
+          } else {
+            const error = await companiesRes.json();
+            console.error('Companies API error (retry):', error);
+          }
+        } else {
+          const error = await companiesRes.json();
+          console.error('Companies API error:', error);
+        }
       }
 
       // Load all projects (we'll filter by company on the client)
-      const projectsRes = await fetch(`/api/enterprises/${enterpriseId}/projects`);
+      const projectsUrl = `/api/enterprises/${enterpriseId}/projects`;
+      console.log('Fetching projects from:', projectsUrl);
+      let projectsRes = await fetch(projectsUrl);
+      console.log('Projects response status:', projectsRes.status);
+      
       if (projectsRes.ok) {
         const projectsData = await projectsRes.json();
+        console.log('Projects data:', projectsData);
         setProjects(projectsData.projects || []);
+      } else {
+        if (projectsRes.status === 403) {
+          console.log('Retrying projects after ensuring membership...');
+          await fetch(`/api/enterprises/${enterpriseId}/membership/self`, { method: 'POST' });
+          projectsRes = await fetch(projectsUrl);
+          console.log('Projects retry status:', projectsRes.status);
+          if (projectsRes.ok) {
+            const projectsData = await projectsRes.json();
+            console.log('Projects data (retry):', projectsData);
+            setProjects(projectsData.projects || []);
+          } else {
+            const error = await projectsRes.json();
+            console.error('Projects API error (retry):', error);
+          }
+        } else {
+          const error = await projectsRes.json();
+          console.error('Projects API error:', error);
+        }
       }
     } catch (err) {
       console.error('Failed to load data:', err);
@@ -71,12 +150,11 @@ export default function SelectProjectPage() {
 
     setSubmitting(true);
     try {
-      // Assign user to the selected project
-      const response = await fetch(`/api/enterprises/${enterpriseId}/members`, {
+      // Assign user to the selected project using the assignment API
+      const response = await fetch(`/api/assignments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: (session as any)?.userId,
           companyId: selectedCompany,
           projectId: selectedProject,
         }),
@@ -84,11 +162,22 @@ export default function SelectProjectPage() {
 
       if (response.ok) {
         // Store the selected enterprise ID
-        localStorage.setItem('selectedEnterpriseId', enterpriseId);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('selectedEnterpriseId', enterpriseId);
+          window.dispatchEvent(new Event('enterpriseChanged'));
+        }
         // Redirect to the project planner
+        if (!enterpriseId) {
+          console.error('Missing enterprise ID during project assignment');
+          router.push('/dashboard');
+          return;
+        }
         router.push(`/planner?projectId=${selectedProject}`);
       } else {
-        throw new Error('Failed to assign to project');
+        const errorData = await response.json();
+        const errorMessage = errorData.error || 'Failed to assign to project';
+        alert(errorMessage);
+        throw new Error(errorMessage);
       }
     } catch (err) {
       console.error('Failed to assign:', err);
@@ -124,7 +213,9 @@ export default function SelectProjectPage() {
             <ArrowLeft className="w-4 h-4" />
             Back to Dashboard
           </Link>
-          <h1 className="text-3xl font-bold text-white mb-2">Welcome to Your Enterprise!</h1>
+          <h1 className="text-3xl font-bold text-white mb-2">
+            Welcome to {enterpriseName || 'Your Enterprise'}!
+          </h1>
           <p className="text-slate-300">
             Choose a company and project to get started. You can change this later from your dashboard.
           </p>

@@ -161,6 +161,8 @@ export default function TaskDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [assigneeUsers, setAssigneeUsers] = useState<Array<{ id: string; name: string; email: string }>>([]);
   const [canComment, setCanComment] = useState(false);
+  const [userRole, setUserRole] = useState<string | undefined>();
+  const currentUserId = (session as any)?.userId;
 
   // Comment form state
   const [newComment, setNewComment] = useState('');
@@ -180,6 +182,23 @@ export default function TaskDetailPage() {
       checkCommentPermission();
     }
   }, [session, task]);
+
+  // Fetch user role for permission checks
+  useEffect(() => {
+    if (currentUserId && (task as any)?.companyId) {
+      (async () => {
+        try {
+          const res = await fetch(`/api/memberships?userId=${currentUserId}&companyId=${(task as any).companyId}`);
+          if (res.ok) {
+            const data = await res.json();
+            setUserRole(data.role);
+          }
+        } catch (e) {
+          console.error('Failed to fetch user role:', e);
+        }
+      })();
+    }
+  }, [currentUserId, task]);
 
   useEffect(() => {
     if (task?.prUrl) {
@@ -466,6 +485,17 @@ export default function TaskDetailPage() {
 
   const columnColors = column ? getColumnColorClasses(column.color) : getColumnColorClasses('slate');
 
+  // Check if user can delete this task
+  const taskAssignees = (task as any).assignees || [];
+  const isCreator = currentUserId && (task as any).createdBy?.id === currentUserId;
+  const isAssignee = currentUserId && taskAssignees.includes(currentUserId);
+  const isAdmin = userRole && ['owner', 'admin', 'staff'].includes(userRole);
+  
+  // Determine if user can delete
+  const canDelete = (task as any).isLocked 
+    ? (isCreator || isAssignee || isAdmin)
+    : (taskAssignees.length === 0 || isAssignee || isAdmin);
+
   return (
     <div className="min-h-screen gh-hero-gradient">
       <div className="max-w-6xl mx-auto p-6">
@@ -527,16 +557,18 @@ export default function TaskDetailPage() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2 ml-4">
-              <button
-                onClick={handleDeleteTask}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-semibold"
-                title="Delete task"
-              >
-                <Trash2 className="w-4 h-4" />
-                Delete
-              </button>
-            </div>
+            {canDelete && (
+              <div className="flex items-center gap-2 ml-4">
+                <button
+                  onClick={handleDeleteTask}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-semibold"
+                  title="Delete task"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

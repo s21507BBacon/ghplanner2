@@ -31,6 +31,11 @@ export default function CreateEnterprisePage() {
 
       if (response.ok) {
         const data = await response.json();
+        // Persist selection so AdminLayout focuses the new enterprise
+        if (typeof window !== 'undefined' && data?.id) {
+          localStorage.setItem('selectedEnterpriseId', data.id);
+          window.dispatchEvent(new Event('enterpriseChanged'));
+        }
         // Redirect to dashboard after creating
         router.push('/dashboard');
       } else {

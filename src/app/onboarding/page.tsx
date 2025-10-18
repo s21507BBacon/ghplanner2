@@ -33,6 +33,11 @@ export default function OnboardingPage() {
         body: JSON.stringify({ name: enterpriseName }),
       });
       if (!res.ok) throw new Error('Failed to create enterprise');
+      const data = await res.json();
+      if (typeof window !== 'undefined' && data?.id) {
+        localStorage.setItem('selectedEnterpriseId', data.id);
+        window.dispatchEvent(new Event('enterpriseChanged'));
+      }
       router.push('/dashboard');
     } catch (e: any) {
       setError(e.message || 'Failed to create enterprise');

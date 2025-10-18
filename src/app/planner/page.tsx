@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useMemo, Suspense, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Plus, MoreHorizontal, ExternalLink, Calendar, User, X, Edit3, Trash2, Trash, GitMerge, AlertCircle, XCircle, Pin, Filter, Layout, Grid3x3, Maximize, Search, Lock, Upload, File, Download, MousePointer2, Link2, StickyNote, Shapes, Type, Hand } from 'lucide-react';
+import { useSession } from 'next-auth/react';
+import { Plus, MoreHorizontal, ExternalLink, Calendar, User, X, Edit3, Trash2, Trash, GitMerge, AlertCircle, XCircle, Pin, Filter, Layout, Grid3x3, Maximize, Search, Lock, Upload, File, Download, MousePointer2, Link2, StickyNote, Shapes, Type, Hand, GitPullRequest } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Task, Board, type Column, type Connection, type Note, type Label, type Attachment, type Shape, type ShapeType, STATUS_COLORS, getColumnColorClasses, COLUMN_COLORS, LABEL_COLORS } from '@/lib/types';
 
@@ -38,18 +39,33 @@ function TaskCard({
   task,
   onUpdate,
   onEdit,
-  isDragging = false
+  isDragging = false,
+  currentUserId,
+  userRole
 }: {
   task: Task;
   onUpdate: (task: Task) => void;
   onEdit: (task: Task) => void;
   isDragging?: boolean;
+  currentUserId?: string;
+  userRole?: string;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const completedItems = task.checklist?.filter(item => item.completed).length || 0;
   const totalItems = task.checklist?.length || 0;
   const progressPercentage = totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
+
+  // Check if user can edit this task
+  const taskAssignees = (task as any).assignees || [];
+  const isCreator = currentUserId && (task as any).createdBy?.id === currentUserId;
+  const isAssignee = currentUserId && taskAssignees.includes(currentUserId);
+  const isAdmin = userRole && ['owner', 'admin', 'staff'].includes(userRole);
+  
+  // Determine if user can edit
+  const canEdit = (task as any).isLocked 
+    ? (isCreator || isAssignee || isAdmin)
+    : (taskAssignees.length === 0 || isAssignee || isAdmin);
 
   const handleCardClick = () => {
     window.location.href = `/task/${task.id}`;
@@ -67,16 +83,23 @@ function TaskCard({
           <h4 className="font-medium text-white flex-1 text-sm leading-tight">
             {task.title}
           </h4>
-          <button
-            className="text-slate-400 hover:text-orange-400 ml-2 transition-colors"
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(task);
-            }}
-            title="Edit task"
-          >
-            <MoreHorizontal className="w-4 h-4" />
-          </button>
+          {canEdit && (
+            <button
+              className="text-slate-400 hover:text-orange-400 ml-2 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(task);
+              }}
+              title="Edit task"
+            >
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
+          )}
+          {(task as any).isLocked && (
+            <div className="ml-2" title="This task is locked">
+              <Lock className="w-4 h-4 text-orange-500" />
+            </div>
+          )}
         </div>
 
         {task.description && (
@@ -176,16 +199,19 @@ function TaskCard({
   );
 }
 
-function Column({
+function ColumnComponent({
   column,
   tasks,
   onAddTask,
   onEditColumn,
   onDeleteColumn,
   onEditTask,
-  isDragging = false,
+  isDragging,
   onDragHandlePointerDown,
   isFreeFormMode = false,
+  currentUserId,
+  userRole,
+  allColumns = [],
 }: {
   column: Column;
   tasks: Task[];
@@ -196,8 +222,17 @@ function Column({
   isDragging?: boolean;
   onDragHandlePointerDown?: (e: any) => void;
   isFreeFormMode?: boolean;
+  currentUserId?: string;
+  userRole?: string;
+  allColumns?: Column[];
 }) {
   const colors = getColumnColorClasses(column.color);
+
+  // Check if this column is a destination for any auto-move rules
+  const isMergeDestination = allColumns.some(col => (col as any).moveToColumnOnMerge === column.id);
+  const isClosedDestination = allColumns.some(col => (col as any).moveToColumnOnClosed === column.id);
+  const isChangesDestination = allColumns.some(col => (col as any).moveToColumnOnRequestChanges === column.id);
+  const requiresPr = (column as any).requiresPr;
 
   return (
     <div className={`flex flex-col ${isFreeFormMode ? 'h-full' : ''} min-w-80 ${colors.bg} ${colors.border} border rounded-lg ${
@@ -210,31 +245,40 @@ function Column({
             <span className={`inline-flex items-center justify-center w-5 h-5 text-xs font-medium text-slate-900 bg-white rounded-full`}>
               {tasks.length}
             </span>
-            {(column as any).moveToColumnOnMerge && (
+            {requiresPr && (
               <span 
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30"
-                title="Auto-moves to another column when PR is merged"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-purple-500 text-white border border-purple-600"
+                title="This column requires PR links"
               >
-                <GitMerge className="w-3 h-3" />
-                Merge
+                <GitPullRequest className="w-3 h-3" />
+                PR
               </span>
             )}
-            {(column as any).moveToColumnOnClosed && (
+            {isMergeDestination && (
               <span 
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30"
-                title="Auto-moves to another column when PR is closed without merging"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-green-500 text-white border border-green-600"
+                title="Tasks auto-move here when PR is merged"
+              >
+                <GitMerge className="w-3 h-3" />
+                Merged
+              </span>
+            )}
+            {isClosedDestination && (
+              <span 
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white border border-red-600"
+                title="Tasks auto-move here when PR is closed without merging"
               >
                 <X className="w-3 h-3" />
                 Closed
               </span>
             )}
-            {(column as any).moveToColumnOnRequestChanges && (
+            {isChangesDestination && (
               <span 
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-500/20 text-orange-400 border border-orange-500/30"
-                title="Auto-moves to another column when changes are requested"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-orange-500 text-white border border-orange-600"
+                title="Tasks auto-move here when changes are requested"
               >
                 <AlertCircle className="w-3 h-3" />
-                Changes
+                Changed
               </span>
             )}
           </div>
@@ -303,6 +347,8 @@ function Column({
                             onUpdate={() => {}}
                             onEdit={onEditTask}
                             isDragging={snapshot.isDragging}
+                            currentUserId={currentUserId}
+                            userRole={userRole}
                           />
                         </div>
                       )}
@@ -840,6 +886,9 @@ function LabelManagementModal({
 }
 
 function PlannerBoard() {
+  const { data: session } = useSession();
+  const currentUserId = (session as any)?.userId;
+  const [userRole, setUserRole] = useState<string | undefined>();
   const [isMounted, setIsMounted] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [columns, setColumns] = useState<Column[]>([]);
@@ -997,7 +1046,7 @@ function PlannerBoard() {
   // Project/company scoping from URL
   const searchParams = useSearchParams();
   const projectIdFromQuery = searchParams.get('projectId') || '';
-  const companyIdFromQuery = searchParams.get('companyId') || '';
+  const companyIdFromQueryParam = searchParams.get('companyId') || '';
 
   // Fix for react-beautiful-dnd hydration issues
   useEffect(() => {
@@ -1052,11 +1101,11 @@ function PlannerBoard() {
 
   // Add the fetchProject function after fetchBoards
   const fetchProject = async () => {
-    if (!projectIdFromQuery || !companyIdFromQuery) return;
+    if (!projectIdFromQuery || !companyIdFromQueryParam) return;
     
     setProjectLoading(true);
     try {
-      const response = await fetch(`/api/projects?companyId=${companyIdFromQuery}`);
+      const response = await fetch(`/api/projects?companyId=${companyIdFromQueryParam}`);
       const data = await response.json();
       if (data.projects) {
         const foundProject = data.projects.find((p: Project) => p.id === projectIdFromQuery);
@@ -1076,7 +1125,7 @@ function PlannerBoard() {
     } else {
       fetchBoards();
     }
-  }, [projectIdFromQuery, companyIdFromQuery]);
+  }, [projectIdFromQuery, companyIdFromQueryParam]);
 
   useEffect(() => {
     if (!projectLoading && selectedBoard === '' && projectIdFromQuery) {
@@ -1099,7 +1148,7 @@ function PlannerBoard() {
     try {
       const qs = new URLSearchParams();
       if (projectIdFromQuery) qs.set('projectId', projectIdFromQuery);
-      if (companyIdFromQuery) qs.set('companyId', companyIdFromQuery);
+      if (companyIdFromQueryParam) qs.set('companyId', companyIdFromQueryParam);
       const response = await fetch(`/api/planner/boards${qs.toString() ? `?${qs.toString()}` : ''}`);
       const data = await response.json();
       setBoards(data.boards || []);
@@ -1124,7 +1173,7 @@ function PlannerBoard() {
         body: JSON.stringify({ 
           name, 
           projectId: projectIdFromQuery || undefined, 
-          companyId: companyIdFromQuery || undefined 
+          companyId: companyIdFromQueryParam || undefined 
         }),
       });
       const data = await response.json();
@@ -1315,7 +1364,7 @@ function PlannerBoard() {
           ...taskData,
           boardId: selectedBoard,
           ...(projectIdFromQuery ? { projectId: projectIdFromQuery } : {}),
-          ...(companyIdFromQuery ? { companyId: companyIdFromQuery } : {}),
+          ...(companyIdFromQueryParam ? { companyId: companyIdFromQueryParam } : {}),
         }),
       });
       await response.json();
@@ -1416,7 +1465,7 @@ function PlannerBoard() {
           color,
           boardId: selectedBoard,
           projectId: projectIdFromQuery,
-          companyId: companyIdFromQuery,
+          companyId: companyIdFromQueryParam,
         }),
       });
       const data = await res.json();
@@ -1721,10 +1770,13 @@ function PlannerBoard() {
     });
 
     try {
-      const response = await fetch('/api/planner/tasks', {
+      const qs = new URLSearchParams();
+      qs.set('id', taskId);
+      Object.entries(updates).forEach(([k, v]) => {
+        if (v !== undefined && v !== null) qs.set(k, String(v));
+      });
+      const response = await fetch(`/api/planner/tasks?${qs.toString()}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: taskId, ...updates }),
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       // Refetch all tasks to get populated label data
@@ -1792,7 +1844,12 @@ function PlannerBoard() {
   const patchTaskSilently = async (taskId: string, updates: Partial<Task>) => {
     try {
       console.log('Patching task:', taskId, updates);
-      const response = await fetch('/api/planner/tasks', {
+      const qs = new URLSearchParams();
+      qs.set('id', taskId);
+      Object.entries(updates).forEach(([k, v]) => {
+        if (v !== undefined && v !== null) qs.set(k, String(v));
+      });
+      const response = await fetch(`/api/planner/tasks?${qs.toString()}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: taskId, ...updates }),
@@ -2009,6 +2066,23 @@ function PlannerBoard() {
       })();
     }
   }, [projectIdFromQuery]);
+
+  // Fetch user role for permission checks
+  useEffect(() => {
+    if (currentUserId && companyIdFromQueryParam) {
+      (async () => {
+        try {
+          const res = await fetch(`/api/memberships?userId=${currentUserId}&companyId=${companyIdFromQueryParam}`);
+          if (res.ok) {
+            const data = await res.json();
+            setUserRole(data.role);
+          }
+        } catch (e) {
+          console.error('Failed to fetch user role:', e);
+        }
+      })();
+    }
+  }, [currentUserId, companyIdFromQueryParam]);
 
   const handleColumnHandlePointerDown = (colId: string) => (e: any) => {
     // If in connect mode, handle connection logic
@@ -2506,13 +2580,16 @@ function PlannerBoard() {
                     {...provided.dragHandleProps}
                     className={`flex-shrink-0 w-80 ${snapshot.isDragging ? 'opacity-50' : ''}`}
                   >
-                    <Column
+                    <ColumnComponent
                       column={column}
                       tasks={tasksByColumn[column.id] || []}
                       onAddTask={handleAddTask}
                       onEditColumn={handleEditColumn}
                       onDeleteColumn={handleDeleteColumn}
                       onEditTask={handleEditTask}
+                      currentUserId={currentUserId}
+                      userRole={userRole}
+                      allColumns={columns}
                     />
                   </div>
                 )}
@@ -2592,6 +2669,8 @@ function PlannerBoard() {
                 task={task}
                 onUpdate={() => {}}
                 onEdit={handleEditTask}
+                currentUserId={currentUserId}
+                userRole={userRole}
               />
             ))
           )}
@@ -3335,7 +3414,7 @@ function PlannerBoard() {
                       className={`absolute z-30 transition-opacity duration-200 ${selectedConnectionId ? 'opacity-30 pointer-events-none' : ''}`} 
                       style={{ left: posX, top: posY, width: colWidth, height: colHeight }} 
                       ref={setColumnRef(column.id)}>
-                      <Column
+                      <ColumnComponent
                         column={column}
                         tasks={tasksByColumn[column.id] || []}
                         onAddTask={handleAddTask}
@@ -3345,6 +3424,9 @@ function PlannerBoard() {
                         isDragging={draggingColumnId === column.id}
                         onDragHandlePointerDown={handleColumnHandlePointerDown(column.id)}
                         isFreeFormMode={true}
+                        currentUserId={currentUserId}
+                        userRole={userRole}
+                        allColumns={columns}
                       />
                       {/* Resize handle */}
                       <div
@@ -4355,11 +4437,17 @@ function PlannerBoard() {
           if (!prModalTask || !pendingMove) return;
           
           console.log('Submitting PR URL:', url);
-          const ok = await patchTaskSilently(prModalTask.id, { prUrl: url });
+          const response = await fetch('/api/planner/tasks', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: prModalTask.id, prUrl: url }),
+          });
           
-          if (!ok) {
-            alert(`Invalid PR URL format.\n\nExpected format: https://github.com/owner/repo/pull/123\n\nYou entered: ${url}\n\nTask will remain in its original column.`);
-            // Invalid: revert the move as well
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+            console.error('Failed to update PR URL:', response.status, errorData);
+            alert(`Failed to add PR URL: ${errorData.error || 'Unknown error'}\n\nTask will remain in its original column.`);
+            // Failed: revert the move
             await revertPendingMove();
             setIsPrModalOpen(false);
             return;
@@ -5056,7 +5144,7 @@ function PrLinkModal({
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">PR URL</label>
             <input
-              type="url"
+              type="text"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://github.com/owner/repo/pull/123"
