@@ -12,6 +12,7 @@ import {
   FolderKanban,
   Users,
   X,
+  Menu,
 } from 'lucide-react';
 
 interface Project {
@@ -44,6 +45,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [loading, setLoading] = useState(true);
   // Removed unused showUserMenu
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [expandedSidebarCompany, setExpandedSidebarCompany] = useState<string | null>(null);
   const [showCreateEnterpriseModal, setShowCreateEnterpriseModal] = useState(false);
   const [newEnterpriseName, setNewEnterpriseName] = useState('');
@@ -300,6 +302,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Unified Top Navigation */}
       <Navigation />
 
+      {/* Mobile sidebar toggle (admin drawer) */}
+      <button
+        onClick={() => setShowMobileMenu(!showMobileMenu)}
+        className="md:hidden fixed top-24 left-4 z-40 p-2 rounded-lg bg-[#0f1729] border border-white/10 text-slate-300 hover:text-white"
+        aria-label="Toggle admin menu"
+      >
+        {showMobileMenu ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+      </button>
+
       {/* Mobile Menu */}
       {showMobileMenu && (
         <div className="md:hidden fixed top-24 left-0 right-0 bg-[#1a2332] border-b border-white/10 z-40 max-h-[calc(100vh-6rem)] overflow-y-auto">
@@ -417,75 +428,91 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Main Container with Sidebar */}
       <div className="flex pt-24">
         {/* Left Sidebar */}
-        <aside className="hidden md:block w-80 fixed left-0 top-24 bottom-0 bg-[#0f1729] border-r border-white/10 overflow-y-auto" style={{ fontSize: '1.1rem' }}>
+        <aside className={`hidden md:block ${sidebarOpen ? 'w-80' : 'w-16'} fixed left-0 top-24 bottom-0 bg-[#0f1729] border-r border-white/10 overflow-y-auto overflow-x-hidden transition-all duration-200`} style={{ fontSize: '1.1rem' }}>
           <div className="p-4 space-y-2">
+            <div className="hidden md:flex justify-end mb-2">
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white/5 border border-white/10 text-slate-300 hover:text-white"
+                aria-label="Collapse sidebar"
+              >
+                <Menu className="w-4 h-4" />
+              </button>
+            </div>
             {/* Management Section (Only for owners/admins) */}
             {isOwnerOrAdmin && (
             <div className="space-y-1">
-              <div className="text-sm font-semibold text-slate-400 uppercase px-4 mb-3">
+              {sidebarOpen && (
+              <div className="text-sm font-semibold text-slate-400 uppercase px-4 mb-3 whitespace-nowrap">
                 Management
               </div>
+              )}
 
               {/* Dashboard */}
               <a
                 href="/dashboard"
-                className={`flex items-center px-4 py-3 text-base font-medium rounded-lg transition-colors ${
+                className={`flex items-center ${sidebarOpen ? 'px-4' : 'px-2 justify-center'} py-3 text-base font-medium rounded-lg transition-colors ${
                   pathname === '/dashboard'
                     ? 'bg-orange-500/10 text-orange-400'
                     : 'text-slate-300 hover:bg-white/5 hover:text-white'
                 }`}
+                title={!sidebarOpen ? 'Dashboard' : ''}
               >
-                <LayoutDashboard className="w-5 h-5 mr-3" />
-                Dashboard
+                <LayoutDashboard className={`w-5 h-5 ${sidebarOpen ? 'mr-3' : ''}`} />
+                {sidebarOpen && 'Dashboard'}
               </a>
 
               {/* Members */}
               <a
                 href="/dashboard/members"
-                className={`flex items-center px-4 py-3 text-base font-medium rounded-lg transition-colors ${
+                className={`flex items-center ${sidebarOpen ? 'px-4' : 'px-2 justify-center'} py-3 text-base font-medium rounded-lg transition-colors ${
                   pathname === '/dashboard/members'
                     ? 'bg-orange-500/10 text-orange-400'
                     : 'text-slate-300 hover:bg-white/5 hover:text-white'
                 }`}
+                title={!sidebarOpen ? 'Members' : ''}
               >
-                <Users className="w-5 h-5 mr-3" />
-                Members
+                <Users className={`w-5 h-5 ${sidebarOpen ? 'mr-3' : ''}`} />
+                {sidebarOpen && 'Members'}
               </a>
 
               {/* Companies */}
               <a
                 href="/companies"
-                className={`flex items-center px-4 py-3 text-base font-medium rounded-lg transition-colors ${
+                className={`flex items-center ${sidebarOpen ? 'px-4' : 'px-2 justify-center'} py-3 text-base font-medium rounded-lg transition-colors ${
                   pathname === '/companies' || pathname?.startsWith('/companies/')
                     ? 'bg-orange-500/10 text-orange-400'
                     : 'text-slate-300 hover:bg-white/5 hover:text-white'
                 }`}
+                title={!sidebarOpen ? 'Companies' : ''}
               >
-                <Building2 className="w-5 h-5 mr-3" />
-                Companies
+                <Building2 className={`w-5 h-5 ${sidebarOpen ? 'mr-3' : ''}`} />
+                {sidebarOpen && 'Companies'}
               </a>
 
               {/* Projects */}
               <a
                 href="/dashboard/projects"
-                className={`flex items-center px-4 py-3 text-base font-medium rounded-lg transition-colors ${
+                className={`flex items-center ${sidebarOpen ? 'px-4' : 'px-2 justify-center'} py-3 text-base font-medium rounded-lg transition-colors ${
                   pathname === '/dashboard/projects'
                     ? 'bg-orange-500/10 text-orange-400'
                     : 'text-slate-300 hover:bg-white/5 hover:text-white'
                 }`}
+                title={!sidebarOpen ? 'Projects' : ''}
               >
-                <FolderKanban className="w-5 h-5 mr-3" />
-                Projects
+                <FolderKanban className={`w-5 h-5 ${sidebarOpen ? 'mr-3' : ''}`} />
+                {sidebarOpen && 'Projects'}
               </a>
             </div>
             )}
 
             {/* Divider */}
-            {isOwnerOrAdmin && <div className="border-t border-white/10 my-4"></div>}
+            {isOwnerOrAdmin && sidebarOpen && <div className="border-t border-white/10 my-4"></div>}
 
-            {/* Company & Project Boards Section */}
+            {/* Company & Project Boards Section - Only show when expanded */}
+            {sidebarOpen && (
             <div className="space-y-1">
-              <div className="text-sm font-semibold text-slate-400 uppercase px-4 mb-3">
+              <div className="text-sm font-semibold text-slate-400 uppercase px-4 mb-3 whitespace-nowrap">
                 Company & Project Boards
               </div>
 
@@ -533,11 +560,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <div className="px-4 py-3 text-base text-slate-400">No companies found</div>
               )}
             </div>
+            )}
           </div>
         </aside>
 
         {/* Main Content Area */}
-        <main className="flex-1 md:ml-80">
+        <main className={`flex-1 ${sidebarOpen ? 'md:ml-80' : 'md:ml-16'} transition-all duration-200`}>
           {children}
         </main>
       </div>

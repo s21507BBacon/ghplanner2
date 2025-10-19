@@ -65,8 +65,12 @@ function EnterpriseInviteContent() {
       }
 
       const data = await response.json();
-      // Redirect to project selection after successful acceptance
-      router.push(`/enterprises/${data.enterpriseId}/select-project`);
+      // Redirect based on allocation mode
+      if (data.allocationMode === 'manual-preference') {
+        router.push(`/enterprises/${data.enterpriseId}/select-preferences`);
+      } else {
+        router.push(`/enterprises/${data.enterpriseId}/select-project`);
+      }
     } catch (err: any) {
       setError(err.message);
       setAccepting(false);

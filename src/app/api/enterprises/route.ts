@@ -48,7 +48,8 @@ export async function GET() {
       id: e.id, 
       name: e.name, 
       inviteCode: e.invite_code, 
-      ownerUserId: e.owner_user_id 
+      ownerUserId: e.owner_user_id,
+      allocationMode: e.allocation_mode || 'auto'
     })) 
   });
 }
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
   const db = getDatabase();
   const helpers = new DbHelpers(db);
   const body = await request.json();
-  const { name } = body;
+  const { name, allocationMode } = body;
   
   if (!name || typeof name !== 'string') {
     return NextResponse.json({ error: 'Name required' }, { status: 400 });
@@ -79,6 +80,7 @@ export async function POST(request: NextRequest) {
     name: name.trim(),
     slug: slugify(name),
     owner_user_id: userId,
+    allocation_mode: allocationMode || 'auto',
     invite_code: inviteCode,
     invite_link_salt: crypto.randomUUID(),
     domain_allowlist: stringifyJsonField([]),
@@ -97,5 +99,50 @@ export async function POST(request: NextRequest) {
     updated_at: dateToTimestamp(now),
   });
   
-  return NextResponse.json({ id: enterpriseId, name: name.trim(), inviteCode });
+  return NextResponse.json({ id: enterpriseId, name: name.trim(), inviteCode, allocationMode: allocationMode || 'auto' });
+}
+
+export async function PUT(request: NextRequest) {
+  const session = await getServerSession(authOptions as any);
+  const s = session as any;
+  if (!s || !s.user || !s.userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const userId = s.userId as string;
+  const db = getDatabase();
+  const helpers = new DbHelpers(db);
+  const body = await request.json();
+  const { id, allocationMode } = body;
+  
+  if (!id || !allocationMode) {
+    return NextResponse.json({ error: 'id and allocationMode required' }, { status: 400 });
+  }
+  
+  // Check if user is owner or admin
+  const enterprise: any = await helpers.findOne('enterprises', { id });
+  if (!enterprise) {
+    return NextResponse.json({ error: 'Enterprise not found' }, { status: 404 });
+  }
+  
+  const isOwner = enterprise.owner_user_id === userId;
+  const membership: any = await helpers.findOne('enterprise_memberships', { 
+    user_id: userId, 
+    enterprise_id: id 
+  });
+  const isAdmin = membership && (membership.role === 'owner' || membership.role === 'admin');
+  
+  if (!isOwner && !isAdmin) {
+    return NextResponse.json({ error: 'Forbidden - Only owners/admins can update allocation mode' }, { status: 403 });
+  }
+  
+  const now = new Date();
+  await helpers.update('enterprises', { id }, {
+    allocation_mode: allocationMode,
+    updated_at: dateToTimestamp(now)
+  });
+  
+  return NextResponse.json({ 
+    id, 
+    allocationMode 
+  });
 }

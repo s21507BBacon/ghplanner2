@@ -58,8 +58,10 @@ export async function POST(request: NextRequest) {
         { status: 'accepted', accepted_at: dateToTimestamp(now) }
       );
       return NextResponse.json({ 
+        success: true, 
         enterpriseId: enterprise.id, 
-        message: 'Already a member' 
+        userId: s.userId,
+        allocationMode: enterprise.allocation_mode || 'auto'
       });
     }
     
@@ -86,7 +88,8 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ 
     enterpriseId: enterprise.id,
-    message: 'Successfully joined enterprise'
+    message: 'Successfully joined enterprise',
+    allocationMode: enterprise.allocation_mode || 'auto'
   });
 }
 

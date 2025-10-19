@@ -19,7 +19,6 @@ interface Company {
 export default function EnterprisesPage() {
   const { data: session } = useSession();
   const router = useRouter();
-  const [enterprises, setEnterprises] = useState<Enterprise[]>([]);
   const [selectedEnterpriseId, setSelectedEnterpriseId] = useState<string>('');
   const [companies, setCompanies] = useState<Company[]>([]);
 
@@ -57,7 +56,6 @@ export default function EnterprisesPage() {
       const res = await fetch('/api/enterprises');
       if (!res.ok) return;
       const data = await res.json();
-      setEnterprises(data.enterprises || []);
       if (data.enterprises?.length && !selectedEnterpriseId) {
         const storedEnterpriseId = localStorage.getItem('selectedEnterpriseId');
         const enterpriseToSelect = storedEnterpriseId && data.enterprises.find((e: Enterprise) => e.id === storedEnterpriseId)
@@ -68,7 +66,7 @@ export default function EnterprisesPage() {
         localStorage.setItem('selectedEnterpriseId', enterpriseToSelect);
       }
     })();
-  }, []);
+  }, [selectedEnterpriseId]);
 
   useEffect(() => {
     if (!selectedEnterpriseId) return;
@@ -79,8 +77,6 @@ export default function EnterprisesPage() {
       setCompanies(data.companies || []);
     })();
   }, [selectedEnterpriseId]);
-
-  const selectedEnterprise = enterprises.find(e => e.id === selectedEnterpriseId);
 
   return (
     <AdminLayout>
@@ -104,7 +100,11 @@ export default function EnterprisesPage() {
             <h2 className="font-semibold text-white mb-3 text-xl">Companies</h2>
             <div className="grid md:grid-cols-2 gap-4">
               {companies.map(c => (
-                <div key={c.id} className="bg-white/5 border border-white/10 rounded p-4 hover:border-orange-500/50 transition-colors">
+                <div 
+                  key={c.id} 
+                  onClick={() => router.push(`/companies/${c.id}`)}
+                  className="bg-white/5 border border-white/10 rounded p-4 hover:border-orange-500/50 transition-colors cursor-pointer"
+                >
                   <div className="font-medium text-white">{c.name}</div>
                 </div>
               ))}

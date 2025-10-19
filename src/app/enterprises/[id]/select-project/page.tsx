@@ -32,6 +32,7 @@ export default function SelectProjectPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [enterpriseName, setEnterpriseName] = useState<string>('');
+  const [allocationMode, setAllocationMode] = useState<string>('');
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -64,6 +65,13 @@ export default function SelectProjectPage() {
           const currentEnt = entData.enterprises?.find((e: any) => e.id === enterpriseId);
           if (currentEnt) {
             setEnterpriseName(currentEnt.name);
+            setAllocationMode(currentEnt.allocationMode || 'auto');
+            
+            // If manual-preference mode, redirect to preferences page
+            if (currentEnt.allocationMode === 'manual-preference') {
+              router.push(`/enterprises/${enterpriseId}/select-preferences`);
+              return;
+            }
           }
         }
       } catch (e) {

@@ -1,18 +1,18 @@
 // Database connection - works with Neon PostgreSQL
-import { neon } from '@neondatabase/serverless';
+import { Pool } from '@neondatabase/serverless';
 import type { Database, Statement, BatchStatement } from './db';
 
 // Neon PostgreSQL implementation
 class NeonDatabase implements Database {
-  private sql: ReturnType<typeof neon>;
+  private pool: Pool;
 
   constructor(connectionString: string) {
-    this.sql = neon(connectionString);
+    this.pool = new Pool({ connectionString });
   }
 
   prepare(sql: string): Statement {
     let boundValues: any[] = [];
-    const sqlClient = this.sql; // Capture sql client reference
+    const pool = this.pool; // Capture pool reference
 
     return {
       bind(...values: any[]) {
@@ -21,7 +21,7 @@ class NeonDatabase implements Database {
       },
       async run() {
         try {
-          await sqlClient.query(sql, boundValues);
+          await pool.query(sql, boundValues);
           return { success: true, meta: {} };
         } catch (error) {
           console.error('Database run error:', error);
@@ -30,8 +30,9 @@ class NeonDatabase implements Database {
       },
       async first<T>() {
         try {
-          const results = await sqlClient.query(sql, boundValues);
-          return (results[0] as T) || null;
+          const result = await pool.query(sql, boundValues);
+          const rows = (result as any).rows as T[];
+          return (rows && rows[0]) ? rows[0] : (null as any);
         } catch (error) {
           console.error('Database first error:', error);
           throw error;
@@ -39,8 +40,9 @@ class NeonDatabase implements Database {
       },
       async all<T>() {
         try {
-          const results = await sqlClient.query(sql, boundValues);
-          return { results: results as T[] };
+          const result = await pool.query(sql, boundValues);
+          const rows = (result as any).rows as T[];
+          return { results: rows };
         } catch (error) {
           console.error('Database all error:', error);
           throw error;
@@ -56,9 +58,8 @@ class NeonDatabase implements Database {
 
   async batch<T = unknown>(statements: BatchStatement[]): Promise<T[]> {
     const results: T[] = [];
-    // Execute statements sequentially (Neon doesn't have native batch API)
     for (const stmt of statements) {
-      const result = await this.sql.query(stmt.sql, stmt.args || []);
+      const result = await this.pool.query(stmt.sql, stmt.args || []);
       results.push(result as T);
     }
     return results;

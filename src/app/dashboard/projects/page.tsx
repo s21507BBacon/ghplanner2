@@ -5,14 +5,28 @@ import { useSession } from 'next-auth/react';
 import { Edit2, Trash2, X } from 'lucide-react';
 import AdminLayout from '@/components/AdminLayout';
 
-interface Enterprise { id: string; name: string; inviteCode: string }
+interface Enterprise { id: string; name: string; inviteCode: string; allocationMode?: string }
 interface Company { id: string; name: string; inviteCode: string; enterpriseId?: string }
-interface Project { id: string; name: string; maxSeats: number; isActive: boolean; inviteCode: string }
+interface Project { id: string; name: string; maxSeats: number; isActive: boolean; inviteCode: string; companyId?: string; currentAllocations?: number }
+interface UserPreference {
+  userId: string;
+  userName: string;
+  userEmail: string;
+  companyId: string;
+  companyName: string;
+  preferences: Array<{
+    projectId: string;
+    projectName: string;
+    companyName: string;
+    rank: number;
+  }>;
+}
 
 export default function ProjectsPage() {
   const { data: session } = useSession();
   const router = useRouter();
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [enterprise, setEnterprise] = useState<Enterprise | null>(null);
   const [selectedEnterpriseId, setSelectedEnterpriseId] = useState<string>('');
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
   const [projects, setProjects] = useState<Project[]>([]);
@@ -25,6 +39,8 @@ export default function ProjectsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'company' | 'project'; id: string; name: string } | null>(null);
   const [isOwnerOrAdmin, setIsOwnerOrAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [userPreferences, setUserPreferences] = useState<UserPreference[]>([]);
+  const [allocating, setAllocating] = useState(false);
 
   // Listen for enterprise changes from AdminLayout
   useEffect(() => {
@@ -84,21 +100,25 @@ export default function ProjectsPage() {
   useEffect(() => {
     (async () => {
       const enterprisesRes = await fetch('/api/enterprises');
-      
-      if (enterprisesRes.ok) {
-        const data = await enterprisesRes.json();
-        
-        // Only set if not already set from localStorage
-        if (data.enterprises?.length && !selectedEnterpriseId) {
-          const storedEnterpriseId = localStorage.getItem('selectedEnterpriseId');
-          const enterpriseToSelect = storedEnterpriseId && data.enterprises.find((e: Enterprise) => e.id === storedEnterpriseId)
-            ? storedEnterpriseId
-            : data.enterprises[0].id;
-          
-          setSelectedEnterpriseId(enterpriseToSelect);
-          localStorage.setItem('selectedEnterpriseId', enterpriseToSelect);
-        }
+      if (!enterprisesRes.ok) return;
+      const data = await enterprisesRes.json();
+      const list: Enterprise[] = data.enterprises || [];
+      if (!list.length) {
+        setEnterprise(null);
+        return;
       }
+
+      const storedEnterpriseId = localStorage.getItem('selectedEnterpriseId');
+      const idToUse = selectedEnterpriseId || (storedEnterpriseId && list.find(e => e.id === storedEnterpriseId)?.id) || list[0].id;
+
+      // Persist if we just chose one
+      if (!selectedEnterpriseId) {
+        setSelectedEnterpriseId(idToUse);
+        localStorage.setItem('selectedEnterpriseId', idToUse);
+      }
+
+      const selectedEnt = list.find((e: Enterprise) => e.id === idToUse) || null;
+      setEnterprise(selectedEnt);
     })();
   }, [selectedEnterpriseId]);
 
@@ -131,6 +151,61 @@ export default function ProjectsPage() {
       setProjects(data.projects || []);
     })();
   }, [selectedCompanyId]);
+
+  // Load user preferences for manual-preference mode
+  useEffect(() => {
+    if (!selectedEnterpriseId || !enterprise || enterprise.allocationMode !== 'manual-preference') return;
+    
+    (async () => {
+      try {
+        // Fetch all companies in enterprise
+        const companiesRes = await fetch(`/api/enterprises/${selectedEnterpriseId}/companies`);
+        if (!companiesRes.ok) return;
+        const companiesData = await companiesRes.json();
+        const allCompanies = companiesData.companies || [];
+        
+        // Fetch preferences for each company
+        const allPreferences: UserPreference[] = [];
+        for (const company of allCompanies) {
+          const prefsRes = await fetch(`/api/companies/${company.id}/preferences`);
+          if (prefsRes.ok) {
+            const prefsData = await prefsRes.json();
+            const prefs = prefsData.preferences || [];
+            
+            // Group by user
+            const userMap = new Map<string, UserPreference>();
+            for (const pref of prefs) {
+              if (pref.status === 'allocated') continue; // Skip already allocated users
+              
+              if (!userMap.has(pref.user_id)) {
+                userMap.set(pref.user_id, {
+                  userId: pref.user_id,
+                  userName: pref.user_name,
+                  userEmail: pref.user_email,
+                  companyId: company.id,
+                  companyName: company.name,
+                  preferences: []
+                });
+              }
+              
+              userMap.get(pref.user_id)!.preferences.push({
+                projectId: pref.project_id,
+                projectName: pref.project_name,
+                companyName: company.name,
+                rank: pref.rank
+              });
+            }
+            
+            allPreferences.push(...Array.from(userMap.values()));
+          }
+        }
+        
+        setUserPreferences(allPreferences);
+      } catch (err) {
+        console.error('Failed to load user preferences:', err);
+      }
+    })();
+  }, [selectedEnterpriseId, enterprise]);
 
   const createCompany = async () => {
     const res = await fetch('/api/companies', {
@@ -219,6 +294,53 @@ export default function ProjectsPage() {
   };
 
 
+  const allocateUserToProject = async (userId: string, companyId: string, projectId: string) => {
+    setAllocating(true);
+    try {
+      const res = await fetch(`/api/companies/${companyId}/allocate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, projectId }),
+      });
+      
+      if (res.ok) {
+        // Remove user from preferences list
+        setUserPreferences(prev => prev.filter(u => u.userId !== userId));
+        alert('User allocated successfully!');
+      } else {
+        const error = await res.json();
+        alert(`Error: ${error.error || 'Failed to allocate user'}`);
+      }
+    } catch (err) {
+      console.error('Failed to allocate user:', err);
+      alert('Error: Failed to allocate user');
+    } finally {
+      setAllocating(false);
+    }
+  };
+
+  const updateEnterpriseAllocation = async (mode: string) => {
+    if (!enterprise) return;
+    try {
+      const res = await fetch('/api/enterprises', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: enterprise.id, allocationMode: mode }),
+      });
+      if (res.ok) {
+        setEnterprise({ ...enterprise, allocationMode: mode });
+        alert('Allocation mode updated successfully!');
+      } else {
+        const error = await res.json();
+        console.error('Failed to update allocation mode:', error);
+        alert(`Error: ${error.error || 'Failed to update allocation mode'}`);
+      }
+    } catch (err) {
+      console.error('Failed to update allocation mode:', err);
+      alert('Error: Failed to update allocation mode. Check console for details.');
+    }
+  };
+
   const selectedCompany = companies.find(c => c.id === selectedCompanyId);
 
   if (loading) {
@@ -249,6 +371,30 @@ export default function ProjectsPage() {
     <AdminLayout>
       <div className="max-w-7xl mx-auto p-6 space-y-6">
         <h1 className="text-3xl font-bold text-white">Projects</h1>
+
+        {/* Enterprise Allocation Mode */}
+        {enterprise && (
+          <div className="gh-feature-card rounded-lg p-6 bg-gradient-to-r from-orange-500/10 to-pink-500/10 border-orange-500/30">
+            <h2 className="text-lg font-semibold text-white mb-4">Enterprise Allocation Mode</h2>
+            <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  How should users be allocated to projects across this enterprise?
+                </label>
+                <select
+                  value={enterprise.allocationMode || 'auto'}
+                  onChange={(e) => updateEnterpriseAllocation(e.target.value)}
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                >
+                  <option value="auto" className="bg-[#1a2332]">Auto Allocation - Users self-select projects until full</option>
+                  <option value="manual" className="bg-[#1a2332]">Manual Allocation - Admin manually assigns users to projects</option>
+                  <option value="manual-preference" className="bg-[#1a2332]">Manual with Preferences - Users submit preferences, admin assigns</option>
+                </select>
+                <p className="text-xs text-slate-400 mt-2">This setting applies to all companies and projects in this enterprise</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="gh-feature-card rounded-lg p-6">
           <div className="flex gap-4 items-center flex-wrap">
@@ -380,6 +526,47 @@ export default function ProjectsPage() {
               </button>
             </div>
           </div>
+
+        {/* User Preferences Allocation Section - Manual-Preference Mode Only */}
+        {enterprise?.allocationMode === 'manual-preference' && userPreferences.length > 0 && (
+          <div className="gh-feature-card rounded-lg p-4">
+            <h2 className="text-lg font-semibold text-white mb-3">
+              User Preference Submissions ({userPreferences.length})
+            </h2>
+            <div className="space-y-3">
+              {userPreferences.map((user) => (
+                <div key={user.userId} className="bg-white/5 border border-white/10 rounded-md p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="min-w-0">
+                      <p className="text-sm text-white font-medium truncate">{user.userName} <span className="text-xs text-slate-400">({user.userEmail})</span></p>
+                      <p className="text-[11px] text-slate-500 truncate">Company: {user.companyName}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {user.preferences
+                      .sort((a, b) => a.rank - b.rank)
+                      .map((pref) => (
+                        <div key={pref.rank} className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-md px-2 py-1">
+                          <span className="flex items-center justify-center w-5 h-5 rounded-full bg-orange-500/20 text-orange-400 font-bold text-[11px]">
+                            {pref.rank}
+                          </span>
+                          <span className="text-xs text-white">{pref.projectName}</span>
+                          <button
+                            onClick={() => allocateUserToProject(user.userId, user.companyId, pref.projectId)}
+                            disabled={allocating}
+                            className="text-[11px] px-2 py-0.5 bg-green-500/20 text-green-400 border border-green-500/50 rounded hover:bg-green-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Allocate
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {editingCompany && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">

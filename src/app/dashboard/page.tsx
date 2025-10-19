@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { Building2, Plus } from 'lucide-react';
 import Navigation from '@/components/Navigation';
@@ -11,11 +11,13 @@ interface Enterprise {
   name: string; 
   inviteCode: string;
   ownerUserId?: string;
+  allocationMode?: string;
 }
 
 export default function DashboardPage() {
   const { data: session } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [selectedEnterpriseId, setSelectedEnterpriseId] = useState<string>('');
   const [enterprise, setEnterprise] = useState<Enterprise | null>(null);
@@ -33,6 +35,22 @@ export default function DashboardPage() {
   const [hasAssignments, setHasAssignments] = useState(false);
   const [userProjects, setUserProjects] = useState<any[]>([]);
   const [showJoinModal, setShowJoinModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [enterpriseName, setEnterpriseName] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
+
+  // Check if ?action=join or ?action=create is in URL and open appropriate modal
+  useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'join') {
+      setShowJoinModal(true);
+      window.history.replaceState({}, '', '/dashboard');
+    } else if (action === 'create') {
+      setShowCreateModal(true);
+      window.history.replaceState({}, '', '/dashboard');
+    }
+  }, [searchParams]);
 
   // Listen for enterprise changes from AdminLayout
   useEffect(() => {
@@ -63,6 +81,18 @@ export default function DashboardPage() {
     if (session === null) router.push('/signin');
   }, [session, router]);
 
+  // Auto-redirect to appropriate page if not assigned to projects
+  useEffect(() => {
+    if (!loading && !isOwnerOrAdmin && hasEnterprises && !hasAssignments && enterprise) {
+      // Redirect based on allocation mode
+      const redirectUrl = enterprise.allocationMode === 'manual-preference'
+        ? `/enterprises/${selectedEnterpriseId}/select-preferences`
+        : `/enterprises/${selectedEnterpriseId}/select-project`;
+
+      router.push(redirectUrl);
+    }
+  }, [loading, isOwnerOrAdmin, hasEnterprises, hasAssignments, enterprise, selectedEnterpriseId, router]);
+
   useEffect(() => {
     const loadEnterpriseData = async () => {
       try {
@@ -78,7 +108,7 @@ export default function DashboardPage() {
             const storedEnterpriseId = localStorage.getItem('selectedEnterpriseId');
             const enterpriseId = storedEnterpriseId || enterprises[0].id;
             setSelectedEnterpriseId(enterpriseId);
-            const foundEnterprise = enterprises.find((e: Enterprise) => e.id === enterpriseId);
+            const foundEnterprise = enterprises.find((e: any) => e.id === enterpriseId);
             setEnterprise(foundEnterprise || enterprises[0]);
             
             // Check if user is owner or admin for the SELECTED enterprise only
@@ -282,6 +312,46 @@ export default function DashboardPage() {
     }
   };
 
+  const handleCreateEnterprise = async () => {
+    if (!enterpriseName.trim()) {
+      setCreateError('Please enter an enterprise name');
+      return;
+    }
+
+    setCreating(true);
+    setCreateError('');
+
+    try {
+      const response = await fetch('/api/enterprises', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: enterpriseName.trim() }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Persist selection so the new enterprise is selected
+        if (typeof window !== 'undefined' && data?.id) {
+          localStorage.setItem('selectedEnterpriseId', data.id);
+          window.dispatchEvent(new Event('enterpriseChanged'));
+        }
+        // Close modal and reset form
+        setShowCreateModal(false);
+        setEnterpriseName('');
+        setCreateError('');
+        // Reload page to show new enterprise
+        window.location.reload();
+      } else {
+        const errorData = await response.json();
+        setCreateError(errorData.error || 'Failed to create enterprise');
+      }
+    } catch (err) {
+      setCreateError('An error occurred while creating the enterprise');
+    } finally {
+      setCreating(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen gh-hero-gradient">
@@ -355,27 +425,6 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
-
-            {/* Join or Create More */}
-            <div className="gh-feature-card rounded-lg p-6">
-              <h2 className="text-xl font-semibold text-white mb-4">Expand Your Workspace</h2>
-              <div className="grid md:grid-cols-2 gap-4">
-                <button
-                  onClick={() => router.push('/enterprises/create')}
-                  className="flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-orange-500 to-green-500 rounded-lg text-white font-semibold hover:opacity-90 transition-opacity"
-                >
-                  <Plus className="w-5 h-5" />
-                  Create New Enterprise
-                </button>
-                <button
-                  onClick={() => setShowJoinModal(true)}
-                  className="flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg text-white font-semibold hover:opacity-90 transition-opacity"
-                >
-                  <Building2 className="w-5 h-5" />
-                  Join Another Enterprise
-                </button>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -438,9 +487,81 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+
+        {/* Create Enterprise Modal */}
+        {showCreateModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowCreateModal(false)}>
+            <div className="bg-[#1a2332] border border-white/10 rounded-lg p-8 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-white">Create Enterprise</h2>
+                <button
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    setEnterpriseName('');
+                    setCreateError('');
+                  }}
+                  className="text-slate-400 hover:text-white transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {createError && (
+                <div className="mb-4 text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-sm">
+                  {createError}
+                </div>
+              )}
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Enterprise Name <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={enterpriseName}
+                    onChange={(e) => setEnterpriseName(e.target.value)}
+                    placeholder="e.g., Acme Corporation"
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && enterpriseName.trim()) {
+                        handleCreateEnterprise();
+                      }
+                    }}
+                    autoFocus
+                  />
+                </div>
+
+                <button
+                  onClick={handleCreateEnterprise}
+                  disabled={!enterpriseName.trim() || creating}
+                  className="gh-cta-button w-full px-6 py-3 rounded-lg text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {creating ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      Creating...
+                    </>
+                  ) : (
+                    'Create Enterprise'
+                  )}
+                </button>
+
+                <div className="border-t border-white/10 pt-4">
+                  <p className="text-sm text-slate-400 text-center">
+                    After creating your enterprise, you&apos;ll be able to add companies, projects, and invite team members.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </AdminLayout>
     );
   }
+
 
   // Show simplified layout for normal users
   return (
@@ -448,152 +569,74 @@ export default function DashboardPage() {
       <Navigation />
       <div className="pt-24 px-4 py-12">
         <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12">
-            <Building2 className="w-20 h-20 mx-auto mb-6 text-slate-400" />
-            <h1 className="text-4xl font-bold text-white mb-4">Welcome to Your Dashboard</h1>
-            <p className="text-xl text-slate-300 mb-8">
-              {hasEnterprises 
-                ? "You're part of an enterprise! Check your companies and projects above."
-                : "You're not part of any enterprise yet. Create your own or join an existing one."}
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-6 mb-8">
-              {/* Create Enterprise Card */}
-              <div className="gh-feature-card rounded-lg p-8">
-                <div className="text-center">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-r from-orange-500 to-green-500 flex items-center justify-center">
-                    <Plus className="w-8 h-8 text-white" />
-                  </div>
-                  <h2 className="text-2xl font-bold text-white mb-3">Create Enterprise</h2>
-                  <p className="text-slate-300 mb-6">
-                    Start your own enterprise and invite team members to collaborate on projects.
-                  </p>
-                  <button
-                    onClick={() => router.push('/enterprises/create')}
-                    className="gh-cta-button w-full px-6 py-3 rounded-lg text-white font-semibold"
-                  >
-                    Create New Enterprise
-                  </button>
-                </div>
+          {!hasEnterprises && (
+            <>
+              <div className="text-center mb-12">
+                <Building2 className="w-20 h-20 mx-auto mb-6 text-slate-400" />
+                <h1 className="text-4xl font-bold text-white mb-4">Welcome to Your Dashboard</h1>
+                <p className="text-xl text-slate-300 mb-8">
+                  You&apos;re not part of any enterprise yet. Create your own or join an existing one to get started.
+                </p>
               </div>
 
-              {/* Join Enterprise Card */}
-              <div className="gh-feature-card rounded-lg p-8">
-                <div className="text-center">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center">
-                    <Building2 className="w-8 h-8 text-white" />
-                  </div>
-                  <h2 className="text-2xl font-bold text-white mb-3">Join Enterprise</h2>
-                  <p className="text-slate-300 mb-6">
-                    Have an invite code? Join an existing enterprise and start collaborating.
-                  </p>
-                  <div className="space-y-3">
-                    <input
-                      type="text"
-                      value={inviteCode}
-                      onChange={(e) => setInviteCode(e.target.value)}
-                      placeholder="Enter invite code"
-                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && inviteCode.trim()) {
-                          handleJoinEnterprise();
-                        }
-                      }}
-                    />
-                    {joinError && (
-                      <p className="text-red-400 text-sm">{joinError}</p>
-                    )}
+              <div className="grid md:grid-cols-2 gap-6 mb-8">
+                {/* Create Enterprise Card */}
+                <div className="gh-feature-card rounded-lg p-8">
+                  <div className="text-center">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-r from-orange-500 to-green-500 flex items-center justify-center">
+                      <Plus className="w-8 h-8 text-white" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-white mb-3">Create Enterprise</h2>
+                    <p className="text-slate-300 mb-6">
+                      Start your own enterprise and invite team members to collaborate on projects.
+                    </p>
                     <button
-                      onClick={handleJoinEnterprise}
-                      disabled={!inviteCode.trim() || joiningEnterprise}
-                      className="gh-cta-button-secondary w-full px-6 py-3 rounded-lg text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => setShowCreateModal(true)}
+                      className="gh-cta-button w-full px-6 py-3 rounded-lg text-white font-semibold"
                     >
-                      {joiningEnterprise ? 'Joining...' : 'Join Enterprise'}
+                      Create New Enterprise
                     </button>
                   </div>
                 </div>
-              </div>
-            </div>
 
-          {hasEnterprises && !hasAssignments && availableCompanies.length > 0 && (
-            <div className="gh-feature-card rounded-lg p-8">
-              <div className="text-center mb-8">
-                <Building2 className="w-16 h-16 mx-auto mb-4 text-orange-400" />
-                <h2 className="text-2xl font-bold text-white mb-3">Select Your Workspace</h2>
-                <p className="text-slate-300">
-                  You're part of an enterprise but haven't been assigned to a project yet. Select a company and project to get started.
-                </p>
-              </div>
-
-              <div className="max-w-md mx-auto space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Select Company <span className="text-red-400">*</span>
-                  </label>
-                  <select
-                    value={selectedCompanyId}
-                    onChange={(e) => {
-                      setSelectedCompanyId(e.target.value);
-                      const company = availableCompanies.find(c => c.id === e.target.value);
-                      if (company && company.projects.length > 0) {
-                        setSelectedProjectId(company.projects[0].id);
-                      } else {
-                        setSelectedProjectId('');
-                      }
-                    }}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
-                  >
-                    {availableCompanies.map((company) => (
-                      <option key={company.id} value={company.id}>
-                        {company.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Select Project <span className="text-red-400">*</span>
-                  </label>
-                  <select
-                    value={selectedProjectId}
-                    onChange={(e) => setSelectedProjectId(e.target.value)}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
-                    disabled={!selectedCompanyId}
-                  >
-                    {selectedCompanyId && availableCompanies
-                      .find(c => c.id === selectedCompanyId)
-                      ?.projects.map((project: any) => (
-                        <option key={project.id} value={project.id}>
-                          {project.name}
-                        </option>
-                      ))}
-                  </select>
-                  {selectedCompanyId && availableCompanies.find(c => c.id === selectedCompanyId)?.projects.length === 0 && (
-                    <p className="text-sm text-slate-400 mt-2">No projects available in this company</p>
-                  )}
-                </div>
-
-                {assignError && (
-                  <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-3">
-                    <p className="text-red-400 text-sm">{assignError}</p>
+                {/* Join Enterprise Card */}
+                <div className="gh-feature-card rounded-lg p-8">
+                  <div className="text-center">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center">
+                      <Building2 className="w-8 h-8 text-white" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-white mb-3">Join Enterprise</h2>
+                    <p className="text-slate-300 mb-6">
+                      Have an invite code? Join an existing enterprise and start collaborating.
+                    </p>
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        value={inviteCode}
+                        onChange={(e) => setInviteCode(e.target.value)}
+                        placeholder="Enter invite code"
+                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && inviteCode.trim()) {
+                            handleJoinEnterprise();
+                          }
+                        }}
+                      />
+                      {joinError && (
+                        <p className="text-red-400 text-sm">{joinError}</p>
+                      )}
+                      <button
+                        onClick={handleJoinEnterprise}
+                        disabled={!inviteCode.trim() || joiningEnterprise}
+                        className="gh-cta-button-secondary w-full px-6 py-3 rounded-lg text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {joiningEnterprise ? 'Joining...' : 'Join Enterprise'}
+                      </button>
+                    </div>
                   </div>
-                )}
-
-                <button
-                  onClick={handleAssignToProject}
-                  disabled={!selectedCompanyId || !selectedProjectId || assigningToProject}
-                  className="gh-cta-button w-full px-6 py-3 rounded-lg text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {assigningToProject ? 'Assigning...' : 'Join Project'}
-                </button>
-
-                <p className="text-sm text-slate-400 text-center">
-                  You'll be automatically assigned to this project and can start collaborating immediately.
-                </p>
+                </div>
               </div>
-            </div>
+            </>
           )}
 
           {hasEnterprises && hasAssignments && (
@@ -637,7 +680,137 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Join Enterprise Modal */}
+      {showJoinModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowJoinModal(false)}>
+          <div className="bg-[#1a2332] border border-white/10 rounded-lg p-8 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-white">Join Enterprise</h2>
+              <button
+                onClick={() => setShowJoinModal(false)}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {joinError && (
+              <div className="mb-4 text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-sm">
+                {joinError}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Enterprise Invite Code</label>
+                <input
+                  type="text"
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value)}
+                  placeholder="Enter invite code"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && inviteCode.trim()) {
+                      handleJoinEnterprise();
+                    }
+                  }}
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowJoinModal(false)}
+                  className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-slate-300 font-semibold hover:bg-white/10 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleJoinEnterprise}
+                  disabled={!inviteCode.trim() || joiningEnterprise}
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg text-white font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {joiningEnterprise ? 'Joining...' : 'Join Enterprise'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Enterprise Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowCreateModal(false)}>
+          <div className="bg-[#1a2332] border border-white/10 rounded-lg p-8 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-white">Create Enterprise</h2>
+              <button
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setEnterpriseName('');
+                  setCreateError('');
+                }}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {createError && (
+              <div className="mb-4 text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-sm">
+                {createError}
+              </div>
+            )}
+
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Enterprise Name <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={enterpriseName}
+                  onChange={(e) => setEnterpriseName(e.target.value)}
+                  placeholder="e.g., Acme Corporation"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && enterpriseName.trim()) {
+                      handleCreateEnterprise();
+                    }
+                  }}
+                  autoFocus
+                />
+              </div>
+
+              <button
+                onClick={handleCreateEnterprise}
+                disabled={!enterpriseName.trim() || creating}
+                className="gh-cta-button w-full px-6 py-3 rounded-lg text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {creating ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    Creating...
+                  </>
+                ) : (
+                  'Create Enterprise'
+                )}
+              </button>
+
+              <div className="border-t border-white/10 pt-4">
+                <p className="text-sm text-slate-400 text-center">
+                  After creating your enterprise, you'll be able to add companies, projects, and invite team members.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

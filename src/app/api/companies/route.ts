@@ -49,7 +49,7 @@ export async function GET() {
       id: c.id, 
       name: c.name, 
       inviteCode: c.invite_code, 
-      enterpriseId: c.enterprise_id || undefined 
+      enterpriseId: c.enterprise_id || undefined
     })) 
   });
 }
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
     id: company.id, 
     name: company.name, 
     inviteCode: company.invite_code, 
-    enterpriseId: company.enterprise_id || undefined 
+    enterpriseId: company.enterprise_id || undefined
   });
 }
 
@@ -138,7 +138,8 @@ export async function PUT(request: NextRequest) {
     id: company.id, 
     name: company.name, 
     inviteCode: company.invite_code, 
-    enterpriseId: company.enterprise_id || undefined 
+    enterpriseId: company.enterprise_id || undefined,
+    allocationMode: company.allocation_mode || 'auto'
   });
 }
 
