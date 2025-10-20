@@ -68,6 +68,30 @@ export async function POST(request: NextRequest) {
   if (!name || typeof name !== 'string') {
     return NextResponse.json({ error: 'Name required' }, { status: 400 });
   }
+  
+  // Check if user has permission to create companies in this enterprise
+  if (enterpriseId) {
+    const enterprise = await helpers.findOne<any>('enterprises', { id: enterpriseId });
+    if (!enterprise) {
+      return NextResponse.json({ error: 'Enterprise not found' }, { status: 404 });
+    }
+    
+    // Check if user is enterprise owner or has owner/admin role
+    const isEnterpriseOwner = enterprise.owner_user_id === userId;
+    const membership = await helpers.findOne<any>('enterprise_memberships', {
+      user_id: userId,
+      enterprise_id: enterpriseId
+    });
+    const hasPermission = isEnterpriseOwner || 
+                         membership?.role === 'owner' || 
+                         membership?.role === 'admin' || 
+                         membership?.role === 'company_admin';
+    
+    if (!hasPermission) {
+      return NextResponse.json({ error: 'Forbidden: You do not have permission to create companies in this enterprise' }, { status: 403 });
+    }
+  }
+  
   const now = new Date();
   const nowTs = dateToTimestamp(now);
   const company = {

@@ -291,3 +291,140 @@ This invitation will expire in 7 days. If you weren't expecting this invitation,
   });
 }
 
+export async function sendRoleAssignmentEmail(
+  email: string,
+  userName: string,
+  enterpriseName: string,
+  newRole: string,
+  oldRole: string,
+  assignedByName: string
+) {
+  const appUrl = getEnvVar('NEXTAUTH_URL') || getEnvVar('APP_URL') || 'http://localhost:3000';
+  const dashboardUrl = `${appUrl}/dashboard`;
+
+  const roleDescriptions: Record<string, string> = {
+    'owner': 'Full system access - You can manage everything in the enterprise',
+    'admin': 'Administrative access - You can manage most features',
+    'company_admin': 'Full access over company and related content',
+    'project_admin': 'Full access over specific projects',
+    'project_lead': 'Edit planner elements and move tasks (cannot edit locked tasks)',
+    'code_reviewer': 'Comment on task discussions',
+    'user': 'Standard user access',
+    'member': 'Standard member access',
+    'staff': 'Staff access'
+  };
+
+  const roleLabel = newRole.split('_').map(word => 
+    word.charAt(0).toUpperCase() + word.slice(1)
+  ).join(' ');
+
+  const description = roleDescriptions[newRole] || 'Standard access';
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Role Assignment Update</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: linear-gradient(135deg, #0f1729 0%, #1a2332 50%, #1e293b 100%);">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background-color: #1a2332; border-radius: 12px; padding: 40px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); border: 1px solid rgba(255, 255, 255, 0.1);">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="background: linear-gradient(90deg, #f97316 0%, #10b981 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin: 0; font-size: 32px; font-weight: 700;">Gh Planner</h1>
+      </div>
+      
+      <h2 style="color: #ffffff; margin: 0 0 20px 0; font-size: 24px; font-weight: 600;">
+        Hi ${userName}!
+      </h2>
+      
+      <p style="color: #cbd5e1; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
+        Your role in the <strong style="color: #f97316;">${enterpriseName}</strong> enterprise has been updated by ${assignedByName}.
+      </p>
+      
+      <div style="background-color: rgba(249, 115, 22, 0.1); border-left: 4px solid #f97316; padding: 16px; margin: 20px 0; border-radius: 4px;">
+        <div style="color: #94a3b8; font-size: 14px; margin-bottom: 8px;">New Role:</div>
+        <div style="color: #ffffff; font-size: 20px; font-weight: 600; margin-bottom: 8px;">${roleLabel}</div>
+        <div style="color: #cbd5e1; font-size: 14px;">${description}</div>
+      </div>
+      
+      ${oldRole !== newRole ? `
+      <p style="color: #94a3b8; font-size: 14px; line-height: 20px; margin: 20px 0;">
+        Previous role: <strong style="color: #cbd5e1;">${oldRole.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</strong>
+      </p>
+      ` : ''}
+      
+      <p style="color: #cbd5e1; font-size: 16px; line-height: 24px; margin: 20px 0;">
+        With this role, you now have the following permissions in ${enterpriseName}:
+      </p>
+      
+      <ul style="color: #cbd5e1; font-size: 14px; line-height: 24px; margin: 0 0 20px 20px;">
+        ${newRole === 'owner' || newRole === 'admin' || newRole === 'company_admin' ? `
+        <li>Access to the admin dashboard</li>
+        <li>Manage enterprise members</li>
+        <li>Manage companies and projects</li>
+        ` : ''}
+        ${newRole === 'project_admin' ? `
+        <li>Full control over assigned projects</li>
+        <li>Manage project settings and members</li>
+        ` : ''}
+        ${newRole === 'project_lead' ? `
+        <li>Edit planner elements</li>
+        <li>Move and organize tasks</li>
+        <li>Create and assign tasks</li>
+        ` : ''}
+        ${newRole === 'code_reviewer' ? `
+        <li>Comment on any task discussion</li>
+        <li>Review code changes</li>
+        ` : ''}
+        <li>Access to enterprise projects</li>
+      </ul>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${dashboardUrl}" 
+           style="display: inline-block; background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(249, 115, 22, 0.4);">
+          Go to Dashboard
+        </a>
+      </div>
+      
+      <hr style="border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 30px 0;">
+      
+      <p style="color: #94a3b8; font-size: 12px; line-height: 18px; margin: 0;">
+        If you have any questions about your new role or permissions, please contact ${assignedByName} or your enterprise administrator.
+      </p>
+    </div>
+    
+    <div style="text-align: center; margin-top: 20px; color: #94a3b8; font-size: 12px;">
+      <p style="margin: 0;">© ${new Date().getFullYear()} Gh Planner. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  const text = `
+Hi ${userName}!
+
+Your role in the ${enterpriseName} enterprise has been updated by ${assignedByName}.
+
+New Role: ${roleLabel}
+${description}
+
+${oldRole !== newRole ? `Previous role: ${oldRole.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}` : ''}
+
+Go to your dashboard: ${dashboardUrl}
+
+If you have any questions about your new role or permissions, please contact ${assignedByName} or your enterprise administrator.
+
+© ${new Date().getFullYear()} Gh Planner. All rights reserved.
+  `.trim();
+
+  await sendEmail({
+    to: email,
+    subject: `Your role in ${enterpriseName} has been updated`,
+    html,
+    text,
+  });
+}
+

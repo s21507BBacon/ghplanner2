@@ -26,6 +26,42 @@
     --radius: 0.5rem;
   }
 
+/* Global override while a mobile select is open (toggled by JS in LayoutWrapper) */
+@media (max-width: 767px) {
+  /* Temporarily disable transforms and fixed positioning that break dropdowns */
+  body.mobile-select-open {
+    overflow: visible !important;
+  }
+
+  /* Remove transforms and filters that create new stacking contexts */
+  body.mobile-select-open * {
+    transform: none !important;
+    filter: none !important;
+    -webkit-transform: none !important;
+    -webkit-filter: none !important;
+  }
+  
+  /* Convert fixed elements to absolute temporarily */
+  body.mobile-select-open .fixed,
+  body.mobile-select-open [class*="fixed"],
+  body.mobile-select-open nav,
+  body.mobile-select-open aside {
+    position: absolute !important;
+  }
+
+  /* Ensure the select has high z-index */
+  body.mobile-select-open select {
+    z-index: 2147483647 !important;
+  }
+
+  /* Remove overflow constraints that clip dropdowns */
+  body.mobile-select-open .overflow-hidden,
+  body.mobile-select-open .overflow-x-auto,
+  body.mobile-select-open .overflow-y-auto {
+    overflow: visible !important;
+  }
+}
+
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
@@ -55,6 +91,13 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  
+  /* Prevent horizontal overflow and white space on mobile */
+  html, body {
+    overflow-x: hidden;
+    width: 100%;
+    /* Avoid position: relative here to keep the viewport as the containing block for overlays */
   }
   
   /* Scale down the entire UI to 70% (50% + 20% closer in) */
@@ -92,10 +135,28 @@
   transition: all 0.3s ease;
 }
 
-.gh-feature-card:hover {
-  border-color: var(--gh-orange);
-  transform: translateY(-4px);
-  box-shadow: 0 12px 24px rgba(249, 115, 22, 0.2);
+/* Only apply hover transform on devices that support hover (avoid on touch/mobile) */
+@media (hover: hover) and (pointer: fine) {
+  .gh-feature-card:hover {
+    border-color: var(--gh-orange);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(249, 115, 22, 0.2);
+  }
+}
+
+/* Ensure no transform interferes with native dropdown positioning on mobile */
+@media (max-width: 767px) {
+  .gh-feature-card {
+    transform: none !important;
+  }
+}
+
+/* When any focusable element (e.g., select) inside a feature card is focused, disable transforms to avoid creating a new containing block that breaks native dropdown overlays on mobile */
+@supports selector(:has(*)) {
+  .gh-feature-card:has(:focus),
+  .gh-feature-card:has(:focus-within) {
+    transform: none !important;
+  }
 }
 
 .gh-icon-wrapper {
@@ -178,6 +239,21 @@
   }
 }
 
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out forwards;
+}
+
 .gh-code-block {
   background: rgba(15, 23, 41, 0.6);
   border: 1px solid rgba(249, 115, 22, 0.3);
@@ -202,5 +278,121 @@
   
   .scrollbar-hide::-webkit-scrollbar {
     display: none;  /* Chrome, Safari and Opera */
+  }
+}
+
+/* Custom styled scrollbars to match dark theme */
+/* Webkit browsers (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 41, 0.5);
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.6) 0%, rgba(234, 88, 12, 0.6) 100%);
+  border-radius: 6px;
+  border: 2px solid rgba(15, 23, 41, 0.5);
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.8) 0%, rgba(234, 88, 12, 0.8) 100%);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(135deg, var(--gh-orange) 0%, var(--gh-orange-dark) 100%);
+}
+
+::-webkit-scrollbar-corner {
+  background: rgba(15, 23, 41, 0.5);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(249, 115, 22, 0.6) rgba(15, 23, 41, 0.5);
+}
+
+/* Prevent any element from exceeding viewport width on mobile */
+* {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Reset max-width for elements that need to be wider */
+table, .overflow-x-auto, .overflow-x-auto * {
+  max-width: none;
+}
+
+/* Custom Select Dropdown Styling */
+select {
+  /* Custom dropdown arrow */
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23f97316' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1.25rem;
+  padding-right: 2.5rem !important;
+  cursor: pointer;
+}
+
+/* Hover state for select */
+select:hover {
+  border-color: rgba(249, 115, 22, 0.5) !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Focus state for select */
+select:focus {
+  border-color: #f97316 !important;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1) !important;
+  outline: none;
+}
+
+/* Style for select options - limited browser support but helps where available */
+select option {
+  background-color: #1a2332;
+  color: white;
+  padding: 0.75rem 1rem;
+  white-space: normal; /* allow wrapping */
+  word-break: break-word;
+}
+
+/* Mobile-specific select styling */
+@media (max-width: 767px) {
+  select {
+    /* Ensure touch target is large enough on mobile */
+    min-height: 44px;
+    font-size: 16px; /* Prevents iOS zoom on focus */
+    background-image: none; /* Use native arrow to avoid layout shifts */
+    padding-right: 1rem !important;
+  }
+  
+  /* Ensure select is above other content */
+  select:focus {
+    position: relative;
+    z-index: 1000;
+  }
+  
+  /* Remove transforms from parent containers when select is focused */
+  /* This ensures the native mobile dropdown appears in the correct position */
+  .gh-feature-card:has(select:focus),
+  div:has(select:focus) {
+    transform: none !important;
+    filter: none !important;
+    perspective: none !important;
+  }
+  
+  /* Ensure the select and its immediate parent maintain proper stacking */
+  select:focus,
+  select:focus + * {
+    isolation: isolate;
   }
 }

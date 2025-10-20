@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { Edit2, Trash2, X } from 'lucide-react';
 import AdminLayout from '@/components/AdminLayout';
+import MobileSelect from '@/components/MobileSelect';
 
 interface Enterprise { id: string; name: string; inviteCode: string; allocationMode?: string }
 interface Company { id: string; name: string; inviteCode: string; enterpriseId?: string }
@@ -381,15 +382,18 @@ export default function ProjectsPage() {
                 <label className="block text-sm font-medium text-slate-300 mb-2">
                   How should users be allocated to projects across this enterprise?
                 </label>
-                <select
+                <MobileSelect
                   value={enterprise.allocationMode || 'auto'}
-                  onChange={(e) => updateEnterpriseAllocation(e.target.value)}
+                  onChange={updateEnterpriseAllocation}
+                  options={[
+                    { value: 'auto', label: 'Auto Allocation - Users self-select projects until full' },
+                    { value: 'manual', label: 'Manual Allocation - Admin manually assigns users to projects' },
+                    { value: 'manual-preference', label: 'Manual with Preferences - Users submit preferences, admin assigns' }
+                  ]}
+                  placeholder="Select allocation mode"
+                  label="Enterprise Allocation Mode"
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
-                >
-                  <option value="auto" className="bg-[#1a2332]">Auto Allocation - Users self-select projects until full</option>
-                  <option value="manual" className="bg-[#1a2332]">Manual Allocation - Admin manually assigns users to projects</option>
-                  <option value="manual-preference" className="bg-[#1a2332]">Manual with Preferences - Users submit preferences, admin assigns</option>
-                </select>
+                />
                 <p className="text-xs text-slate-400 mt-2">This setting applies to all companies and projects in this enterprise</p>
               </div>
             </div>
@@ -399,16 +403,14 @@ export default function ProjectsPage() {
         <div className="gh-feature-card rounded-lg p-6">
           <div className="flex gap-4 items-center flex-wrap">
             <label className="text-sm font-medium text-slate-300">Company:</label>
-            <select 
-              value={selectedCompanyId} 
-              onChange={(e) => setSelectedCompanyId(e.target.value)} 
+            <MobileSelect
+              value={selectedCompanyId}
+              onChange={setSelectedCompanyId}
+              options={companies.map(c => ({ value: c.id, label: c.name }))}
+              placeholder="Select company"
+              label="Select Company"
               className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
-            >
-              <option value="" className="bg-[#1a2332]">Select company</option>
-              {companies.map(c => (
-                <option key={c.id} value={c.id} className="bg-[#1a2332]">{c.name}</option>
-              ))}
-            </select>
+            />
             {selectedCompany && (
               <>
                 <div className="text-sm text-slate-300 flex items-center gap-2">

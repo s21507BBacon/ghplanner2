@@ -4,11 +4,12 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { 
   ArrowLeft, Search, Users, Edit2, Trash2, Camera, 
-  TrendingUp, BarChart3, X
+  TrendingUp, BarChart3, X, Eye
 } from 'lucide-react';
 import Link from 'next/link';
 import AdminLayout from '@/components/AdminLayout';
 import Image from 'next/image';
+import MobileSelect from '@/components/MobileSelect';
 
 interface Member {
   userId: string;
@@ -101,6 +102,7 @@ export default function CompanyDetailPage() {
   }>({ name: '', email: '', role: '' });
   
   const [editingImage, setEditingImage] = useState<string | null>(null);
+  const [viewingMember, setViewingMember] = useState<Member | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const companyId = params?.companyId as string;
@@ -349,15 +351,18 @@ return (
           />
         </div>
         
-        <select
+        <MobileSelect
           value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as 'name' | 'activity' | 'recent')}
+          onChange={(value) => setSortBy(value as 'name' | 'activity' | 'recent')}
+          options={[
+            { value: 'name', label: 'Sort by Name' },
+            { value: 'activity', label: 'Sort by Activity Score' },
+            { value: 'recent', label: 'Sort by Recent Activity' }
+          ]}
+          placeholder="Sort by Name"
+          label="Sort Members"
           className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
-        >
-          <option value="name" className="bg-[#1a2332]">Sort by Name</option>
-          <option value="activity" className="bg-[#1a2332]">Sort by Activity Score</option>
-          <option value="recent" className="bg-[#1a2332]">Sort by Recent Activity</option>
-        </select>
+        />
       </div>
 
         {/* Projects Grid */}
@@ -387,47 +392,49 @@ return (
                 {sortedMembers.length === 0 ? (
                   <p className="text-slate-400 text-center py-8">No members found</p>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto -mx-4 md:mx-0">
+                    <div className="inline-block min-w-full align-middle">
+                      <div className="overflow-hidden">
                     <table className="w-full">
                       <thead>
                         <tr className="border-b border-white/10">
-                          <th className="text-left py-3 px-4 text-sm font-semibold text-slate-400">Member</th>
-                          <th className="text-left py-3 px-4 text-sm font-semibold text-slate-400">Email</th>
-                          <th className="text-left py-3 px-4 text-sm font-semibold text-slate-400">Role</th>
-                          <th className="text-left py-3 px-4 text-sm font-semibold text-slate-400">Status</th>
+                          <th className="text-left py-2 px-2 text-sm font-semibold text-slate-400">Member</th>
+                          <th className="hidden md:table-cell text-left py-3 px-4 text-sm font-semibold text-slate-400">Email</th>
+                          <th className="hidden md:table-cell text-left py-3 px-4 text-sm font-semibold text-slate-400">Role</th>
+                          <th className="hidden md:table-cell text-left py-3 px-4 text-sm font-semibold text-slate-400">Status</th>
                           {sortBy === 'activity' && (
-                            <th className="text-left py-3 px-4 text-sm font-semibold text-slate-400">
+                            <th className="hidden lg:table-cell text-left py-3 px-4 text-sm font-semibold text-slate-400">
                               <TrendingUp className="w-4 h-4 inline mr-1" />
                               Score
                             </th>
                           )}
                           {sortBy === 'recent' && (
-                            <th className="text-left py-3 px-4 text-sm font-semibold text-slate-400">Last Active</th>
+                            <th className="hidden lg:table-cell text-left py-3 px-4 text-sm font-semibold text-slate-400">Last Active</th>
                           )}
-                          <th className="text-left py-3 px-4 text-sm font-semibold text-slate-400">Actions</th>
+                          <th className="text-left py-2 px-1 text-sm font-semibold text-slate-400 w-12">View</th>
                         </tr>
                       </thead>
                       <tbody>
                         {sortedMembers.map((member, index) => (
                           <tr key={member.userId} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                            <td className="py-3 px-4">
-                              <div className="flex items-center gap-3">
+                            <td className="py-2 px-2">
+                              <div className="flex items-center gap-1 min-w-0">
                                 {sortBy === 'activity' && (
-                                  <span className="text-slate-400 font-mono text-sm w-6">
+                                  <span className="hidden md:inline text-slate-400 font-mono text-sm w-6">
                                     #{index + 1}
                                   </span>
                                 )}
-                                <div className="relative group">
+                                <div className="relative group flex-shrink-0">
                                   {member.imageUrl ? (
                                     <Image
                                       src={member.imageUrl}
                                       alt={member.name}
-                                      width={32}
-                                      height={32}
+                                      width={24}
+                                      height={24}
                                       className="rounded-full"
                                     />
                                   ) : (
-                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-pink-500 flex items-center justify-center text-white font-semibold text-sm">
+                                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-orange-500 to-pink-500 flex items-center justify-center text-white font-semibold text-xs">
                                       {member.name?.charAt(0).toUpperCase()}
                                     </div>
                                   )}
@@ -438,25 +445,27 @@ return (
                                     }}
                                     className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                                   >
-                                    <Camera className="w-4 h-4 text-white" />
+                                    <Camera className="w-2 h-2 text-white" />
                                   </button>
                                 </div>
-                                <span className="text-white font-medium">{member.name}</span>
+                                <div className="min-w-0 flex-1">
+                                  <span className="text-white font-medium text-xs truncate block">{member.name}</span>
+                                </div>
                               </div>
                             </td>
-                            <td className="py-3 px-4 text-slate-300">{member.email}</td>
-                            <td className="py-3 px-4">
+                            <td className="hidden md:table-cell py-3 px-4 text-slate-300">{member.email}</td>
+                            <td className="hidden md:table-cell py-3 px-4">
                               <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getRoleBadgeColor(member.role)}`}>
                                 {ROLE_OPTIONS.find(r => r.value === member.role)?.label || member.role}
                               </span>
                             </td>
-                            <td className="py-3 px-4">
+                            <td className="hidden md:table-cell py-3 px-4">
                               <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusBadgeColor(member.status)}`}>
                                 {member.status.charAt(0).toUpperCase() + member.status.slice(1)}
                               </span>
                             </td>
                             {sortBy === 'activity' && (
-                              <td className="py-3 px-4">
+                              <td className="hidden lg:table-cell py-3 px-4">
                                 <div className="flex items-center gap-2">
                                   <span className="text-orange-400 font-bold">
                                     {member.activity?.activityScore || 0}
@@ -468,34 +477,48 @@ return (
                               </td>
                             )}
                             {sortBy === 'recent' && (
-                              <td className="py-3 px-4 text-slate-300 text-sm">
+                              <td className="hidden lg:table-cell py-3 px-4 text-slate-300 text-sm">
                                 {member.activity?.lastActivityDate 
                                   ? new Date(member.activity.lastActivityDate).toLocaleDateString()
                                   : 'Never'}
                               </td>
                             )}
-                            <td className="py-3 px-4">
-                              <div className="flex items-center gap-2">
+                            <td className="py-2 px-1">
+                              <div className="flex items-center justify-center">
+                                {/* View button - always visible on mobile, hidden on desktop */}
                                 <button
-                                  onClick={() => openEditModal(member)}
-                                  className="p-1 text-slate-400 hover:text-white transition-colors"
-                                  title="Edit"
+                                  onClick={() => setViewingMember(member)}
+                                  className="md:hidden p-0.5 text-slate-400 hover:text-white transition-colors"
+                                  title="View Details"
                                 >
-                                  <Edit2 className="w-4 h-4" />
+                                  <Eye className="w-4 h-4" />
                                 </button>
-                                <button
-                                  onClick={() => handleRemoveMember(member.assignmentId, member.name)}
-                                  className="p-1 text-slate-400 hover:text-red-400 transition-colors"
-                                  title="Remove from project"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                
+                                {/* Desktop action buttons */}
+                                <div className="hidden md:flex items-center gap-1">
+                                  <button
+                                    onClick={() => openEditModal(member)}
+                                    className="p-1 text-slate-400 hover:text-white transition-colors"
+                                    title="Edit"
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleRemoveMember(member.assignmentId, member.name)}
+                                    className="p-1 text-slate-400 hover:text-red-400 transition-colors"
+                                    title="Remove from project"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </div>
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -585,6 +608,130 @@ return (
                   className="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white hover:bg-white/10 transition-colors"
                 >
                   Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Member Modal */}
+      {viewingMember && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a2332] border border-white/10 rounded-lg w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-white/10 sticky top-0 bg-[#1a2332] z-10">
+              <h3 className="text-xl font-semibold text-white">Member Details</h3>
+              <button 
+                onClick={() => setViewingMember(null)}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* User Profile */}
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  {viewingMember.imageUrl ? (
+                    <Image
+                      src={viewingMember.imageUrl}
+                      alt={viewingMember.name}
+                      width={64}
+                      height={64}
+                      className="rounded-full"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-orange-500 to-pink-500 flex items-center justify-center text-white font-semibold text-xl">
+                      {viewingMember.name?.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <h4 className="text-xl font-semibold text-white">{viewingMember.name}</h4>
+                  <p className="text-slate-300">{viewingMember.email}</p>
+                  <p className="text-sm text-slate-400">@{viewingMember.username}</p>
+                </div>
+              </div>
+
+              {/* Status and Role */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Status</label>
+                  <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium border ${getStatusBadgeColor(viewingMember.status)}`}>
+                    {viewingMember.status.charAt(0).toUpperCase() + viewingMember.status.slice(1)}
+                  </span>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Role</label>
+                  <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium border ${getRoleBadgeColor(viewingMember.role)}`}>
+                    {ROLE_OPTIONS.find(r => r.value === viewingMember.role)?.label || viewingMember.role}
+                  </span>
+                </div>
+              </div>
+
+              {/* Activity Stats */}
+              {viewingMember.activity && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-3">Activity Statistics</label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div className="bg-white/5 rounded-lg p-3">
+                      <div className="text-2xl font-bold text-orange-400">{viewingMember.activity.activityScore || 0}</div>
+                      <div className="text-xs text-slate-400">Activity Score</div>
+                    </div>
+                    <div className="bg-white/5 rounded-lg p-3">
+                      <div className="text-2xl font-bold text-green-400">{viewingMember.activity.tasksCompleted || 0}</div>
+                      <div className="text-xs text-slate-400">Tasks Completed</div>
+                    </div>
+                    <div className="bg-white/5 rounded-lg p-3">
+                      <div className="text-2xl font-bold text-blue-400">{viewingMember.activity.commentsCount || 0}</div>
+                      <div className="text-xs text-slate-400">Comments</div>
+                    </div>
+                    <div className="bg-white/5 rounded-lg p-3">
+                      <div className="text-2xl font-bold text-purple-400">{viewingMember.activity.tasksCreated || 0}</div>
+                      <div className="text-xs text-slate-400">Tasks Created</div>
+                    </div>
+                    <div className="bg-white/5 rounded-lg p-3">
+                      <div className="text-2xl font-bold text-yellow-400">{viewingMember.activity.tasksAssigned || 0}</div>
+                      <div className="text-xs text-slate-400">Tasks Assigned</div>
+                    </div>
+                    <div className="bg-white/5 rounded-lg p-3">
+                      <div className="text-2xl font-bold text-cyan-400">{viewingMember.activity.taskUpdates || 0}</div>
+                      <div className="text-xs text-slate-400">Task Updates</div>
+                    </div>
+                  </div>
+                  {viewingMember.activity.lastActivityDate && (
+                    <div className="mt-3">
+                      <label className="block text-sm font-medium text-slate-300 mb-1">Last Active</label>
+                      <p className="text-slate-400">{new Date(viewingMember.activity.lastActivityDate).toLocaleDateString()}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4 border-t border-white/10">
+                <button
+                  onClick={() => {
+                    setViewingMember(null);
+                    openEditModal(viewingMember);
+                  }}
+                  className="flex-1 gh-cta-button px-4 py-3 rounded-lg text-white font-semibold flex items-center justify-center gap-2"
+                >
+                  <Edit2 className="w-4 h-4" />
+                  Edit Member
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm(`Remove ${viewingMember.name} from this project?`)) {
+                      handleRemoveMember(viewingMember.assignmentId, viewingMember.name);
+                      setViewingMember(null);
+                    }
+                  }}
+                  className="px-4 py-3 bg-red-500/20 border border-red-500/30 text-red-300 rounded-lg hover:bg-red-500/30 transition-colors font-medium flex items-center justify-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Remove
                 </button>
               </div>
             </div>

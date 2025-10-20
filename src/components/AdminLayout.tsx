@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useSession, signOut } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import { useRouter, usePathname } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import {
   ChevronRight,
-  LogOut,
   Building2,
   LayoutDashboard,
   FolderKanban,
@@ -44,8 +43,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Removed unused selectedCompanyId
   const [loading, setLoading] = useState(true);
   // Removed unused showUserMenu
-  const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('sidebarOpen');
+      return stored !== null ? stored === 'true' : true;
+    }
+    return true;
+  });
   const [expandedSidebarCompany, setExpandedSidebarCompany] = useState<string | null>(null);
   const [showCreateEnterpriseModal, setShowCreateEnterpriseModal] = useState(false);
   const [newEnterpriseName, setNewEnterpriseName] = useState('');
@@ -74,6 +78,52 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [session]);
 
+  useEffect(() => {
+    // Mobile dropdown positioning fix
+    const isMobile = window.innerWidth < 768;
+    if (!isMobile) return;
+
+    const handleSelectFocus = (e: FocusEvent) => {
+      const select = e.target as HTMLSelectElement;
+      if (select.tagName !== 'SELECT') return;
+      
+      // Add class for CSS overrides
+      document.body.classList.add('mobile-select-open');
+      
+      // Force iOS to recalculate position by scrolling element into view
+      setTimeout(() => {
+        select.scrollIntoView({ 
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'nearest' 
+        });
+        
+        // Additional hack: temporarily change and restore the select size
+        const originalSize = select.size;
+        select.size = 2;
+        setTimeout(() => {
+          select.size = originalSize || 0;
+        }, 0);
+      }, 100);
+    };
+
+    const handleSelectBlur = (e: FocusEvent) => {
+      const select = e.target as HTMLSelectElement;
+      if (select.tagName !== 'SELECT') return;
+      document.body.classList.remove('mobile-select-open');
+    };
+
+    // Use capture phase to catch events before they bubble
+    document.addEventListener('focus', handleSelectFocus, true);
+    document.addEventListener('blur', handleSelectBlur, true);
+    
+    return () => {
+      document.removeEventListener('focus', handleSelectFocus, true);
+      document.removeEventListener('blur', handleSelectBlur, true);
+      document.body.classList.remove('mobile-select-open');
+    };
+  }, []);
+
   // Save selected enterprise to localStorage and notify other components
   useEffect(() => {
     if (selectedEnterpriseId) {
@@ -82,6 +132,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       window.dispatchEvent(new Event('enterpriseChanged'));
     }
   }, [selectedEnterpriseId]);
+
+  // Save sidebar state to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sidebarOpen', sidebarOpen.toString());
+    }
+  }, [sidebarOpen]);
 
   // Listen for external enterprise selection changes (from Navigation)
   useEffect(() => {
@@ -194,9 +251,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   };
 
-  const handleSignOut = async () => {
-    await signOut({ callbackUrl: '/' });
-  };
 
   const handleCreateEnterprise = async () => {
     if (!newEnterpriseName.trim()) return;
@@ -232,7 +286,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const handleProjectClick = (companyId: string, projectId: string) => {
     router.push(`/planner?companyId=${companyId}&projectId=${projectId}`);
-    setShowMobileMenu(false);
   };
 
   const toggleSidebarCompany = (companyId: string) => {
@@ -268,6 +321,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
     };
     updateRole();
+    
+    // Listen for role changes
+    const handleRoleChange = () => {
+      updateRole();
+    };
+    
+    if (typeof window !== 'undefined') {
+      window.addEventListener('roleChanged', handleRoleChange);
+    }
+    
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('roleChanged', handleRoleChange);
+      }
+    };
   }, [selectedEnterpriseId, enterprises, session]);
   
   // Check if user is owner or admin of the selected enterprise
@@ -298,152 +366,32 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (!(session as any)?.userId) return null;
 
   return (
-    <div className="min-h-screen gh-hero-gradient">
+    <div className="min-h-screen gh-hero-gradient w-full">
       {/* Unified Top Navigation */}
       <Navigation />
 
-      {/* Mobile sidebar toggle (admin drawer) */}
-      <button
-        onClick={() => setShowMobileMenu(!showMobileMenu)}
-        className="md:hidden fixed top-24 left-4 z-40 p-2 rounded-lg bg-[#0f1729] border border-white/10 text-slate-300 hover:text-white"
-        aria-label="Toggle admin menu"
-      >
-        {showMobileMenu ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-      </button>
 
-      {/* Mobile Menu */}
-      {showMobileMenu && (
-        <div className="md:hidden fixed top-24 left-0 right-0 bg-[#1a2332] border-b border-white/10 z-40 max-h-[calc(100vh-6rem)] overflow-y-auto">
-          <div className="px-4 py-4 space-y-4">
-            {/* Mobile Enterprise Selector (Only for owners/admins) */}
-            {isOwnerOrAdmin && (
-            <div>
-              <label className="text-xs text-slate-400 mb-1 block">Enterprise</label>
-              <select
-                value={selectedEnterpriseId}
-                onChange={(e) => {
-                  if (e.target.value === '__create_new__') {
-                    setShowCreateEnterpriseModal(true);
-                    setShowMobileMenu(false);
-                    return;
-                  }
-                  setSelectedEnterpriseId(e.target.value);
-                  // Companies will be loaded in contexts that need them
-                }}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-              >
-                {enterprises.length > 0 ? (
-                  <>
-                    {enterprises.map((enterprise) => (
-                      <option key={enterprise.id} value={enterprise.id}>
-                        {enterprise.name}
-                      </option>
-                    ))}
-                    <option value="__create_new__" className="bg-[#1a2332] text-orange-400">+ Create New Enterprise</option>
-                  </>
-                ) : (
-                  <>
-                    <option>No enterprises</option>
-                    <option value="__create_new__" className="bg-[#1a2332] text-orange-400">+ Create New Enterprise</option>
-                  </>
-                )}
-              </select>
-            </div>
-            )}
-
-            {/* Mobile Navigation Links (Only for owners/admins) */}
-            {isOwnerOrAdmin && (
-            <div className="border-t border-white/10 pt-4 space-y-2">
-              <div className="text-xs font-semibold text-slate-400 uppercase px-3 mb-2">
-                Management
-              </div>
-              
-              <a
-                href="/dashboard"
-                onClick={() => setShowMobileMenu(false)}
-                className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
-                  pathname === '/dashboard'
-                    ? 'bg-orange-500/10 text-orange-400'
-                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
-                }`}
-              >
-                <LayoutDashboard className="w-4 h-4 mr-3" />
-                Dashboard
-              </a>
-
-              <a
-                href="/dashboard/members"
-                onClick={() => setShowMobileMenu(false)}
-                className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
-                  pathname === '/dashboard/members'
-                    ? 'bg-orange-500/10 text-orange-400'
-                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
-                }`}
-              >
-                <Users className="w-4 h-4 mr-3" />
-                Members
-              </a>
-
-              <a
-                href="/companies"
-                onClick={() => setShowMobileMenu(false)}
-                className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
-                  pathname === '/companies' || pathname?.startsWith('/companies/')
-                    ? 'bg-orange-500/10 text-orange-400'
-                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
-                }`}
-              >
-                <Building2 className="w-4 h-4 mr-3" />
-                Companies
-              </a>
-
-              <a
-                href="/dashboard/projects"
-                onClick={() => setShowMobileMenu(false)}
-                className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
-                  pathname === '/dashboard/projects'
-                    ? 'bg-orange-500/10 text-orange-400'
-                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
-                }`}
-              >
-                <FolderKanban className="w-4 h-4 mr-3" />
-                Projects
-              </a>
-            </div>
-            )}
-
-            <div className="border-t border-white/10 my-4"></div>
-
-              <button
-                onClick={handleSignOut}
-                className="flex items-center w-full px-3 py-2 text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white rounded-lg"
-              >
-                <LogOut className="w-4 h-4 mr-3" />
-                Sign Out
-              </button>
-          </div>
-        </div>
-      )}
 
       {/* Main Container with Sidebar */}
-      <div className="flex pt-24">
+      <div className="flex pt-24 min-h-screen">
         {/* Left Sidebar */}
-        <aside className={`hidden md:block ${sidebarOpen ? 'w-80' : 'w-16'} fixed left-0 top-24 bottom-0 bg-[#0f1729] border-r border-white/10 overflow-y-auto overflow-x-hidden transition-all duration-200`} style={{ fontSize: '1.1rem' }}>
-          <div className="p-4 space-y-2">
-            <div className="hidden md:flex justify-end mb-2">
+        <aside className={`${sidebarOpen ? 'w-80' : 'w-20'} fixed left-0 top-24 bottom-0 bg-[#0f1729] border-r border-white/10 overflow-y-auto overflow-x-hidden transition-all duration-200 z-20`} style={{ fontSize: '1.1rem' }}>
+          <div className={`${sidebarOpen ? 'p-4' : 'py-4 px-2'} space-y-2`}>
+            <div className="flex justify-center mb-4">
               <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white/5 border border-white/10 text-slate-300 hover:text-white"
-                aria-label="Collapse sidebar"
+                className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white/5 border border-white/10 text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+                aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+                title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
               >
                 <Menu className="w-4 h-4" />
               </button>
             </div>
             {/* Management Section (Only for owners/admins) */}
             {isOwnerOrAdmin && (
-            <div className="space-y-1">
+            <div className={`${sidebarOpen ? 'space-y-1' : 'space-y-2'}`}>
               {sidebarOpen && (
-              <div className="text-sm font-semibold text-slate-400 uppercase px-4 mb-3 whitespace-nowrap">
+              <div className="text-xs font-semibold text-slate-400 uppercase px-4 mb-3 whitespace-nowrap tracking-wider">
                 Management
               </div>
               )}
@@ -451,68 +399,70 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               {/* Dashboard */}
               <a
                 href="/dashboard"
-                className={`flex items-center ${sidebarOpen ? 'px-4' : 'px-2 justify-center'} py-3 text-base font-medium rounded-lg transition-colors ${
+                className={`flex items-center ${sidebarOpen ? 'px-4 py-3' : 'justify-center py-3 mx-2'} text-base font-medium rounded-lg transition-all group relative ${
                   pathname === '/dashboard'
-                    ? 'bg-orange-500/10 text-orange-400'
-                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                    ? 'bg-orange-500/10 text-orange-400 border-l-2 border-orange-400'
+                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
                 title={!sidebarOpen ? 'Dashboard' : ''}
               >
-                <LayoutDashboard className={`w-5 h-5 ${sidebarOpen ? 'mr-3' : ''}`} />
+                <LayoutDashboard className={`${sidebarOpen ? 'w-5 h-5 mr-3' : 'w-6 h-6'} transition-all`} />
                 {sidebarOpen && 'Dashboard'}
               </a>
 
               {/* Members */}
               <a
                 href="/dashboard/members"
-                className={`flex items-center ${sidebarOpen ? 'px-4' : 'px-2 justify-center'} py-3 text-base font-medium rounded-lg transition-colors ${
+                className={`flex items-center ${sidebarOpen ? 'px-4 py-3' : 'justify-center py-3 mx-2'} text-base font-medium rounded-lg transition-all group relative ${
                   pathname === '/dashboard/members'
-                    ? 'bg-orange-500/10 text-orange-400'
-                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                    ? 'bg-orange-500/10 text-orange-400 border-l-2 border-orange-400'
+                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
                 title={!sidebarOpen ? 'Members' : ''}
               >
-                <Users className={`w-5 h-5 ${sidebarOpen ? 'mr-3' : ''}`} />
+                <Users className={`${sidebarOpen ? 'w-5 h-5 mr-3' : 'w-6 h-6'} transition-all`} />
                 {sidebarOpen && 'Members'}
               </a>
 
               {/* Companies */}
               <a
                 href="/companies"
-                className={`flex items-center ${sidebarOpen ? 'px-4' : 'px-2 justify-center'} py-3 text-base font-medium rounded-lg transition-colors ${
+                className={`flex items-center ${sidebarOpen ? 'px-4 py-3' : 'justify-center py-3 mx-2'} text-base font-medium rounded-lg transition-all group relative ${
                   pathname === '/companies' || pathname?.startsWith('/companies/')
-                    ? 'bg-orange-500/10 text-orange-400'
-                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                    ? 'bg-orange-500/10 text-orange-400 border-l-2 border-orange-400'
+                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
                 title={!sidebarOpen ? 'Companies' : ''}
               >
-                <Building2 className={`w-5 h-5 ${sidebarOpen ? 'mr-3' : ''}`} />
+                <Building2 className={`${sidebarOpen ? 'w-5 h-5 mr-3' : 'w-6 h-6'} transition-all`} />
                 {sidebarOpen && 'Companies'}
               </a>
 
               {/* Projects */}
               <a
                 href="/dashboard/projects"
-                className={`flex items-center ${sidebarOpen ? 'px-4' : 'px-2 justify-center'} py-3 text-base font-medium rounded-lg transition-colors ${
+                className={`flex items-center ${sidebarOpen ? 'px-4 py-3' : 'justify-center py-3 mx-2'} text-base font-medium rounded-lg transition-all group relative ${
                   pathname === '/dashboard/projects'
-                    ? 'bg-orange-500/10 text-orange-400'
-                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                    ? 'bg-orange-500/10 text-orange-400 border-l-2 border-orange-400'
+                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
                 title={!sidebarOpen ? 'Projects' : ''}
               >
-                <FolderKanban className={`w-5 h-5 ${sidebarOpen ? 'mr-3' : ''}`} />
+                <FolderKanban className={`${sidebarOpen ? 'w-5 h-5 mr-3' : 'w-6 h-6'} transition-all`} />
                 {sidebarOpen && 'Projects'}
               </a>
             </div>
             )}
 
             {/* Divider */}
-            {isOwnerOrAdmin && sidebarOpen && <div className="border-t border-white/10 my-4"></div>}
+            {isOwnerOrAdmin && (
+              <div className={`${sidebarOpen ? 'border-t border-white/10 my-4' : 'border-t border-white/5 my-3'}`}></div>
+            )}
 
             {/* Company & Project Boards Section - Only show when expanded */}
             {sidebarOpen && (
             <div className="space-y-1">
-              <div className="text-sm font-semibold text-slate-400 uppercase px-4 mb-3 whitespace-nowrap">
+              <div className="text-xs font-semibold text-slate-400 uppercase px-4 mb-3 whitespace-nowrap tracking-wider">
                 Company & Project Boards
               </div>
 
@@ -565,7 +515,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </aside>
 
         {/* Main Content Area */}
-        <main className={`flex-1 ${sidebarOpen ? 'md:ml-80' : 'md:ml-16'} transition-all duration-200`}>
+        <main className={`flex-1 ${sidebarOpen ? 'ml-80' : 'ml-20'} transition-all duration-200`}>
           {children}
         </main>
       </div>

@@ -31,6 +31,8 @@ export default function Navigation() {
   const [enterprises, setEnterprises] = useState<Array<{ id: string; name: string }>>([]);
   const [selectedEnterpriseId, setSelectedEnterpriseId] = useState<string>('');
   const [showEnterpriseMenu, setShowEnterpriseMenu] = useState(false);
+  const [enterpriseMenuPosition, setEnterpriseMenuPosition] = useState({ top: 0, left: 0 });
+  const [isMobile, setIsMobile] = useState(false);
 
   // Refs for click-outside detection
   const companiesRef = useRef<HTMLDivElement>(null);
@@ -104,6 +106,16 @@ export default function Navigation() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showCompanies, showUserMenu, showMobileMenu, showEnterpriseMenu]);
+
+  // Check if mobile on mount and resize
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Sync selectedEnterpriseId if changed elsewhere
   useEffect(() => {
@@ -215,68 +227,129 @@ export default function Navigation() {
             </div>
             
             
-            {/* Enterprise Dropdown next to logo */}
-            {(session as any)?.userId && enterprises.length > 0 && (
+            {/* Enterprise Dropdown next to logo - Hidden on planner page */}
+            {(session as any)?.userId && enterprises.length > 0 && pathname !== '/planner' && (
               <>
-                <span className="text-3xl font-bold text-white mx-3">/</span>
+                <span className="text-xl sm:text-2xl md:text-3xl font-bold text-white mx-2 sm:mx-3">/</span>
                 <div className="relative" ref={enterpriseMenuRef}>
                   <button
-                    onClick={() => setShowEnterpriseMenu(!showEnterpriseMenu)}
-                    className="flex items-center gap-2 text-3xl font-bold bg-gradient-to-r from-orange-500 to-green-500 bg-clip-text text-transparent hover:opacity-80 transition-opacity focus:outline-none"
+                    onClick={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setEnterpriseMenuPosition({ top: rect.bottom + 8, left: rect.left });
+                      setShowEnterpriseMenu(!showEnterpriseMenu);
+                    }}
+                    className="flex items-center gap-2 text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r from-orange-500 to-green-500 bg-clip-text text-transparent hover:opacity-80 transition-opacity focus:outline-none"
                   >
-                    <span>{enterprises.find(e => e.id === selectedEnterpriseId)?.name || 'Enterprise'}</span>
-                    <ChevronDown className="w-8 h-8 text-slate-300" />
+                    <span className="truncate max-w-[150px] sm:max-w-none">{enterprises.find(e => e.id === selectedEnterpriseId)?.name || 'Enterprise'}</span>
+                    <ChevronDown className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-slate-300 flex-shrink-0" />
                   </button>
 
                   {showEnterpriseMenu && (
-                    <div className="absolute left-0 mt-2 w-80 bg-[#1a2332] rounded-md shadow-xl py-2 z-[100] overflow-hidden">
-                      <div className="px-4 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                        Enterprises
-                      </div>
-                      <div className="max-h-80 overflow-y-auto">
-                        {enterprises.map((ent) => (
-                          <button
-                            key={ent.id}
-                            onClick={() => {
-                              setSelectedEnterpriseId(ent.id);
-                              if (typeof window !== 'undefined') {
-                                localStorage.setItem('selectedEnterpriseId', ent.id);
-                                window.dispatchEvent(new Event('enterpriseChanged'));
-                              }
-                              setShowEnterpriseMenu(false);
-                            }}
-                            className="w-full flex items-center justify-between px-4 py-2.5 text-base text-white hover:bg-white/5 transition-colors"
-                          >
-                            <span className="font-medium">{ent.name}</span>
-                            {selectedEnterpriseId === ent.id && (
-                              <svg className="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                      <div className="border-t border-white/10 mt-2">
-                        <a
-                          href="/dashboard?action=create"
-                          onClick={() => setShowEnterpriseMenu(false)}
-                          className="w-full flex items-center gap-3 px-4 py-3 text-base text-white hover:bg-white/5 transition-colors"
+                    isMobile ? (
+                      <div className="fixed inset-0 z-[1000]" onClick={() => setShowEnterpriseMenu(false)}>
+                        <div
+                          className="absolute left-2 right-2 bg-[#1a2332] border border-white/10 rounded-md shadow-xl py-2"
+                          style={{ top: `${enterpriseMenuPosition.top}px` }}
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          <div className="w-5 h-5 rounded-full border border-white/30 flex items-center justify-center">
-                            <span className="text-white text-sm">+</span>
+                          <div className="px-4 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                            Enterprises
                           </div>
-                          <span className="font-medium">Create enterprise</span>
-                        </a>
-                        <a
-                          href="/dashboard?action=join"
-                          onClick={() => setShowEnterpriseMenu(false)}
-                          className="w-full flex items-center gap-3 px-4 py-3 text-base text-white hover:bg-white/5 transition-colors"
-                        >
-                          <Building2 className="w-5 h-5" />
-                          <span className="font-medium">Join enterprise</span>
-                        </a>
+                          <div className="max-h-60 overflow-y-auto">
+                            {enterprises.map((ent) => (
+                              <button
+                                key={ent.id}
+                                onClick={() => {
+                                  setSelectedEnterpriseId(ent.id);
+                                  if (typeof window !== 'undefined') {
+                                    localStorage.setItem('selectedEnterpriseId', ent.id);
+                                    window.dispatchEvent(new Event('enterpriseChanged'));
+                                  }
+                                  setShowEnterpriseMenu(false);
+                                }}
+                                className="w-full flex items-center justify-between px-4 py-2.5 text-base text-white hover:bg-white/5 transition-colors"
+                              >
+                                <span className="font-medium truncate pr-2">{ent.name}</span>
+                                {selectedEnterpriseId === ent.id && (
+                                  <svg className="w-4 h-4 text-orange-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="border-t border-white/10 mt-2">
+                            <a
+                              href="/dashboard?action=create"
+                              onClick={() => setShowEnterpriseMenu(false)}
+                              className="w-full flex items-center gap-3 px-4 py-3 text-base text-white hover:bg-white/5 transition-colors"
+                            >
+                              <div className="w-5 h-5 rounded-full border border-white/30 flex items-center justify-center flex-shrink-0">
+                                <span className="text-white text-sm">+</span>
+                              </div>
+                              <span className="font-medium truncate">Create enterprise</span>
+                            </a>
+                            <a
+                              href="/dashboard?action=join"
+                              onClick={() => setShowEnterpriseMenu(false)}
+                              className="w-full flex items-center gap-3 px-4 py-3 text-base text-white hover:bg-white/5 transition-colors"
+                            >
+                              <Building2 className="w-5 h-5 flex-shrink-0" />
+                              <span className="font-medium truncate">Join enterprise</span>
+                            </a>
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="absolute left-0 mt-2 w-80 bg-[#1a2332] border border-white/10 rounded-md shadow-xl py-2 z-[200]">
+                        <div className="px-4 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                          Enterprises
+                        </div>
+                        <div className="max-h-60 overflow-y-auto">
+                          {enterprises.map((ent) => (
+                            <button
+                              key={ent.id}
+                              onClick={() => {
+                                setSelectedEnterpriseId(ent.id);
+                                if (typeof window !== 'undefined') {
+                                  localStorage.setItem('selectedEnterpriseId', ent.id);
+                                  window.dispatchEvent(new Event('enterpriseChanged'));
+                                }
+                                setShowEnterpriseMenu(false);
+                              }}
+                              className="w-full flex items-center justify-between px-4 py-2.5 text-base text-white hover:bg-white/5 transition-colors"
+                            >
+                              <span className="font-medium truncate pr-2">{ent.name}</span>
+                              {selectedEnterpriseId === ent.id && (
+                                <svg className="w-4 h-4 text-orange-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="border-t border-white/10 mt-2">
+                          <a
+                            href="/dashboard?action=create"
+                            onClick={() => setShowEnterpriseMenu(false)}
+                            className="w-full flex items-center gap-3 px-4 py-3 text-base text-white hover:bg-white/5 transition-colors"
+                          >
+                            <div className="w-5 h-5 rounded-full border border-white/30 flex items-center justify-center flex-shrink-0">
+                              <span className="text-white text-sm">+</span>
+                            </div>
+                            <span className="font-medium truncate">Create enterprise</span>
+                          </a>
+                          <a
+                            href="/dashboard?action=join"
+                            onClick={() => setShowEnterpriseMenu(false)}
+                            className="w-full flex items-center gap-3 px-4 py-3 text-base text-white hover:bg-white/5 transition-colors"
+                          >
+                            <Building2 className="w-5 h-5 flex-shrink-0" />
+                            <span className="font-medium truncate">Join enterprise</span>
+                          </a>
+                        </div>
+                      </div>
+                    )
                   )}
                 </div>
               </>
@@ -326,7 +399,7 @@ export default function Navigation() {
                     </button>
 
                     {showCompanies && (
-                      <div className="absolute right-0 mt-3 w-120 bg-[#1a2332] rounded-md shadow-lg border border-white/10 py-2 z-[100] max-h-144 overflow-y-auto">
+                      <div className="absolute right-0 mt-3 w-120 bg-[#1a2332] rounded-md shadow-lg border border-white/10 py-2 z-[200] max-h-144 overflow-y-auto">
                         {loading ? (
                           <div className="px-6 py-3 text-xl text-slate-400">Loading...</div>
                         ) : companies.length > 0 ? (
@@ -394,8 +467,8 @@ export default function Navigation() {
                   </div>
                 </div>
 
-                {/* User Menu */}
-                <div className="relative" ref={userMenuRef}>
+                {/* User Menu - Desktop Only */}
+                <div className="hidden md:block relative" ref={userMenuRef}>
                   <button
                     onClick={() => setShowUserMenu(!showUserMenu)}
                     className="flex items-center text-2xl font-medium text-slate-300 hover:text-white focus:outline-none"
@@ -406,7 +479,7 @@ export default function Navigation() {
                   </button>
 
                   {showUserMenu && (
-                    <div className="absolute right-0 mt-3 w-72 bg-[#1a2332] rounded-md shadow-lg border border-white/10 py-2 z-[100]">
+                    <div className="absolute right-0 mt-3 w-72 bg-[#1a2332] rounded-md shadow-lg border border-white/10 py-2 z-[200]">
                       <a
                         href="/settings"
                         onClick={() => setShowUserMenu(false)}
@@ -442,7 +515,7 @@ export default function Navigation() {
         {showMobileMenu && (
           <div className="md:hidden border-t border-white/10 py-3">
             {/* Home Page Mobile Auth Buttons */}
-            {isHomePage && !session?.userId && (
+            {isHomePage && !(session as any)?.userId && (
               <div className="px-6 py-3 space-y-3">
                 <a
                   href="/signin"
@@ -462,7 +535,7 @@ export default function Navigation() {
             )}
 
             {/* Authenticated User Mobile Menu */}
-            {session?.userId && (
+            {(session as any)?.userId && (
               <>
                 <a
                   href="/dashboard"
@@ -539,6 +612,29 @@ export default function Navigation() {
                       </div>
                     </>
                   )}
+                </div>
+                
+                {/* User Menu in Mobile */}
+                <div className="border-t border-white/10 mt-3 pt-3">
+                  <div className="px-6 py-3 text-lg font-semibold text-slate-400 uppercase">Account</div>
+                  <a
+                    href="/settings"
+                    onClick={() => setShowMobileMenu(false)}
+                    className="flex items-center px-6 py-3 text-xl text-slate-300 hover:bg-white/5 hover:text-white"
+                  >
+                    <Settings className="w-6 h-6 mr-3" />
+                    Settings
+                  </a>
+                  <button
+                    onClick={() => {
+                      handleSignOut();
+                      setShowMobileMenu(false);
+                    }}
+                    className="flex items-center w-full px-6 py-3 text-xl text-slate-300 hover:bg-white/5 hover:text-white"
+                  >
+                    <LogOut className="w-6 h-6 mr-3" />
+                    Sign Out
+                  </button>
                 </div>
               </>
             )}
