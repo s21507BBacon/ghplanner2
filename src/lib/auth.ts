@@ -5,13 +5,19 @@ import { getDatabase } from './database';
 import { DbHelpers, dateToTimestamp } from './db';
 import * as webCryptoJwt from './jwt-web-crypto';
 
+// Validate required environment variables
+const secret = process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET;
+if (!secret && process.env.NODE_ENV === 'production') {
+  console.error('[AUTH] CRITICAL: NEXTAUTH_SECRET is not set in production environment');
+}
+
 export const authOptions: NextAuthOptions = {
   // Don't use adapter with JWT strategy - causes Node.js crypto issues in Cloudflare Workers
   session: { 
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
-  secret: process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET,
+  secret,
   pages: {
     signIn: '/signin',
   },

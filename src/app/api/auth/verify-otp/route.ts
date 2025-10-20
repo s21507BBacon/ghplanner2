@@ -2,11 +2,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/database';
 import { DbHelpers, dateToTimestamp, timestampToDate } from '@/lib/db';
 
+// Force dynamic rendering for Cloudflare Workers
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 const MAX_OTP_ATTEMPTS = 5;
 
 export async function POST(request: NextRequest) {
   try {
     console.log('[VERIFY-OTP] Request received');
+    
+    // Check for required environment variables
+    if (!process.env.DATABASE_URL && !process.env.NEON_DATABASE_URL) {
+      console.error('[VERIFY-OTP] DATABASE_URL not configured');
+      return NextResponse.json({ 
+        error: 'Server configuration error. Please contact support.' 
+      }, { status: 500 });
+    }
+    
     const body = await request.json();
     const { email, code } = body;
 
@@ -27,7 +40,9 @@ export async function POST(request: NextRequest) {
     
     if (!db) {
       console.error('[VERIFY-OTP] Failed to get database connection');
-      return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
+      return NextResponse.json({ 
+        error: 'Database connection failed. Please check server configuration.' 
+      }, { status: 500 });
     }
 
     const helpers = new DbHelpers(db);

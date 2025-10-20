@@ -4,10 +4,23 @@ import { DbHelpers, dateToTimestamp, timestampToDate, boolToInt, intToBool, pars
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
+// Force dynamic rendering for Cloudflare Workers
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 // This endpoint creates a session after OTP verification
 export async function POST(request: NextRequest) {
   try {
     console.log('[OTP-SESSION] Request received');
+    
+    // Check for required environment variables
+    if (!process.env.DATABASE_URL && !process.env.NEON_DATABASE_URL) {
+      console.error('[OTP-SESSION] DATABASE_URL not configured');
+      return NextResponse.json({ 
+        error: 'Server configuration error. Please contact support.' 
+      }, { status: 500 });
+    }
+    
     const body = await request.json();
     const { email, userId } = body;
 
@@ -22,7 +35,9 @@ export async function POST(request: NextRequest) {
     const db = getDatabase();
     if (!db) {
       console.error('[OTP-SESSION] Failed to get database connection');
-      return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
+      return NextResponse.json({ 
+        error: 'Database connection failed. Please check server configuration.' 
+      }, { status: 500 });
     }
 
     console.log('[OTP-SESSION] Creating database helpers');
