@@ -95,19 +95,13 @@ class NoopDatabase implements Database {
   }
 }
 
-let cachedDb: Database | null = null;
-
 // Get database instance
 export function getDatabase(): Database {
-  if (cachedDb) {
-    return cachedDb;
-  }
 
   // During build time, return no-op database
   if (process.env.BUILDING === 'true' || process.env.BUILDING_FOR_CLOUDFLARE === 'true') {
     console.log('[DB] Build time detected, returning no-op database');
-    cachedDb = new NoopDatabase();
-    return cachedDb;
+    return new NoopDatabase();
   }
 
   // Get Neon connection string from environment
@@ -125,14 +119,13 @@ export function getDatabase(): Database {
   if (!connectionString) {
     console.error('[DB] No Neon database connection string found. Set DATABASE_URL or NEON_DATABASE_URL environment variable.');
     console.error('[DB] Available env vars:', Object.keys(process.env).filter(k => k.includes('DATABASE') || k.includes('NEON')));
-    cachedDb = new NoopDatabase();
-    return cachedDb;
+    return new NoopDatabase();
   }
 
   console.log('[DB] Creating NeonDatabase instance');
-  cachedDb = new NeonDatabase(connectionString);
+  const db = new NeonDatabase(connectionString);
   console.log('[DB] NeonDatabase instance created successfully');
-  return cachedDb;
+  return db;
 }
 
 // Helper to get database from context (for compatibility)
