@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, Suspense, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Plus, MoreHorizontal, ExternalLink, Calendar, User, X, Edit3, Trash2, Trash, GitMerge, AlertCircle, XCircle, Pin, Filter, Layout, Grid3x3, Maximize, Search, Lock, Upload, File, Download, MousePointer2, Link2, StickyNote, Shapes, Type, Hand, GitPullRequest, ZoomIn, ZoomOut } from 'lucide-react';
+import { Plus, MoreHorizontal, ExternalLink, Calendar, User, X, Edit3, Trash2, Trash, GitMerge, AlertCircle, XCircle, Pin, Filter, Layout, Grid3x3, Maximize, Search, Lock, Upload, File, Download, MousePointer2, Link2, StickyNote, Shapes, Type, Hand, GitPullRequest, ZoomIn, ZoomOut, MoveHorizontal, ArrowLeftFromLine, ArrowRightFromLine, ArrowDownFromLine } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Task, Board, type Column, type Connection, type Note, type Label, type Attachment, type Shape, type ShapeType, STATUS_COLORS, getColumnColorClasses, COLUMN_COLORS, LABEL_COLORS } from '@/lib/types';
 
@@ -398,6 +398,8 @@ function NewTaskModal({
   const [projectUsers, setProjectUsers] = useState<Array<{ id: string; name: string; email: string }>>([]);
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
   const [showLabelDropdown, setShowLabelDropdown] = useState(false);
+  const [isMobileAssigneeModalOpen, setIsMobileAssigneeModalOpen] = useState(false);
+  const [isMobileLabelModalOpen, setIsMobileLabelModalOpen] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -491,8 +493,8 @@ function NewTaskModal({
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-[#1a2332] border border-white/10 rounded-lg w-1/2 max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl">
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+      <div className="bg-[#1a2332] border border-white/10 rounded-lg w-full md:w-3/4 lg:w-2/3 xl:w-1/2 max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl">
+        <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-4">
           <h3 className="text-xl font-semibold text-white">
             Add Task to {columnName}
           </h3>
@@ -513,15 +515,21 @@ function NewTaskModal({
           </div>
 
           {/* Assignment / Lock row */}
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col md:flex-row md:items-center gap-4">
             <div className="relative flex-1" ref={assigneeDropdownRef}>
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 Assignees
               </label>
               <button
                 type="button"
-                onClick={() => setShowAssigneeDropdown(!showAssigneeDropdown)}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-left focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                onClick={() => {
+                  if (window.innerWidth < 768) {
+                    setIsMobileAssigneeModalOpen(true);
+                  } else {
+                    setShowAssigneeDropdown(!showAssigneeDropdown);
+                  }
+                }}
+                className="w-full px-3 md:px-4 py-2 md:py-3 text-sm md:text-base bg-white/5 border border-white/10 rounded-lg text-left focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
               >
                 {assignees.length === 0 ? (
                   <span className="text-slate-400">Select assignees...</span>
@@ -532,7 +540,7 @@ function NewTaskModal({
                 )}
               </button>
               {showAssigneeDropdown && (
-                <div className="absolute z-10 w-full mt-1 bg-[#1a2332] border border-white/10 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                <div className="hidden md:block absolute z-10 w-full mt-1 bg-[#1a2332] border border-white/10 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                   {projectUsers.length === 0 ? (
                     <div className="px-3 py-2 text-sm text-slate-400">No users in this project</div>
                   ) : (
@@ -573,7 +581,7 @@ function NewTaskModal({
           </div>
 
           {/* Column / Label / Attachments row */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 Column
@@ -582,7 +590,7 @@ function NewTaskModal({
                 type="text"
                 value={columnName}
                 disabled
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-slate-400 cursor-not-allowed"
+                className="w-full px-3 md:px-4 py-2 md:py-3 text-sm md:text-base bg-white/5 border border-white/10 rounded-lg text-slate-400 cursor-not-allowed"
               />
             </div>
             <div className="relative" ref={labelDropdownRef}>
@@ -591,8 +599,14 @@ function NewTaskModal({
               </label>
               <button
                 type="button"
-                onClick={() => setShowLabelDropdown(!showLabelDropdown)}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-left focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                onClick={() => {
+                  if (window.innerWidth < 768) {
+                    setIsMobileLabelModalOpen(true);
+                  } else {
+                    setShowLabelDropdown(!showLabelDropdown);
+                  }
+                }}
+                className="w-full px-3 md:px-4 py-2 md:py-3 text-sm md:text-base bg-white/5 border border-white/10 rounded-lg text-left focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
               >
                 {selectedLabels.length === 0 ? (
                   <span className="text-slate-400">Select labels...</span>
@@ -617,7 +631,7 @@ function NewTaskModal({
                 )}
               </button>
               {showLabelDropdown && (
-                <div className="absolute z-10 w-full mt-1 bg-[#1a2332] border border-white/10 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                <div className="hidden md:block absolute z-10 w-full mt-1 bg-[#1a2332] border border-white/10 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                   {boardLabels.length === 0 ? (
                     <div className="px-3 py-2 text-sm text-slate-400">No labels available</div>
                   ) : (
@@ -659,7 +673,7 @@ function NewTaskModal({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-slate-300 hover:bg-white/10 transition-colors text-sm flex items-center justify-center gap-2"
+                className="w-full px-3 md:px-4 py-2 md:py-3 text-sm md:text-base bg-white/5 border border-white/10 rounded-lg text-slate-300 hover:bg-white/10 transition-colors flex items-center justify-center gap-2"
               >
                 <Upload className="w-4 h-4" />
                 Upload files
@@ -759,6 +773,98 @@ function NewTaskModal({
           </div>
         </form>
       </div>
+
+      {/* Mobile Assignee Selector Modal */}
+      {isMobileAssigneeModalOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-50 md:hidden"
+          onClick={() => setIsMobileAssigneeModalOpen(false)}
+        >
+          <div 
+            className="fixed bottom-0 left-0 right-0 bg-[#1a2332] rounded-t-2xl shadow-2xl max-h-[70vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-[#1a2332] border-b border-white/10 px-4 py-3 flex items-center justify-between rounded-t-2xl">
+              <h3 className="text-lg font-semibold text-white">Select Assignees</h3>
+              <button
+                onClick={() => setIsMobileAssigneeModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-2">
+              {projectUsers.length === 0 ? (
+                <div className="text-center py-8 text-slate-400">No users in this project</div>
+              ) : (
+                projectUsers.map(user => (
+                  <label key={user.id} className="flex items-center px-4 py-3 bg-white/5 rounded-lg hover:bg-white/10 cursor-pointer transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={assignees.includes(user.id)}
+                      onChange={() => toggleAssignee(user.id)}
+                      className="mr-3 w-5 h-5"
+                    />
+                    <div className="flex-1">
+                      <div className="text-base font-medium text-white">{user.name}</div>
+                      <div className="text-sm text-slate-400">{user.email}</div>
+                    </div>
+                  </label>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Label Selector Modal */}
+      {isMobileLabelModalOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-50 md:hidden"
+          onClick={() => setIsMobileLabelModalOpen(false)}
+        >
+          <div 
+            className="fixed bottom-0 left-0 right-0 bg-[#1a2332] rounded-t-2xl shadow-2xl max-h-[70vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-[#1a2332] border-b border-white/10 px-4 py-3 flex items-center justify-between rounded-t-2xl">
+              <h3 className="text-lg font-semibold text-white">Select Labels</h3>
+              <button
+                onClick={() => setIsMobileLabelModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-2">
+              {boardLabels.length === 0 ? (
+                <div className="text-center py-8 text-slate-400">No labels available</div>
+              ) : (
+                boardLabels.map(label => {
+                  const isWhite = label.color === '#ffffff' || label.color.toLowerCase() === '#fff';
+                  const textColor = isWhite ? 'text-black' : 'text-white';
+                  return (
+                    <label key={label.id} className="flex items-center px-4 py-3 bg-white/5 rounded-lg hover:bg-white/10 cursor-pointer transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={selectedLabels.includes(label.id)}
+                        onChange={() => toggleLabel(label.id)}
+                        className="mr-3 w-5 h-5"
+                      />
+                      <span
+                        className={`inline-flex items-center px-3 py-1 rounded text-sm font-medium ${textColor}`}
+                        style={{ backgroundColor: label.color }}
+                      >
+                        {label.name}
+                      </span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -968,6 +1074,16 @@ function PlannerBoard() {
   // View mode and filter state
   const [viewMode, setViewMode] = useState<'free-form' | 'traditional' | 'grid'>('free-form');
   const [toolbarMode, setToolbarMode] = useState<'normal' | 'connect' | 'note' | 'shape' | 'pan'>('normal');
+  const [toolbarPosition, setToolbarPosition] = useState<'left' | 'right' | 'bottom'>(() => {
+    // Load from localStorage on mount
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('plannerToolbarPosition');
+      if (saved === 'left' || saved === 'right' || saved === 'bottom') {
+        return saved;
+      }
+    }
+    return 'right';
+  });
   const [filterSearch, setFilterSearch] = useState('');
   const [filterPRNumber, setFilterPRNumber] = useState('');
   const [filterLabels, setFilterLabels] = useState<string[]>([]);
@@ -979,6 +1095,9 @@ function PlannerBoard() {
   // Labels state
   const [labels, setLabels] = useState<Label[]>([]);
   const [isLabelModalOpen, setIsLabelModalOpen] = useState(false);
+
+  // Mobile board selector modal
+  const [isMobileBoardSelectorOpen, setIsMobileBoardSelectorOpen] = useState(false);
 
   // Track DOM rects of each column for accurate side anchors
   const columnRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -1058,6 +1177,13 @@ function PlannerBoard() {
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Persist toolbar position to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('plannerToolbarPosition', toolbarPosition);
+    }
+  }, [toolbarPosition]);
 
   // Revert a pending move back to its original column
   const revertPendingMove = async () => {
@@ -2691,9 +2817,9 @@ function PlannerBoard() {
   return (
     <div className="min-h-screen gh-hero-gradient">
       <div className="sticky top-24 bg-[#1a2332]/95 backdrop-blur-sm border-b border-white/10 z-10">
-        <div className="w-full px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
+        <div className="w-full px-4 md:px-6 py-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="hidden md:block">
               <h1 className="text-3xl font-bold text-white">
                 {project ? project.name : 'Project Planner'}
               </h1>
@@ -2703,7 +2829,7 @@ function PlannerBoard() {
                 </p>
               )}
             </div>
-            <div className="flex items-center gap-3 relative">
+            <div className="flex flex-wrap items-center gap-2 md:gap-3 relative">
               <button 
                 onClick={() => {
                   const boardName = prompt('Enter board name:');
@@ -2711,15 +2837,25 @@ function PlannerBoard() {
                     createBoard(boardName.trim());
                   }
                 }}
-                className="gh-cta-button px-5 py-2 rounded-lg text-white font-semibold"
+                className="gh-cta-button px-3 md:px-5 py-1.5 md:py-2 rounded-lg text-white font-semibold text-sm md:text-base"
               >
                 New Board
               </button>
               <div className="flex items-center gap-2">
+                {/* Mobile: Button to open board selector modal */}
+                <button
+                  onClick={() => setIsMobileBoardSelectorOpen(true)}
+                  className="md:hidden px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-orange-500 transition-colors flex items-center gap-2"
+                >
+                  <Layout className="w-4 h-4" />
+                  <span className="truncate max-w-[120px]">{boards.find(b => b.id === selectedBoard)?.name || 'Select Board'}</span>
+                </button>
+                
+                {/* Desktop: Dropdown selector */}
                 <select
                   value={selectedBoard}
                   onChange={(e) => setSelectedBoard(e.target.value)}
-                  className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                  className="hidden md:block px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-base focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
                 >
                   {boards.map(board => (
                     <option key={board.id} value={board.id} className="bg-[#1a2332]">
@@ -2770,18 +2906,20 @@ function PlannerBoard() {
               {/* Filter Toggle Button */}
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className={`px-5 py-2 rounded-lg font-semibold ${showFilters ? 'gh-cta-button text-white' : 'gh-cta-button-secondary bg-transparent'}`}
+                className={`px-3 md:px-5 py-1.5 md:py-2 rounded-lg font-semibold text-sm md:text-base ${showFilters ? 'gh-cta-button text-white' : 'gh-cta-button-secondary bg-transparent'}`}
                 title="Toggle Filters"
               >
-                <Filter className="w-4 h-4 inline mr-2" />
-                Filters
+                <Filter className="w-4 h-4 inline mr-1 md:mr-2" />
+                <span className="hidden sm:inline">Filters</span>
               </button>
 
               <button
                 onClick={() => setIsLabelModalOpen(true)}
-                className="gh-cta-button-secondary px-5 py-2 rounded-lg font-semibold bg-transparent"
+                className="gh-cta-button-secondary px-3 md:px-5 py-1.5 md:py-2 rounded-lg font-semibold text-sm md:text-base bg-transparent"
+                title="Manage Labels"
               >
-                Manage Labels
+                <span className="hidden sm:inline">Manage Labels</span>
+                <span className="sm:hidden">Labels</span>
               </button>
             </div>
           </div>
@@ -3768,12 +3906,24 @@ function PlannerBoard() {
               </div>
 
               {/* Floating Toolbar - Only in free-form mode */}
-              <div className="fixed right-6 top-1/2 -translate-y-1/2 z-50">
-                <div className="bg-[#1a2332] border border-white/10 rounded-lg shadow-2xl p-2 flex flex-col gap-2 max-h-[80vh] overflow-y-auto">
+              <div className={`fixed z-50 ${
+                // Mobile: Always horizontal at bottom with proper width constraints
+                'max-md:left-2 max-md:right-2 max-md:bottom-4 max-md:top-auto max-md:translate-x-0 max-md:translate-y-0 ' +
+                // Desktop: Based on toolbarPosition
+                (toolbarPosition === 'left' ? 'md:left-6 md:top-1/2 md:-translate-y-1/2' :
+                 toolbarPosition === 'right' ? 'md:right-6 md:top-1/2 md:-translate-y-1/2' :
+                 'md:left-1/2 md:-translate-x-1/2 md:bottom-6')
+              }`}>
+                <div className={`bg-[#1a2332] border border-white/10 rounded-lg shadow-2xl p-2 gap-2 ${
+                  // Mobile: Always horizontal (row) with horizontal scrolling and max-height
+                  'max-md:flex max-md:flex-row max-md:overflow-x-auto max-md:overflow-y-hidden max-md:max-h-[70px] max-md:items-center ' +
+                  // Desktop: Bottom = horizontal (row), Left/Right = vertical (column)
+                  (toolbarPosition === 'bottom' ? 'md:flex md:flex-row md:overflow-x-auto md:max-h-[80vh]' : 'md:flex md:flex-col md:max-h-[80vh] md:overflow-y-auto')
+                }`}>
                   {/* Color palette - shown when in note mode and NO note is selected */}
                   {toolbarMode === 'note' && !selectedNoteId && (
                     <>
-                      <div className="flex flex-col gap-2 pb-2 border-b border-white/10">
+                      <div className={`flex gap-2 ${toolbarPosition === 'bottom' ? 'flex-row border-r pr-2' : 'flex-col border-b pb-2'} border-white/10`}>
                         {[
                           { color: '#fb923c', name: 'orange' },
                           { color: '#60a5fa', name: 'blue' },
@@ -3785,7 +3935,7 @@ function PlannerBoard() {
                           <button
                             key={color}
                             onClick={() => createNote(name)}
-                            className="w-10 h-10 rounded border-2 border-white/20 hover:border-white/50 transition-colors"
+                            className="w-10 h-10 rounded border-2 border-white/20 hover:border-white/50 transition-colors flex-shrink-0"
                             style={{ backgroundColor: color }}
                             title={`Add ${name} note`}
                           />
@@ -3796,7 +3946,7 @@ function PlannerBoard() {
 
                   {/* Shape palette - shown when in shape mode (non-text) */}
                   {toolbarMode === 'shape' && selectedShapeType !== 'text' && !selectedShapeId && (
-                    <div className="flex flex-col gap-2 pb-2 border-b border-white/10 min-w-[200px]">
+                    <div className={`flex flex-col gap-2 min-w-[200px] flex-shrink-0 ${toolbarPosition === 'bottom' ? 'border-r pr-2' : 'border-b pb-2'} border-white/10`}>
                       <div className="text-xs text-slate-400 px-1">Shape Type</div>
                       <div className="grid grid-cols-3 gap-1">
                         {[
@@ -3869,7 +4019,7 @@ function PlannerBoard() {
 
                   {/* Text defaults palette - shown when Text tool is active and nothing selected */}
                   {toolbarMode === 'shape' && selectedShapeType === 'text' && !selectedShapeId && (
-                    <div className="flex flex-col gap-2 pb-2 border-b border-white/10 min-w-[220px]">
+                    <div className={`flex flex-col gap-2 min-w-[220px] flex-shrink-0 ${toolbarPosition === 'bottom' ? 'border-r pr-2' : 'border-b pb-2'} border-white/10`}>
                       <div className="text-xs text-slate-400 px-1">New Text Defaults</div>
                       
                       <div className="text-xs text-slate-400 px-1 mt-1">Text Color</div>
@@ -3937,7 +4087,7 @@ function PlannerBoard() {
                     // Show text formatting options for text shapes
                     if (shape.type === 'text') {
                       return (
-                        <div className="flex flex-col gap-2 pb-2 border-b border-white/10 min-w-[200px]">
+                        <div className={`flex flex-col gap-2 min-w-[200px] flex-shrink-0 ${toolbarPosition === 'bottom' ? 'border-r pr-2' : 'border-b pb-2'} border-white/10`}>
                           <div className="text-xs text-slate-400 px-1">Edit Text</div>
                           
                           <div className="text-xs text-slate-400 px-1 mt-2">Text Color</div>
@@ -3999,7 +4149,7 @@ function PlannerBoard() {
                     
                     // Show fill/border options for regular shapes
                     return (
-                      <div className="flex flex-col gap-2 pb-2 border-b border-white/10 min-w-[200px]">
+                      <div className={`flex flex-col gap-2 min-w-[200px] flex-shrink-0 ${toolbarPosition === 'bottom' ? 'border-r pr-2' : 'border-b pb-2'} border-white/10`}>
                         <div className="text-xs text-slate-400 px-1">Edit Shape</div>
                         
                         <div className="text-xs text-slate-400 px-1 mt-2">Fill Color</div>
@@ -4050,7 +4200,7 @@ function PlannerBoard() {
                     const conn = connections.find(c => c.id === selectedConnectionId);
                     if (!conn) return null;
                     return (
-                      <div className="flex flex-col gap-2 pb-2 border-b border-white/10 min-w-[200px]">
+                      <div className={`flex flex-col gap-2 min-w-[200px] flex-shrink-0 ${toolbarPosition === 'bottom' ? 'border-r pr-2' : 'border-b pb-2'} border-white/10`}>
                         <div className="text-xs text-slate-400 px-1">Connection Style</div>
                         {/* Arrow colors */}
                         <div className="grid grid-cols-4 gap-1">
@@ -4167,7 +4317,7 @@ function PlannerBoard() {
                       { name: 'yellow', hex: '#fde047' }
                     ];
                     return (
-                      <div className="flex flex-col gap-2 pb-2 border-b border-white/10 min-w-[200px]">
+                      <div className={`flex flex-col gap-2 min-w-[200px] flex-shrink-0 ${toolbarPosition === 'bottom' ? 'border-r pr-2' : 'border-b pb-2'} border-white/10`}>
                         <div className="text-xs text-slate-400 px-1">Note Style</div>
                         
                         {/* Font Family */}
@@ -4252,8 +4402,26 @@ function PlannerBoard() {
                     );
                   })()}
 
+                  {/* Toolbar Position Control - Hidden on mobile since it's always at bottom */}
+                  <div className={`hidden md:flex gap-2 ${toolbarPosition === 'bottom' ? 'flex-row border-r pr-2' : 'flex-col border-b pb-2'} border-white/10`}>
+                    <button
+                      onClick={() => {
+                        const positions: Array<'left' | 'right' | 'bottom'> = ['left', 'right', 'bottom'];
+                        const currentIndex = positions.indexOf(toolbarPosition);
+                        const nextIndex = (currentIndex + 1) % positions.length;
+                        setToolbarPosition(positions[nextIndex]);
+                      }}
+                      className="p-2.5 rounded transition-colors text-slate-300 hover:bg-white/10 border-2 border-transparent hover:text-white"
+                      title={`Move toolbar (currently: ${toolbarPosition})`}
+                    >
+                      {toolbarPosition === 'left' && <ArrowLeftFromLine className="w-6 h-6" />}
+                      {toolbarPosition === 'right' && <ArrowRightFromLine className="w-6 h-6" />}
+                      {toolbarPosition === 'bottom' && <ArrowDownFromLine className="w-6 h-6" />}
+                    </button>
+                  </div>
+
                   {/* Mode buttons */}
-                  <div className="flex flex-col gap-2">
+                  <div className={`gap-2 flex-shrink-0 ${toolbarPosition === 'bottom' ? 'flex flex-row flex-nowrap' : 'max-md:flex max-md:flex-row max-md:flex-nowrap md:flex md:flex-col'}`}>
                     {/* Normal Mode */}
                     <button
                       onClick={() => {
@@ -4588,6 +4756,47 @@ function PlannerBoard() {
         onCreateLabel={createLabel}
         onDeleteLabel={deleteLabel}
       />
+
+      {/* Mobile Board Selector Modal */}
+      {isMobileBoardSelectorOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-50 md:hidden"
+          onClick={() => setIsMobileBoardSelectorOpen(false)}
+        >
+          <div 
+            className="fixed bottom-0 left-0 right-0 bg-[#1a2332] rounded-t-2xl shadow-2xl max-h-[70vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-[#1a2332] border-b border-white/10 px-4 py-3 flex items-center justify-between rounded-t-2xl">
+              <h3 className="text-lg font-semibold text-white">Select Board</h3>
+              <button
+                onClick={() => setIsMobileBoardSelectorOpen(false)}
+                className="p-1 text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-2">
+              {boards.map(board => (
+                <button
+                  key={board.id}
+                  onClick={() => {
+                    setSelectedBoard(board.id);
+                    setIsMobileBoardSelectorOpen(false);
+                  }}
+                  className={`w-full px-4 py-3 rounded-lg text-left transition-colors ${
+                    selectedBoard === board.id 
+                      ? 'bg-orange-500 text-white font-semibold' 
+                      : 'bg-white/5 text-slate-300 hover:bg-white/10'
+                  }`}
+                >
+                  {board.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -4852,8 +5061,13 @@ function EditTaskModal({
   const [projectUsers, setProjectUsers] = useState<Array<{ id: string; name: string; email: string }>>([]);
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
   const [showLabelDropdown, setShowLabelDropdown] = useState(false);
+  const [isMobileAssigneeModalOpen, setIsMobileAssigneeModalOpen] = useState(false);
+  const [isMobileLabelModalOpen, setIsMobileLabelModalOpen] = useState(false);
+  const [isMobileColumnModalOpen, setIsMobileColumnModalOpen] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const assigneeDropdownRef = useRef<HTMLDivElement>(null);
   const labelDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -4915,6 +5129,16 @@ function EditTaskModal({
     );
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setSelectedFiles(prev => [...prev, ...Array.from(e.target.files!)]);
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
@@ -4940,8 +5164,8 @@ function EditTaskModal({
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-[#1a2332] border border-white/10 rounded-lg w-1/2 max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl">
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+      <div className="bg-[#1a2332] border border-white/10 rounded-lg w-full md:w-3/4 lg:w-2/3 xl:w-1/2 max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl">
+        <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-4">
           <h3 className="text-xl font-semibold text-white">
             Edit Task
           </h3>
@@ -4962,15 +5186,21 @@ function EditTaskModal({
           </div>
 
           {/* Assignment / Lock row */}
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col md:flex-row md:items-center gap-4">
             <div className="relative flex-1" ref={assigneeDropdownRef}>
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 Assignees
               </label>
               <button
                 type="button"
-                onClick={() => setShowAssigneeDropdown(!showAssigneeDropdown)}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-left focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                onClick={() => {
+                  if (window.innerWidth < 768) {
+                    setIsMobileAssigneeModalOpen(true);
+                  } else {
+                    setShowAssigneeDropdown(!showAssigneeDropdown);
+                  }
+                }}
+                className="w-full px-3 md:px-4 py-2 md:py-3 text-sm md:text-base bg-white/5 border border-white/10 rounded-lg text-left focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
               >
                 {assignees.length === 0 ? (
                   <span className="text-slate-400">Select assignees...</span>
@@ -4981,7 +5211,7 @@ function EditTaskModal({
                 )}
               </button>
               {showAssigneeDropdown && (
-                <div className="absolute z-10 w-full mt-1 bg-[#1a2332] border border-white/10 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                <div className="hidden md:block absolute z-10 w-full mt-1 bg-[#1a2332] border border-white/10 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                   {projectUsers.length === 0 ? (
                     <div className="px-3 py-2 text-sm text-slate-400">No users in this project</div>
                   ) : (
@@ -5003,7 +5233,7 @@ function EditTaskModal({
                 </div>
               )}
             </div>
-            <div className="flex items-end pb-3">
+            <div className="flex items-end md:pb-3">
               <label 
                 className="inline-flex items-center gap-2 text-sm text-slate-300 cursor-pointer hover:text-white transition-colors"
                 title="Locking task prevents other users who are not the creator or assignees from making edits to task"
@@ -5022,15 +5252,24 @@ function EditTaskModal({
           </div>
 
           {/* Column / Label / Attachments row */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 Column
               </label>
+              {/* Mobile: Button to open column selector modal */}
+              <button
+                type="button"
+                onClick={() => setIsMobileColumnModalOpen(true)}
+                className="md:hidden w-full px-3 py-2 text-sm bg-white/5 border border-white/10 rounded-lg text-white text-left focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+              >
+                {columns.find(c => c.id === columnId)?.name || 'Select column...'}
+              </button>
+              {/* Desktop: Dropdown selector */}
               <select
                 value={columnId}
                 onChange={(e) => setColumnId(e.target.value)}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                className="hidden md:block w-full px-4 py-3 text-base bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
                 required
               >
                 {columns.map((column) => (
@@ -5046,8 +5285,14 @@ function EditTaskModal({
               </label>
               <button
                 type="button"
-                onClick={() => setShowLabelDropdown(!showLabelDropdown)}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-left focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                onClick={() => {
+                  if (window.innerWidth < 768) {
+                    setIsMobileLabelModalOpen(true);
+                  } else {
+                    setShowLabelDropdown(!showLabelDropdown);
+                  }
+                }}
+                className="w-full px-3 md:px-4 py-2 md:py-3 text-sm md:text-base bg-white/5 border border-white/10 rounded-lg text-left focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
               >
                 {selectedLabels.length === 0 ? (
                   <span className="text-slate-400">Select labels...</span>
@@ -5072,7 +5317,7 @@ function EditTaskModal({
                 )}
               </button>
               {showLabelDropdown && (
-                <div className="absolute z-10 w-full mt-1 bg-[#1a2332] border border-white/10 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                <div className="hidden md:block absolute z-10 w-full mt-1 bg-[#1a2332] border border-white/10 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                   {boardLabels.length === 0 ? (
                     <div className="px-3 py-2 text-sm text-slate-400">No labels available</div>
                   ) : (
@@ -5104,14 +5349,46 @@ function EditTaskModal({
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 Attachments
               </label>
-              <div className="px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-slate-400 text-sm">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full px-3 md:px-4 py-2 md:py-3 text-sm md:text-base bg-white/5 border border-white/10 rounded-lg text-slate-300 hover:bg-white/10 transition-colors flex items-center justify-center gap-2"
+              >
+                <Upload className="w-4 h-4" />
                 Upload files
-              </div>
+              </button>
+              {selectedFiles.length > 0 && (
+                <div className="mt-2 space-y-2">
+                  {selectedFiles.map((file, index) => (
+                    <div key={index} className="flex items-center justify-between px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <File className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                        <span className="text-white truncate">{file.name}</span>
+                        <span className="text-slate-400 text-xs flex-shrink-0">({(file.size / 1024).toFixed(1)} KB)</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeFile(index)}
+                        className="text-red-400 hover:text-red-300 ml-2 flex-shrink-0"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
           {/* Start date / End date row */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 Start date (optional)
@@ -5195,6 +5472,140 @@ function EditTaskModal({
           </div>
         </form>
       </div>
+
+      {/* Mobile Assignee Selector Modal */}
+      {isMobileAssigneeModalOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-50 md:hidden"
+          onClick={() => setIsMobileAssigneeModalOpen(false)}
+        >
+          <div 
+            className="fixed bottom-0 left-0 right-0 bg-[#1a2332] rounded-t-2xl shadow-2xl max-h-[70vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-[#1a2332] border-b border-white/10 px-4 py-3 flex items-center justify-between rounded-t-2xl">
+              <h3 className="text-lg font-semibold text-white">Select Assignees</h3>
+              <button
+                onClick={() => setIsMobileAssigneeModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-2">
+              {projectUsers.length === 0 ? (
+                <div className="text-center py-8 text-slate-400">No users in this project</div>
+              ) : (
+                projectUsers.map(user => (
+                  <label key={user.id} className="flex items-center px-4 py-3 bg-white/5 rounded-lg hover:bg-white/10 cursor-pointer transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={assignees.includes(user.id)}
+                      onChange={() => toggleAssignee(user.id)}
+                      className="mr-3 w-5 h-5"
+                    />
+                    <div className="flex-1">
+                      <div className="text-base font-medium text-white">{user.name}</div>
+                      <div className="text-sm text-slate-400">{user.email}</div>
+                    </div>
+                  </label>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Label Selector Modal */}
+      {isMobileLabelModalOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-50 md:hidden"
+          onClick={() => setIsMobileLabelModalOpen(false)}
+        >
+          <div 
+            className="fixed bottom-0 left-0 right-0 bg-[#1a2332] rounded-t-2xl shadow-2xl max-h-[70vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-[#1a2332] border-b border-white/10 px-4 py-3 flex items-center justify-between rounded-t-2xl">
+              <h3 className="text-lg font-semibold text-white">Select Labels</h3>
+              <button
+                onClick={() => setIsMobileLabelModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-2">
+              {boardLabels.length === 0 ? (
+                <div className="text-center py-8 text-slate-400">No labels available</div>
+              ) : (
+                boardLabels.map(label => {
+                  const isWhite = label.color === '#ffffff' || label.color.toLowerCase() === '#fff';
+                  const textColor = isWhite ? 'text-black' : 'text-white';
+                  return (
+                    <label key={label.id} className="flex items-center px-4 py-3 bg-white/5 rounded-lg hover:bg-white/10 cursor-pointer transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={selectedLabels.includes(label.id)}
+                        onChange={() => toggleLabel(label.id)}
+                        className="mr-3 w-5 h-5"
+                      />
+                      <span
+                        className={`inline-flex items-center px-3 py-1 rounded text-sm font-medium ${textColor}`}
+                        style={{ backgroundColor: label.color }}
+                      >
+                        {label.name}
+                      </span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Column Selector Modal */}
+      {isMobileColumnModalOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-50 md:hidden"
+          onClick={() => setIsMobileColumnModalOpen(false)}
+        >
+          <div 
+            className="fixed bottom-0 left-0 right-0 bg-[#1a2332] rounded-t-2xl shadow-2xl max-h-[70vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-[#1a2332] border-b border-white/10 px-4 py-3 flex items-center justify-between rounded-t-2xl">
+              <h3 className="text-lg font-semibold text-white">Select Column</h3>
+              <button
+                onClick={() => setIsMobileColumnModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-2">
+              {columns.map(column => (
+                <button
+                  key={column.id}
+                  type="button"
+                  onClick={() => {
+                    setColumnId(column.id);
+                    setIsMobileColumnModalOpen(false);
+                  }}
+                  className={`w-full px-4 py-3 rounded-lg text-left transition-colors ${
+                    columnId === column.id 
+                      ? 'bg-orange-500 text-white font-semibold' 
+                      : 'bg-white/5 text-slate-300 hover:bg-white/10'
+                  }`}
+                >
+                  {column.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
