@@ -227,8 +227,8 @@ export default function Navigation() {
             </div>
             
             
-            {/* Enterprise Dropdown next to logo - Hidden on planner page */}
-            {(session as any)?.userId && enterprises.length > 0 && pathname !== '/planner' && (
+            {/* Enterprise Dropdown next to logo - Hidden on planner/task pages */}
+            {(session as any)?.userId && enterprises.length > 0 && !pathname?.startsWith('/planner') && !pathname?.startsWith('/task') && (
               <>
                 <span className="text-xl sm:text-2xl md:text-3xl font-bold text-white mx-2 sm:mx-3">/</span>
                 <div className="relative" ref={enterpriseMenuRef}>
@@ -301,7 +301,7 @@ export default function Navigation() {
                         </div>
                       </div>
                     ) : (
-                      <div className="absolute left-0 mt-2 w-80 bg-[#1a2332] border border-white/10 rounded-md shadow-xl py-2 z-[200]">
+                      <div className="absolute left-0 mt-2 w-80 max-w-none bg-[#1a2332] border border-white/10 rounded-md shadow-xl py-2 z-[200]">
                         <div className="px-4 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
                           Enterprises
                         </div>
@@ -399,7 +399,7 @@ export default function Navigation() {
                     </button>
 
                     {showCompanies && (
-                      <div className="absolute right-0 mt-3 w-120 bg-[#1a2332] rounded-md shadow-lg border border-white/10 py-2 z-[200] max-h-144 overflow-y-auto">
+                      <div className="absolute right-0 mt-3 w-120 max-w-none bg-[#1a2332] rounded-md shadow-lg border border-white/10 py-2 z-[200] max-h-144 overflow-y-auto">
                         {loading ? (
                           <div className="px-6 py-3 text-xl text-slate-400">Loading...</div>
                         ) : companies.length > 0 ? (
@@ -479,7 +479,7 @@ export default function Navigation() {
                   </button>
 
                   {showUserMenu && (
-                    <div className="absolute right-0 mt-3 w-72 bg-[#1a2332] rounded-md shadow-lg border border-white/10 py-2 z-[200]">
+                    <div className="absolute right-0 mt-3 w-72 max-w-none bg-[#1a2332] rounded-md shadow-lg border border-white/10 py-2 z-[200]">
                       <a
                         href="/settings"
                         onClick={() => setShowUserMenu(false)}
