@@ -12,6 +12,7 @@
     "migrate": "tsx scripts/run-migration.ts",
     "migrate:github-oauth": "node scripts/run-github-oauth-migration.js",
     "migrate:members": "tsx scripts/run-member-migration.ts",
+    "cloudflare:build": "opennextjs-cloudflare build",
     "pages:build": "./build.sh",
     "pages:dev": "wrangler pages dev .open-next --compatibility-flag=nodejs_compat",
     "pages:deploy": "npm run pages:build && wrangler pages deploy .open-next"
