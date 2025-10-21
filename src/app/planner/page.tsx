@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, Suspense, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Plus, MoreHorizontal, ExternalLink, Calendar, User, X, Edit3, Trash2, Trash, GitMerge, AlertCircle, XCircle, Pin, Filter, Layout, Grid3x3, Maximize, Search, Lock, Upload, File, Download, MousePointer2, Link2, StickyNote, Shapes, Type, Hand, GitPullRequest } from 'lucide-react';
+import { Plus, MoreHorizontal, ExternalLink, Calendar, User, X, Edit3, Trash2, Trash, GitMerge, AlertCircle, XCircle, Pin, Filter, Layout, Grid3x3, Maximize, Search, Lock, Upload, File, Download, MousePointer2, Link2, StickyNote, Shapes, Type, Hand, GitPullRequest, ZoomIn, ZoomOut } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Task, Board, type Column, type Connection, type Note, type Label, type Attachment, type Shape, type ShapeType, STATUS_COLORS, getColumnColorClasses, COLUMN_COLORS, LABEL_COLORS } from '@/lib/types';
 
@@ -944,6 +944,10 @@ function PlannerBoard() {
   const [isPanning, setIsPanning] = useState(false);
   const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [panStart, setPanStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  
+  // Board zoom state
+  const [zoomLevel, setZoomLevel] = useState<number>(1.0);
+  const [isZoomExpanded, setIsZoomExpanded] = useState<boolean>(false);
 
   // Shapes state
   const [shapes, setShapes] = useState<Shape[]>([]);
@@ -2991,8 +2995,18 @@ function PlannerBoard() {
                    style={{ 
                      width: 4800, 
                      height: 2800,
-                     transform: `translate(${panOffset.x}px, ${panOffset.y}px)`,
+                     transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomLevel})`,
+                     transformOrigin: '0 0',
                      cursor: toolbarMode === 'pan' ? 'grab' : isPanning ? 'grabbing' : undefined,
+                   }}  
+                   onWheel={(e) => {
+                     // Zoom with mouse wheel (Ctrl/Cmd + wheel)
+                     if (e.ctrlKey || e.metaKey) {
+                       e.preventDefault();
+                       const delta = -e.deltaY * 0.001;
+                       const newZoom = Math.min(Math.max(0.1, zoomLevel + delta), 3.0);
+                       setZoomLevel(newZoom);
+                     }
                    }}
                    onPointerDown={(e) => {
                      // Start panning with Ctrl/Cmd + left click OR if in pan mode
@@ -4280,6 +4294,50 @@ function PlannerBoard() {
                     >
                       <Hand className="w-6 h-6" />
                     </button>
+
+                    {/* Zoom Controls */}
+                    {!isZoomExpanded ? (
+                      <button
+                        onClick={() => setIsZoomExpanded(true)}
+                        className="p-2.5 rounded transition-colors text-slate-300 hover:bg-white/10 border-2 border-transparent hover:text-white ml-1"
+                        title="Zoom (Ctrl/Cmd + Mouse Wheel)"
+                      >
+                        <ZoomIn className="w-6 h-6" />
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-1 px-2 border-l border-white/20 ml-1">
+                        <button
+                          onClick={() => {
+                            const newZoom = Math.max(0.1, zoomLevel - 0.1);
+                            setZoomLevel(newZoom);
+                          }}
+                          className="p-2 rounded transition-colors text-slate-300 hover:bg-white/10 hover:text-white"
+                          title="Zoom Out"
+                        >
+                          <ZoomOut className="w-5 h-5" />
+                        </button>
+                        <span className="text-sm text-slate-300 min-w-[3rem] text-center font-mono">
+                          {Math.round(zoomLevel * 100)}%
+                        </span>
+                        <button
+                          onClick={() => {
+                            const newZoom = Math.min(3.0, zoomLevel + 0.1);
+                            setZoomLevel(newZoom);
+                          }}
+                          className="p-2 rounded transition-colors text-slate-300 hover:bg-white/10 hover:text-white"
+                          title="Zoom In"
+                        >
+                          <ZoomIn className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => setIsZoomExpanded(false)}
+                          className="p-1.5 rounded transition-colors text-slate-400 hover:bg-white/10 hover:text-white"
+                          title="Collapse"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
 
                     {/* Add New Task Button */}
                     <button

@@ -22,10 +22,6 @@ const nextConfig = {
         },
       },
     },
-    // For Cloudflare builds, disable ISR cache
-    ...(isCloudflarePages && {
-      isrMemoryCacheSize: 0,
-    }),
   },
   // Skip collecting page data for API routes during build
   // This prevents database connection errors at build time
