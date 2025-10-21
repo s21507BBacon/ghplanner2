@@ -33,8 +33,8 @@ fi
 
 echo "Converting build for Cloudflare Pages..."
 # Now run OpenNext build to convert for Cloudflare using local installation
-# Use local node_modules to ensure wrangler is available
-./node_modules/.bin/opennextjs-cloudflare build
+# Use npm exec to ensure wrangler is available from local node_modules
+npm exec opennextjs-cloudflare build
 
 echo "Fixing worker structure for Cloudflare Pages..."
 chmod +x fix-worker.sh
