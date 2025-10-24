@@ -1,4 +1,4 @@
-# Gh Planner
+# Gh Planner github 
 
 A comprehensive GitHub PR inspector and project planning tool built with Next.js, featuring real-time PR analysis, CI status monitoring, and Kanban-style task management.
 
