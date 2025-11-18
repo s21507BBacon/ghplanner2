@@ -2,7 +2,7 @@
 
 A comprehensive GitHub PR inspector and project planning tool built with Next.js, featuring real-time PR analysis, CI status monitoring, and Kanban-style task management.
 gg
-## Features
+## Featurest
 
 ### 🔍 GitHub PR Inspector
 - **Comprehensive PR Analysis**: Fetch and display detailed PR information including stats, reviews, and file changes
