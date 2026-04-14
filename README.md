@@ -1,10 +1,10 @@
 # Gh Planner
 
 A comprehensive GitHub PR inspector and project planning tool built with Next.js, featuring real-time PR analysis, CI status monitoring, and Kanban-style task management.
-gg
+ggzz
 ## Featurest
 
-### 🔍 GitHub PR Inspector
+### 🔍 GitHub PR Inspectorx
 - **Comprehensive PR Analysis**: Fetch and display detailed PR information including stats, reviews, and file changes
 - **CI/CD Integration**: Real-time status checks and check runs with direct links to details
 - **File Change Visualization**: View modified files with additions/deletions and direct GitHub blob links
